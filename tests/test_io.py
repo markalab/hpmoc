@@ -1,9 +1,12 @@
 "File read/write tests."
 
 import os
+from pathlib import Path
 import numpy as np
 from astropy.table import Table
 from hpmoc.partial import PartialUniqSkymap
+
+DATA = Path(__file__).absolute().parent/'data'
 
 
 def check_load(mocfits, tablehdf5, strategy='ligo'):
@@ -22,9 +25,8 @@ def check_load(mocfits, tablehdf5, strategy='ligo'):
     fits/fits.gz file as ``mocfits`` and the manually-confirmed good table
     output as ``tablehdf5``. Both of these files must be stored in ``./data``.
     """
-    good = Table.read(os.path.join('data', tablehdf5))
-    check = PartialUniqSkymap.read(os.path.join('data', mocfits),
-                                   strategy=strategy)
+    good = Table.read(DATA/tablehdf5)
+    check = PartialUniqSkymap.read(DATA/mocfits, strategy=strategy)
     checktab = check.to_table()
     assert np.all(good == checktab), "Got unexpected pixel/NUNIQ values."
     assert good.meta == check.meta, "Meta deserialization failure."
