@@ -12,7 +12,7 @@ definitions:
         name: Build and test
         script:
           - pip install flit
-          - flit install --symlink
+          - FLIT_ROOT_INSTALL=1 flit install --symlink
           - py.test --doctest-modules --cov=hpmoc
           - flit build
           - |
