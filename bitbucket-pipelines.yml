@@ -1,0 +1,55 @@
+# This is a sample build configuration for Python.
+# Check our guides at https://confluence.atlassian.com/x/x4UWN for more examples.
+# Only use spaces to indent your .yml configuration.
+# -----
+# You can specify a custom docker image from Docker Hub as your build environment.
+#image: stefco/hpmoc-env:latest
+image: continuumio/miniconda3:latest
+
+definitions: 
+  steps:
+    - step: &build-test
+        name: Build and test
+        script:
+          - pip install flit
+          - flit install --symlink
+          - py.test --doctest-modules --cov=hpmoc
+          - flit build
+          - |
+            cp dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+               dist/hpmoc-latest-py3-none-any.whl
+        artifacts:
+          - dist/*whl
+
+pipelines:
+  default:
+    - step: &build-test
+  tags:
+    v*:
+      - step: &build-test
+      - parallel:
+          #- step:
+          #    name: Upload tagged wheel to Bitbucket
+          #    script:
+          #      - pipe: atlassian/bitbucket-upload-file:0.1.8
+          #        variables:
+          #          BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+          #          BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+          #          FILENAME: dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl
+          - step:
+              name: Upload latest wheel to Bitbucket
+              script:
+                - pipe: atlassian/bitbucket-upload-file:0.1.8
+                  variables:
+                    BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+                    BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+                    FILENAME: dist/hpmoc-latest-py3-none-any.whl
+                    # ACCOUNT: stefancountryman
+                    # REPOSITORY: multimessenger-pipeline
+          - step:
+              name: Build/upload Docker image
+              script:
+                - docker build -t stefco/llama:hpmoc .
+                - docker push stefco/llama:hpmoc
+                - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
+                - docker push stefco/llama:hpmoc-$BITBUCKET_TAG
