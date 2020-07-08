@@ -1,0 +1,16 @@
+[build-system]
+requires = ["flit_core >=2,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.flit.metadata]
+module = "hpmoc"
+author = "Stefan Trklja Countryman"
+author-email = "stefan.countryman@gmail.com"
+home-page = "https://bitbucket.org/stefancountryman/hpmoc"
+requires = ["numpy", "matplotlib", "healpy", "astropy"]
+requires-python = ">=3.6"
+
+[tool.flit.metadata.requires-extra]
+jup = ["jupyter", "ipython"]
+test = ["pytest"]
+dev = ["flit"]
