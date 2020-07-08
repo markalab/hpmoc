@@ -622,19 +622,44 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         We should find that the distance from any pixel to the North pole is
         equal to 90 minus the declination (within some small error):
 
-        >>> from astropy.table import Table
-        >>> skymap = PartialSkymapLvcI3(Table(4+np.arange(12).reshape((-1, 1)),
-        ...                             names=['UNIQ']))
-        >>> skymap.Δθ⃗(32, 90).s⃗ + skymap.dec - 90 < 1e-12
-        array([ True,  True,  True,  True,  True,  True,  True,  True,  True,
-                True,  True,  True])
+        >>> import numpy as np
+        >>> from astropy.units import deg
+        >>> skymap = PartialUniqSkymap(*([4+np.arange(12)]*2))
+        >>> skymap
+        <Table length=12>
+         UNIQ PIXELS
+        int64 int64
+        ----- ------
+            4      4
+            5      5
+            6      6
+            7      7
+            8      8
+            9      9
+           10     10
+           11     11
+           12     12
+           13     13
+           14     14
+           15     15
+        >>> _, dec = skymap.Ω⃗()
+        >>> dec
+        <Quantity [ 41.8103149,  41.8103149,  41.8103149,  41.8103149,   0.       ,
+                     0.       ,   0.       ,   0.       , -41.8103149, -41.8103149,
+                   -41.8103149, -41.8103149] deg>
+        >>> Δθ⃗ = skymap.Δθ⃗(32, 90)
+        >>> Δθ⃗
+        <Quantity [0.84106867, 0.84106867, 0.84106867, 0.84106867, 1.57079633,
+                   1.57079633, 1.57079633, 1.57079633, 2.30052398, 2.30052398,
+                   2.30052398, 2.30052398] rad>
+        >>> np.all(Δθ⃗+dec-90*deg==0)
+        True
 
         Likewise, the distance from any pixel to the South pole should be
         equal to 90 plus the declination:
 
-        >>> skymap.Δθ⃗(359, -90).s⃗ - skymap.dec - 90. < 1e-12
-        array([ True,  True,  True,  True,  True,  True,  True,  True,  True,
-                True,  True,  True])
+        >>> not np.around(skymap.Δθ⃗(359, -90)-dec-90*deg, 15).value.any()
+        True
         """
         return uniq2dangle(self.u⃗, ra, dec, degrees=degrees)
 

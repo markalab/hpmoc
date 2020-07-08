@@ -25,6 +25,7 @@ import binascii
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5
 PIX_READ = 10**5
+OP_CHUNKSIZE = 10**6
 PIXEL_CONSISTENCY_ERROR = 1e-9
 MAX_ORDER = 30
 UINT_RANGES = {(0, 2**(8*2**i)): f'uint{8*2**i}' for i in range(4)}
@@ -114,7 +115,7 @@ def resol2nside(res, coarse=False, degrees=True):
     return 1 << MAX_ORDER - np.searchsorted(r, res, side=side)
 
 
-def nest2dangle(n⃗, nˢ, ra, dec, degrees=True):
+def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     """
     Get the angular distance between the pixels defined in ``n⃗, nˢ`` and the
     point located at ``ra, dec``.
@@ -133,44 +134,102 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True):
         If ``True``, and assumed degrees if ``ra`` and/or ``dec`` are not
         ``astropy.units.Quantity`` instances with angular unit defined. If
         ``False``, assume radians. Ignored if a unit is already specified.
+    in_place : bool, optional
+        If ``True``, store the result in ``n⃗`` to reduce memory usage.
+        Requires ``n⃗.dtype == np.float64``.
 
     Returns
     -------
     Δθ⃗ : astropy.units.Quantity
         Angular distance in radians between each pixel in ``n⃗`` and the point
         at ``ra, dec``.
+
+    Examples
+    --------
+    The 12 base healpix pixels' distances from north pole should all be equal
+    to 90 minus their declinations:
+    >>> import numpy as np
+    >>> import healpy as hp
+    >>> Δθ⃗ = nest2dangle(range(12), 1, 32, 90).to('deg')
+    >>> Δθ⃗
+    <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
+                90.       ,  90.       ,  90.       , 131.8103149, 131.8103149,
+               131.8103149, 131.8103149] deg>
+    >>> np.all(Δθ⃗.value == 90 - hp.pix2ang(1, np.arange(12), nest=True,
+    ...                                    lonlat=True)[1])
+    True
+
+    You can run the same check for larger skymaps, too (though note that
+    precision drops for very nearby pixels due to the O(x²) behavior of cos()
+    for small angles and the fact that a dot-product and arccos are used to
+    compute the result):
+    >>> nside = 2**10
+    >>> nest = np.arange(12*nside**2)
+    >>> np.around(
+    ...     (
+    ...         nest2dangle(nest, nside, 32, 90).to('deg').value
+    ...         - (90 - hp.pix2ang(nside, nest, nest=True, lonlat=True)[1])
+    ...     ),
+    ...     11
+    ... ).ptp()
+    0.0
     """
     import numpy as np
     import healpy as hp
     from astropy.units import rad, deg, Quantity  # pylint: disable=E0611
 
+    n⃗ = np.array(n⃗, copy=False)
+    if in_place and n⃗.dtype != np.float64:
+        raise ValueError("Can't operate in-place on a non-float array: %s" % n⃗)
     Ω = [θ.to(deg).value if isinstance(θ, Quantity) else
          (θ if degrees else np.degrees(θ))
          for θ in (ra, dec)]
-    x, y, z = hp.pix2vec(nˢ, n⃗, nest=True)
     x0, y0, z0 = hp.ang2vec(*Ω, lonlat=True)
-    x *= x0
-    y *= y0
-    z *= z0
-    x += y
-    x += z
-    return Quantity(np.arccos(x, x), rad, copy=False)
+    x, y, z = [np.ndarray((min(len(n⃗), OP_CHUNKSIZE),)) for _ in range(3)]
+    dots = n⃗ if in_place else np.ndarray(n⃗.shape)
+    for i in range(0, len(n⃗), OP_CHUNKSIZE):
+        n⃗ⁱ = n⃗[i:i+OP_CHUNKSIZE].astype(int, copy=False)
+        N = len(n⃗ⁱ)
+        x[:N], y[:N], z[:N] = hp.pix2vec(nˢ, n⃗ⁱ, nest=True)
+        x *= x0
+        y *= y0
+        z *= z0
+        x += y
+        x += z
+        dots[i:i+N] = x[:N]
+    return Quantity(np.arccos(dots, out=dots), rad, copy=False)
 
 
 def uniq2dangle(u⃗, ra, dec, degrees=True):
     """
     Like ``nest2dangle``, but takes HEALPix NUNIQ indices as input ``u⃗``.
 
+    Examples
+    --------
+    The 12 base healpix pixels' distances from north pole should all be equal
+    to 90 minus their declinations:
+    >>> import numpy as np
+    >>> import healpy as hp
+    >>> Δθ⃗ = uniq2dangle(range(4, 16), 32, 90).to('deg')
+    >>> Δθ⃗
+    <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
+                90.       ,  90.       ,  90.       , 131.8103149, 131.8103149,
+               131.8103149, 131.8103149] deg>
+    >>> np.all(Δθ⃗.value == 90 - hp.pix2ang(1, np.arange(12), nest=True,
+    ...                                    lonlat=True)[1])
+    True
+
     See Also
     --------
     nest2dangle
     """
-    [u⃗ˢ], _, [o⃗], _, [v⃗], [u⃗̇ˢ] = nside_slices(u⃗, return_inverse=True)
-    n⃗ˢ = 1 << o⃗                                         # NSIDE for each view
-    for nˢ, v⃗ⁱ in zip(n⃗ˢ, v⃗):                           # views into u⃗ˢ
-        v⃗ⁱ -= 4*nˢ**2                                   # convert to nest
-        v⃗ⁱ[:] = nest2dangle(v⃗ⁱ, nˢ, ra, dec, degrees=degrees)   # in-place
-    return u⃗ˢ[u⃗̇ˢ]                                       # unsort results in u⃗ˢ
+    [u⃗ˢ], _, o⃗, _, [v⃗], [u⃗̇ˢ] = nside_slices(u⃗, return_inverse=True,
+                                            dtype=float)
+    n⃗ˢ = 1 << o⃗                                     # NSIDE for each view
+    for nˢ, v⃗ⁱ in zip(n⃗ˢ, v⃗):                       # views into u⃗ˢ
+        v⃗ⁱ -= 4*nˢ**2                               # convert to nest in-place
+        u = nest2dangle(v⃗ⁱ, nˢ, ra, dec, degrees=degrees, in_place=True).unit
+    return u⃗ˢ[u⃗̇ˢ]*u                                 # unsort results in u⃗ˢ*
 
 
 def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
@@ -1224,7 +1283,7 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
 
 
 def nside_slices(*u⃗, include_empty=False, return_index=False,
-                 return_inverse=False):
+                 return_inverse=False, dtype=None):
     """
     Sort and slice up a list of NUNIQ pixel index arrays, returning the sorted
     arrays as well as slice information for chunking them by NSIDE (pixel
@@ -1245,6 +1304,9 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
         Whether to return ``u⃗̇``. Only returned if ``True``.
     return_inverse : bool, optional
         Whether to return ``u⃗̇ˢ``. Only returned if ``True``.
+    dtype : int or numpy.dtype, optional
+        If provided, cast the returned array to this data type. Useful for
+        pre-allocating output arrays that only depend on spatial information.
 
     Returns
     -------
@@ -1306,11 +1368,11 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
     return group_slices(*u⃗, f=uniq2order,
                         fⁱ=lambda x: nest2uniq(0, hp.order2nside(x)),
                         include_empty=include_empty, return_index=return_index,
-                        return_inverse=return_inverse)
+                        return_inverse=return_inverse, dtype=dtype)
 
 
 def group_slices(*u⃗, f=lambda x: x, fⁱ=lambda x: x, include_empty=False,
-                 return_index=False, return_inverse=False):
+                 return_index=False, return_inverse=False, dtype=None):
     """
     Group elements of ``u⃗`` inputs using some sort of monotonic step function
     ``f: u⃗.dtype -> int`` codomain and a pseudo-inverse ``fⁱ`` mapping to the
@@ -1328,6 +1390,7 @@ def group_slices(*u⃗, f=lambda x: x, fⁱ=lambda x: x, include_empty=False,
     """
     import numpy as np
 
+    u⃗ = np.array(u⃗, dtype=dtype, copy=False)
     u⃗ˢ, u⃗̇_u⃗̇ˢ = [np.unique(u, return_index=return_index,
                           return_inverse=return_inverse) for u in u⃗], []
     if return_index or return_inverse:
