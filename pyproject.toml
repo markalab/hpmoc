@@ -7,7 +7,7 @@ module = "hpmoc"
 author = "Stefan Trklja Countryman"
 author-email = "stefan.countryman@gmail.com"
 home-page = "https://bitbucket.org/stefancountryman/hpmoc"
-requires = ["numpy", "matplotlib", "healpy", "astropy"]
+requires = ["numpy", "matplotlib", "healpy", "astropy", "h5py"]
 requires-python = ">=3.6"
 
 [tool.flit.metadata.requires-extra]
