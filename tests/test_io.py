@@ -1,0 +1,56 @@
+"File read/write tests."
+
+import os
+import numpy as np
+from astropy.table import Table
+from hpmoc.partial import PartialUniqSkymap
+
+
+def check_load(mocfits, tablehdf5, strategy='ligo'):
+    """
+    Make sure that the skymap loaded from ``mocfits`` is the same as the known
+    good table stored in ``tablehdf5``. This is meant to automate checking that
+    known good maps still load the right way; *you need to add new test cases
+    manually*. Specify an alternative load ``strategy`` if not reading the
+    default provided file type.
+
+    You can make a new table in the ``tablehdf5`` expected format by loading a
+    fits file into a ``PartialUniqSkymap`` and confirming that it loaded
+    correctly, then dumping it into a table with ``.to_table()`` and saving
+    that table using ``.write(tablehdf5, serialize_meta=True,
+    compression=True)``. Then, add a new test with the original input
+    fits/fits.gz file as ``mocfits`` and the manually-confirmed good table
+    output as ``tablehdf5``. Both of these files must be stored in ``./data``.
+    """
+    good = Table.read(os.path.join('data', tablehdf5))
+    check = PartialUniqSkymap.read(os.path.join('data', mocfits),
+                                   strategy=strategy)
+    checktab = check.to_table()
+    assert np.all(good == checktab), "Got unexpected pixel/NUNIQ values."
+    assert good.meta == check.meta, "Meta deserialization failure."
+    assert good.meta == checktab.meta, "Meta serialization failure."
+
+
+def test_ligo_o3_ligo_skymap_from_samples_nested_fitsgz_512():
+    check_load('S200219ac-3-Update.fits.gz', 'S200219ac-3-Update.hdf5')
+
+
+def test_ligo_o3_bayestar_nuniq_fitsgz_256():
+    check_load('S200105ae.fits.gz', 'S200105ae.hdf5')
+
+
+def test_ligo_o3_bayestar_nuniq_fits_256():
+    check_load('S200105ae.fits', 'S200105ae.hdf5')
+
+
+def test_ligo_o3_bayestar_nested_fitsgz_1024():
+    check_load('S200316bj-1-Preliminary.fits.gz',
+               'S200316bj-1-Preliminary.hdf5')
+
+
+def test_ligo_o3_cwb_nested_fitsgz_128():
+    check_load('S200114f-3-Initial.fits.gz', 'S200114f-3-Initial.hdf5')
+
+
+def test_ligo_o3_cwb_ring_fitsgz_128():
+    check_load('S200129m-3-Initial.fits.gz', 'S200129m-3-Initial.hdf5')

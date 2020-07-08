@@ -200,6 +200,15 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
     Δθ⃗ : array
         Angular distances between the single point provided and the arrays of
         points [radians].
+
+    Examples
+    --------
+    Simple examples of distances to north pole:
+    >>> from math import pi
+    >>> import numpy as np
+    >>> dangle_rad(0, pi/2, np.array([0, 0, 0, 2, 3]),
+    ...            np.array([pi/2, -pi/2, 0, 0, 0]))/pi
+    array([0. , 1. , 0.5, 0.5, 0.5])
     """
     import numpy as np
     delta_ra = mapra - ra
@@ -262,6 +271,27 @@ def check_valid_nside(nside):
     ------
     ValueError
         If any of the values are not valid HEALPix NSIDE values.
+
+    Examples
+    --------
+    Does nothing if you provide a valid NSIDE value (floats are accepted as
+    long as their exact values are valid):
+    >>> check_valid_nside([16, 4])
+    >>> check_valid_nside(4)
+    >>> check_valid_nside(1024)
+    >>> check_valid_nside([1024., 4096])
+
+    A descriptive value error is raised if invalid values are provided:
+    >>> try:
+    ...     check_valid_nside([4.1, 4])
+    ... except ValueError as err:
+    ...     print("Caught exception:", err)
+    Caught exception: Not a valid NSIDE value: [4.1, 4]
+    >>> try:
+    ...     check_valid_nside(17)
+    ... except ValueError as err:
+    ...     print("Caught exception:", err)
+    Caught exception: Not a valid NSIDE value: [17]
     """
     import numpy as np
     if not np.iterable(nside):
@@ -302,27 +332,19 @@ def nside2pixarea(nside, degrees=False):
     --------
     At NSIDE = 1, we should get a quarter of the sky, or about 1/steradian:
     >>> from math import pi
-    ... allsky = 4*pi
-    ... nside2pixarea(1) == allsky / 12
+    >>> allsky = 4*pi
+    >>> nside2pixarea(1) == allsky / 12
     True
 
     This should work for a list of NSIDES as well.
+    >>> import numpy as np
     >>> nsides = np.array([1, 1, 2, 4])
-    ... areas = np.array([allsky/12, allsky/12, allsky/48, allsky/192])
-    ... np.all(nside2pixarea(nsides) == areas)
+    >>> areas = np.array([allsky/12, allsky/12, allsky/48, allsky/192])
+    >>> np.all(nside2pixarea(nsides) == areas)
     True
     """
-    import numpy as np
-    import healpy as hp
     check_valid_nside(nside)
-    if np.iterable(nside):
-        if not len(nside):
-            return np.array([])
-        orders = np.array(np.log2(nside), dtype=int)
-        areas = np.array([4*pi] + [hp.nside2pixarea(2**i, degrees=degrees)
-                                   for i in range(1, orders.max()+1)])
-        return areas[orders]
-    return hp.nside2pixarea(nside, degrees=degrees)
+    return pi/3/nside**2
 
 
 def check_valid_nuniq(indices):
@@ -610,6 +632,7 @@ def uniq2nest(u⃗, nˢ, nest=True):
     will split the first, third, and fourth pixels, which are coarser--and
     select the pixel containing the last pixel, which is smaller than--than the
     target pixel size):
+    >>> import numpy as np
     >>> u⃗ = np.array([1024, 4100, 1027, 1026, 44096])
     >>> uniq2nest(u⃗, 32)
     array([   0,    1,    2,    3,    4,    8,    9,   10,   11,   12,   13,
@@ -763,7 +786,7 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     We will rerasterize this skymap to these sky areas:
     >>> u⃗ᵒ = np.array([4096, 4097, 1025, 1026, 11024])
     >>> reraster(u⃗, x⃗, u⃗ᵒ)
-    np.array([1., 1., 2., 4., 5.])
+    array([1., 1., 2., 4., 5.])
 
     The third pixel in ``u⃗`` is not present in ``u⃗ᵒ``, so we will need to
     provide a default pad value for it when rasterizing in the other direction.
@@ -771,7 +794,7 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     second pixels in the input map, since both of these have equal area and
     overlap with the first pixel:
     >>> reraster(u⃗ᵒ, x⃗, u⃗, pad=0.)
-    np.array([1.5, 3., 0., 4., 5.])
+    array([1.5, 3. , 0. , 4. , 5. ])
 
     Note that the values are averages of input pixels; in cases where only one
     input pixel is sampled from, the value remains unchanged. This makes
@@ -784,7 +807,7 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     passing it as the ``Iᵢ⃗ⁱ⃗ᵒ`` argument, though beware it will not be checked
     for correctness:
     >>> reraster(u⃗, x⃗, u⃗ᵒ, Iᵢ⃗ⁱ⃗ᵒ=uniq_intersection(u⃗, u⃗ᵒ))
-    np.array([1., 1., 2., 4., 5.])
+    array([1., 1., 2., 4., 5.])
     """
     import numpy as np
     from astropy.units import Quantity as Qty
@@ -1248,11 +1271,12 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
     Examples
     --------
     >>> import numpy as np
+    >>> from pprint import pprint
     >>> u⃗1 = np.array([1024, 4100, 1027, 263168, 263169, 1026, 44096])
-    >>> u⃗2 = np.array([4096, 4097, 1025, 1026, 11024])
-    >>> nside_slices(u⃗1, u⃗2, return_index=True)
-    ([array([  1024,   1026,   1027,   4100,  44096, 263168, 263169]),
-      array([    1025,     1026,     4096,     4097,    11024, 16842752])],
+    >>> u⃗2 = np.array([4096, 4097, 1025, 16842752, 1026, 11024])
+    >>> pprint(nside_slices(u⃗1, u⃗2, return_index=True))
+    ((array([  1024,   1026,   1027,   4100,  44096, 263168, 263169]),
+      array([    1025,     1026,     4096,     4097,    11024, 16842752])),
      [[slice(0, 3, None),
        slice(3, 4, None),
        slice(4, 5, None),
@@ -1275,7 +1299,7 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
        array([], dtype=int64),
        array([], dtype=int64),
        array([16842752])]],
-     [array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])])
+     (array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])))
     """
     import healpy as hp
 
