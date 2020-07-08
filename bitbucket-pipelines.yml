@@ -3,8 +3,8 @@
 # Only use spaces to indent your .yml configuration.
 # -----
 # You can specify a custom docker image from Docker Hub as your build environment.
-#image: stefco/hpmoc-env:latest
-image: continuumio/miniconda3:latest
+image: stefco/hpmoc-env:latest
+#image: continuumio/miniconda3:latest
 
 definitions: 
   steps:
@@ -15,9 +15,6 @@ definitions:
           - FLIT_ROOT_INSTALL=1 flit install --symlink
           - py.test --doctest-modules --cov=hpmoc
           - flit build
-          - |
-            cp dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
-               dist/hpmoc-latest-py3-none-any.whl
         artifacts:
           - dist/*whl
 
@@ -39,6 +36,9 @@ pipelines:
           - step:
               name: Upload latest wheel to Bitbucket
               script:
+                - |
+                  mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+                     dist/hpmoc-latest-py3-none-any.whl
                 - pipe: atlassian/bitbucket-upload-file:0.1.8
                   variables:
                     BITBUCKET_USERNAME: $BITBUCKET_USERNAME
@@ -49,6 +49,9 @@ pipelines:
           - step:
               name: Build/upload Docker image
               script:
+                - |
+                  mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+                     dist/hpmoc-latest-py3-none-any.whl
                 - docker build -t stefco/llama:hpmoc .
                 - docker push stefco/llama:hpmoc
                 - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
