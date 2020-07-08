@@ -23,10 +23,10 @@ definitions:
 
 pipelines:
   default:
-    - step: &build-test
+    - step: *build-test
   tags:
     v*:
-      - step: &build-test
+      - step: *build-test
       - parallel:
           #- step:
           #    name: Upload tagged wheel to Bitbucket
