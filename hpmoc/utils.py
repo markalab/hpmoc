@@ -536,6 +536,7 @@ def uniq_intersection(u⃗1, u⃗2):
     Examples
     --------
     Some pixels with NSIDE of 16, 32, and 64, respectively:
+    >>> from pprint import pprint
     >>> import numpy as np
     >>> u⃗1 = np.array([1024, 4100, 1027, 1026, 44096])
 
@@ -546,8 +547,10 @@ def uniq_intersection(u⃗1, u⃗2):
     We should see correspondence between index 0 of ``u⃗1`` and indices 0,
     1 of ``u⃗1``; and correspondence between index 2 of ``u⃗1`` and
     index 2 of ``u⃗2``:
-    >>> uniq_intersection(u⃗1, u⃗2)
-    (array([4, 3, 0, 0, 1]), array([4, 3, 0, 1, 2]), array([-1, 0, 1, 1, -1]))
+    >>> pprint(uniq_intersection(u⃗1, u⃗2), width=60)
+    (array([4, 3, 0, 0, 1]),
+     array([4, 3, 0, 1, 2]),
+     array([-1,  0,  1,  1, -1]))
     """
     import numpy as np
 
@@ -1000,23 +1003,25 @@ def uniq_diadic(Ω, u⃗ⁱ, x⃗ⁱ, pad=None, coarse=True):
     Examples
     --------
     Take the product of two heterogeneous multi-order skymaps:
-    >>> import numpy as np
+    >>> from pprint import pprint
     >>> from operator import mul
+    >>> import numpy as np
     >>> u⃗1 = np.array([1024, 4100, 1027, 1026, 44096])
     >>> x⃗1 = np.array([1.,   2.,   3.,   4.,   5.])
     >>> u⃗2 = np.array([4096, 4097, 1025, 1026, 11024])
     >>> x⃗2 = np.array([0.,   10.,  1.,   100., 1000.])
-    >>> uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2))
-    (array([ 1024,  1025,  1026, 11024]), array([5.e+00, 2.e+00, 4.e+02, 5.e+03]))
+    >>> pprint(uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2)), width=60)
+    (array([ 1024,  1025,  1026, 11024]),
+     array([5.e+00, 2.e+00, 4.e+02, 5.e+03]))
 
     Provide a default pad value for indices non-overlapping parts of the input
     skymaps:
-    >>> uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), pad=0.)
+    >>> pprint(uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), pad=0.), width=60)
     (array([ 1024,  1025,  1026,  1027, 11024]),
      array([5.e+00, 2.e+00, 4.e+02, 0.e+00, 5.e+03]))
 
     Increase resolution as necessary (do not combine pixels):
-    >>> uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), coarse=False)
+    >>> pprint(uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), coarse=False), width=60)
     (array([ 1026,  4096,  4097,  4100, 44096]),
      array([4.e+02, 0.e+00, 1.e+01, 2.e+00, 5.e+03]))
     """

@@ -625,23 +625,6 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         >>> import numpy as np
         >>> from astropy.units import deg
         >>> skymap = PartialUniqSkymap(*([4+np.arange(12)]*2))
-        >>> skymap
-        <Table length=12>
-         UNIQ PIXELS
-        int64 int64
-        ----- ------
-            4      4
-            5      5
-            6      6
-            7      7
-            8      8
-            9      9
-           10     10
-           11     11
-           12     12
-           13     13
-           14     14
-           15     15
         >>> _, dec = skymap.Ω⃗()
         >>> dec
         <Quantity [ 41.8103149,  41.8103149,  41.8103149,  41.8103149,   0.       ,
