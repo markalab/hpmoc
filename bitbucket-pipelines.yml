@@ -3,8 +3,8 @@
 # Only use spaces to indent your .yml configuration.
 # -----
 # You can specify a custom docker image from Docker Hub as your build environment.
-image: stefco/hpmoc-env:latest
-#image: continuumio/miniconda3:latest
+#image: stefco/hpmoc-env:latest
+image: continuumio/miniconda3:latest
 
 definitions:
   steps:
@@ -54,18 +54,22 @@ pipelines:
     - step:
         name: Upload latest wheel to Bitbucket
         script:
-          - ls dist
+          - ls -la dist
           - |
             mv dist/hpmoc-*-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
-          - ls dist
-          - pipe: atlassian/bitbucket-upload-file:0.1.8
-            variables:
-              BITBUCKET_USERNAME: $BITBUCKET_USERNAME
-              BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
-              FILENAME: dist/hpmoc-latest-py3-none-any.whl
-              # ACCOUNT: stefancountryman
-              # REPOSITORY: multimessenger-pipeline
+          - ls -la dist
+          - |
+            curl -X POST \
+              https://$BITBUCKET_USERNAME:$BITBUCKET_APP_PASSWORD@api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_OWNER/$BITBUCKET_REPO_SLUG/downloads \
+              --form files=@"/dist/py_llama-*-py3-none-any.whl"
+          # - pipe: atlassian/bitbucket-upload-file:0.1.8
+          #   variables:
+          #     BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+          #     BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+          #     FILENAME: dist/hpmoc-latest-py3-none-any.whl
+          #     # ACCOUNT: stefancountryman
+          #     # REPOSITORY: multimessenger-pipeline
   tags:
     v*:
       - step: *build-test
