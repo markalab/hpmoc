@@ -11,8 +11,7 @@ definitions:
     - step: &build-test
         name: Build and test
         caches:
-          - llamaobj
-          - docker
+          - pip
         script:
           - pip install flit
           - FLIT_ROOT_INSTALL=1 flit install --symlink
@@ -35,8 +34,10 @@ definitions:
               # REPOSITORY: multimessenger-pipeline
     - step: &build-upload-docker
         name: Build/upload Docker image
+        services:
+          - docker
         caches:
-          - llamaobj
+          - pip
           - docker
         script:
           - |
