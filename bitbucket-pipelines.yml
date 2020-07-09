@@ -10,6 +10,9 @@ definitions:
   steps:
     - step: &build-test
         name: Build and test
+        caches:
+          - llamaobj
+          - docker
         script:
           - pip install flit
           - FLIT_ROOT_INSTALL=1 flit install --symlink
@@ -32,6 +35,9 @@ definitions:
               # REPOSITORY: multimessenger-pipeline
     - step: &build-upload-docker
         name: Build/upload Docker image
+        caches:
+          - llamaobj
+          - docker
         script:
           - |
             mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
@@ -47,9 +53,11 @@ pipelines:
     - step:
         name: Upload latest wheel to Bitbucket
         script:
+          - ls dist
           - |
             mv dist/hpmoc-*-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
+          - ls dist
           - pipe: atlassian/bitbucket-upload-file:0.1.8
             variables:
               BITBUCKET_USERNAME: $BITBUCKET_USERNAME
