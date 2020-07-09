@@ -17,6 +17,29 @@ definitions:
           - flit build
         artifacts:
           - dist/*whl
+    - step: &bitbucket-wheel-upload
+        name: Upload latest wheel to Bitbucket
+        script:
+          - |
+            mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+               dist/hpmoc-latest-py3-none-any.whl
+          - pipe: atlassian/bitbucket-upload-file:0.1.8
+            variables:
+              BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+              BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+              FILENAME: dist/hpmoc-latest-py3-none-any.whl
+              # ACCOUNT: stefancountryman
+              # REPOSITORY: multimessenger-pipeline
+    - step: &build-upload-docker
+        name: Build/upload Docker image
+        script:
+          - |
+            mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+               dist/hpmoc-latest-py3-none-any.whl
+          - docker build -t stefco/llama:hpmoc .
+          - docker push stefco/llama:hpmoc
+          - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
+          - docker push stefco/llama:hpmoc-$BITBUCKET_TAG
 
 pipelines:
   default:
@@ -25,34 +48,8 @@ pipelines:
     v*:
       - step: *build-test
       - parallel:
-          #- step:
-          #    name: Upload tagged wheel to Bitbucket
-          #    script:
-          #      - pipe: atlassian/bitbucket-upload-file:0.1.8
-          #        variables:
-          #          BITBUCKET_USERNAME: $BITBUCKET_USERNAME
-          #          BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
-          #          FILENAME: dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl
-          - step:
-              name: Upload latest wheel to Bitbucket
-              script:
-                - |
-                  mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
-                     dist/hpmoc-latest-py3-none-any.whl
-                - pipe: atlassian/bitbucket-upload-file:0.1.8
-                  variables:
-                    BITBUCKET_USERNAME: $BITBUCKET_USERNAME
-                    BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
-                    FILENAME: dist/hpmoc-latest-py3-none-any.whl
-                    # ACCOUNT: stefancountryman
-                    # REPOSITORY: multimessenger-pipeline
-          - step:
-              name: Build/upload Docker image
-              script:
-                - |
-                  mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
-                     dist/hpmoc-latest-py3-none-any.whl
-                - docker build -t stefco/llama:hpmoc .
-                - docker push stefco/llama:hpmoc
-                - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
-                - docker push stefco/llama:hpmoc-$BITBUCKET_TAG
+          - step: *bitbucket-wheel-upload
+          - step: *build-upload-docker
+    test-bitbucket-upload*:
+      - step: *build-test
+      - step: *bitbucket-wheel-upload

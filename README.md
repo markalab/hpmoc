@@ -1,4 +1,4 @@
-# `hpmoc`: HEALPix Multi-Order Coordinate Partial Skymaps
+# hpmoc: HEALPix Multi-Order Coordinate Partial Skymaps
 
 ## Installation
 
