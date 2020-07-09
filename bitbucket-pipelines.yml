@@ -62,7 +62,7 @@ pipelines:
           - docker
         script:
           - |
-            mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
+            mv dist/hpmoc-*-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
           - chmod 666 dist/hpmoc-latest-py3-none-any.whl
           - docker build -t stefco/llama:hpmoc .
