@@ -61,8 +61,9 @@ pipelines:
           - |
             mv dist/hpmoc-*-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
+          - chmod 666 dist/hpmoc-latest-py3-none-any.whl
           - ls -la dist  # TODO REMOVE
-          - apt-get install -y install curl
+          # - apt-get install -y install curl
           # - |
           #   curl -X POST \
           #     https://$BITBUCKET_USERNAME:$BITBUCKET_APP_PASSWORD@api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_OWNER/$BITBUCKET_REPO_SLUG/downloads \
