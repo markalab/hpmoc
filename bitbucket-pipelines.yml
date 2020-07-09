@@ -43,6 +43,9 @@ definitions:
           - |
             mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
+          - ls -la dist  # TODO REMOVE
+          - chmod 666 dist/hpmoc-latest-py3-none-any.whl
+          - ls -la dist  # TODO REMOVE
           - docker build -t stefco/llama:hpmoc .
           - docker push stefco/llama:hpmoc
           - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
@@ -54,22 +57,23 @@ pipelines:
     - step:
         name: Upload latest wheel to Bitbucket
         script:
-          - ls -la dist
+          - ls -la dist  # TODO REMOVE
           - |
             mv dist/hpmoc-*-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
-          - ls -la dist
-          - |
-            curl -X POST \
-              https://$BITBUCKET_USERNAME:$BITBUCKET_APP_PASSWORD@api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_OWNER/$BITBUCKET_REPO_SLUG/downloads \
-              --form files=@"/dist/py_llama-*-py3-none-any.whl"
-          # - pipe: atlassian/bitbucket-upload-file:0.1.8
-          #   variables:
-          #     BITBUCKET_USERNAME: $BITBUCKET_USERNAME
-          #     BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
-          #     FILENAME: dist/hpmoc-latest-py3-none-any.whl
-          #     # ACCOUNT: stefancountryman
-          #     # REPOSITORY: multimessenger-pipeline
+          - ls -la dist  # TODO REMOVE
+          - apt-get install -y install curl
+          # - |
+          #   curl -X POST \
+          #     https://$BITBUCKET_USERNAME:$BITBUCKET_APP_PASSWORD@api.bitbucket.org/2.0/repositories/$BITBUCKET_REPO_OWNER/$BITBUCKET_REPO_SLUG/downloads \
+          #     --form files=@"/dist/py_llama-*-py3-none-any.whl"
+          - pipe: atlassian/bitbucket-upload-file:0.1.8
+            variables:
+              BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+              BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+              FILENAME: dist/hpmoc-latest-py3-none-any.whl
+              # ACCOUNT: stefancountryman
+              # REPOSITORY: multimessenger-pipeline
   tags:
     v*:
       - step: *build-test
