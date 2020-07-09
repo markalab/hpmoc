@@ -39,12 +39,12 @@ definitions:
           - docker
         caches:
           - pip
-          - docker
         script:
           - |
             mv dist/hpmoc-$BITBUCKET_TAG-py3-none-any.whl \
                dist/hpmoc-latest-py3-none-any.whl
           - chmod 666 dist/hpmoc-latest-py3-none-any.whl
+          - docker login -u "$DOCKER_CLOUD_USER" -p "$DOCKER_CLOUD_PASSWORD"
           - docker build -t stefco/llama:hpmoc .
           - docker push stefco/llama:hpmoc
           - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
@@ -53,22 +53,6 @@ definitions:
 pipelines:
   default:
     - step: *build-test
-    - step:
-        name: Build Docker image test
-        services:
-          - docker
-        caches:
-          - pip
-          - docker
-        script:
-          - |
-            mv dist/hpmoc-*-py3-none-any.whl \
-               dist/hpmoc-latest-py3-none-any.whl
-          - chmod 666 dist/hpmoc-latest-py3-none-any.whl
-          - docker build -t stefco/llama:hpmoc .
-          # - docker push stefco/llama:hpmoc
-          - docker tag stefco/llama:hpmoc stefco/llama:hpmoc-$BITBUCKET_TAG
-          # - docker push stefco/llama:hpmoc-$BITBUCKET_TAG
   tags:
     v*:
       - step: *build-test

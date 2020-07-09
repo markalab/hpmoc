@@ -15,10 +15,12 @@ conda activate hpmoc
 ### With pip
 
 If you just want to use `hpmoc` and don't need to modify the source code, you
-can install the last released version using pip:
+can install [the last released
+version](https://bitbucket.org/stefancountryman/hpmoc/downloads/hpmoc-latest-py3-none-any.whl)
+using pip:
 
 ```bash
-pip install "<TODO: PUT PATH HERE>"
+pip install hpmoc-latest-py3-none-any.whl
 ```
 
 This should install all required dependencies for you.
