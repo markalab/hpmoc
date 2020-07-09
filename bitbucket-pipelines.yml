@@ -6,7 +6,7 @@
 image: stefco/hpmoc-env:latest
 #image: continuumio/miniconda3:latest
 
-definitions: 
+definitions:
   steps:
     - step: &build-test
         name: Build and test
@@ -44,12 +44,22 @@ definitions:
 pipelines:
   default:
     - step: *build-test
+    - step:
+        name: Upload latest wheel to Bitbucket
+        script:
+          - |
+            mv dist/hpmoc-*-py3-none-any.whl \
+               dist/hpmoc-latest-py3-none-any.whl
+          - pipe: atlassian/bitbucket-upload-file:0.1.8
+            variables:
+              BITBUCKET_USERNAME: $BITBUCKET_USERNAME
+              BITBUCKET_APP_PASSWORD: $BITBUCKET_APP_PASSWORD
+              FILENAME: dist/hpmoc-latest-py3-none-any.whl
+              # ACCOUNT: stefancountryman
+              # REPOSITORY: multimessenger-pipeline
   tags:
     v*:
       - step: *build-test
       - parallel:
           - step: *bitbucket-wheel-upload
           - step: *build-upload-docker
-    test-bitbucket-upload*:
-      - step: *build-test
-      - step: *bitbucket-wheel-upload
