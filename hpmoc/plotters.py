@@ -1172,8 +1172,13 @@ def visufunc_defaults(s⃗, default_kwargs, *scatter, sigmas=1,
         else:
             val = s⃗
         val = val[val!=UNSEEN]
-        kwargs['min'] = kwargs.get('min', val.min())
-        kwargs['max'] = kwargs.get('max', val.max())
+        try:
+            kwargs['min'] = kwargs.get('min', val.min())
+            kwargs['max'] = kwargs.get('max', val.max())
+        except ValueError as err
+            if not str(ex).startswith('zero-size array to reduction operation'):
+                raise
+            kwargs['min'] = kwargs['max'] = 0
         del val
 
     # set some LLAMA default keyword arguments
