@@ -1175,8 +1175,8 @@ def visufunc_defaults(s⃗, default_kwargs, *scatter, sigmas=1,
         try:
             kwargs['min'] = kwargs.get('min', val.min())
             kwargs['max'] = kwargs.get('max', val.max())
-        except ValueError as err
-            if not str(ex).startswith('zero-size array to reduction operation'):
+        except ValueError as err:
+            if not str(err).startswith('zero-size array to reduction'):
                 raise
             kwargs['min'] = kwargs['max'] = 0
         del val
