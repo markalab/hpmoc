@@ -1,5 +1,5 @@
 [build-system]
-requires = ["flit_core >=2,<4", "bump2version"]
+requires = ["flit_core >=2,<4", "bump2version", "black"]
 build-backend = "flit_core.buildapi"
 
 [tool.flit.metadata]
@@ -13,4 +13,4 @@ requires-python = ">=3.6"
 [tool.flit.metadata.requires-extra]
 jup = ["jupyter", "ipython"]
 test = ["pytest", "pytest-cov", "pytest-html", "h5py", "PyYAML"]
-dev = ["flit"]
+dev = ["flit", "numba", "Pillow", "nptyping"]
