@@ -246,7 +246,6 @@ class PointsTuple(NamedTuple):
                 if c is not None:
                     res[pre+k] = c
             for j, p in enumerate(pt):
-                #from IPython.core.debugger import set_trace; set_trace()
                 for k, v in zip(('RA', 'DC', 'SG', 'ST'), p):
                     if v is not None:
                         res[f"{pre}{j:02X}{k}"] = v
@@ -260,7 +259,6 @@ class PointsTuple(NamedTuple):
         ``PointsTuple`` instances. Preserves ordering.
         """
         unique = []
-        #from IPython.core.debugger import set_trace; set_trace()
         for p, r, m, l in pts:
             pt = cls(p, Rgba(*r), m, l)
             if pt not in unique:
@@ -506,7 +504,6 @@ def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
     np.multiply(δ, sigma, out=δ)
     np.cos(δ, out=δ)                                    # min dot product
     np.subtract(np.radians(90), θ, out=θ)               # ra/dec -> ϕ/θ
-    #from IPython.core.debugger import set_trace; set_trace()
     disks = hp.ang2vec(θ, ϕ).T                          # rows are x, y, z
 
     # get the angles of the plot pixels; overwrite θ/ϕ
@@ -533,11 +530,17 @@ def get_ax_nside(ax, shape=None):
 
 def get_ax_angles(ax, shape=None, lonlat=False):
     import numpy as np
+    from healpy.projaxes import (
+        HpxMollweideAxes,
+    )
 
     shape = shape or get_hp_ax_img_shape(ax)
     p = ax.proj
-    xm, ym = p.ij2xy(*[a.ravel() for a in np.indices(shape, dtype=np.int16)])
-    #from IPython.core.debugger import set_trace; set_trace()
+    if isinstance(ax, HpxMollweideAxes):
+        xm, ym = p.ij2xy()
+    else:
+        i, j = [a.ravel() for a in np.indices(shape, dtype=np.int16)]
+        xm, ym = p.ij2xy(i, j)
     if any(isinstance(a, np.ma.MaskedArray) for a in (xm, ym)):
         assert np.all(xm.mask==ym.mask)
         m = ~xm.mask
@@ -554,9 +557,8 @@ def unmask_partial_image(partial_image, mask, shape):
     import numpy as np
     import healpy as hp
 
-    #from IPython.core.debugger import set_trace; set_trace()
     if mask is not None:
-        img = np.ndarray(mask.size, dtype=partial_image.dtype)
+        img = np.zeros(mask.shape, dtype=partial_image.dtype)
         img[mask] = partial_image
     else:
         img = partial_image
@@ -1081,7 +1083,6 @@ def add_scatterplot(
                                             declinations, lonlat=True))
         include = np.array((i>=0)&(i<ainfo['ysize'])&
                            (j>=0)&(j<ainfo['xsize'])).reshape((-1,))
-        #from IPython.core.debugger import set_trace; set_trace()
         pt_labels = [p for p, i in zip(pt_labels, include) if i]
         events = events[:, include]
 
