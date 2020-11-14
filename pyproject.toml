@@ -14,3 +14,7 @@ requires-python = ">=3.6"
 jup = ["jupyter", "ipython"]
 test = ["pytest", "pytest-cov", "pytest-html", "h5py", "PyYAML"]
 dev = ["flit", "numba", "Pillow", "nptyping"]
+
+[tool.black]
+line-length = 79
+target-version = ['py37']
