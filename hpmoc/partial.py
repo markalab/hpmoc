@@ -29,6 +29,7 @@ from .utils import (
     uniq2order,
     nest2ang,
     nside2pixarea,
+    nside_slices,
     read_partial_skymap,
 )
 from .abstract import AbstractPartialUniqSkymap
@@ -645,6 +646,21 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         True
         """
         return uniq2dangle(self.u⃗, ra, dec, degrees=degrees)
+
+    def unzip_orders(self):
+        """
+        Return a list of ``PartialUniqSkymap`` instances corresponding to the
+        parts of this sky imaged and each HEALPix order. Length equals the
+        maximum order of this skymap. Empty terms indicate that this skymap
+        does not have pixels of the corresponding HEALPix order.
+        """
+        srt = self.sort()
+        [[s⃗], o⃗] = nside_slices(srt.u⃗)[1:3]
+        return [srt[s] for s in [slice(0, 0)]*o⃗[0]+s⃗]
+
+    def unzip_atlas(self):
+        "Return 12 sub-skymaps corresponding to the HEALPix base pixels."
+        raise NotImplementedError()
 
     def min(self):
         "Minimum skymap value == ``self.s⃗.min()``."
