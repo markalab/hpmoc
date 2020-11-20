@@ -984,6 +984,7 @@ class BasicIo(IoStrategy):
     Read/write files saved in the default format used by ``PartialUniqSkymap``.
     """
 
+    #FIXME add mask
     @staticmethod
     def read(
             _skymap: PartialUniqSkymap,
@@ -1071,11 +1072,12 @@ class LigoIo(IoStrategy):
 
     @staticmethod
     def read(
-            mask: PartialUniqSkymap,
+            mask: Optional[PartialUniqSkymap],
             file: Union[IO, str],
+            *args,
+            name: str = 'PROBDENSITY',
             memmap: bool = True,
             coarsen: int = 0,
-            *args,
             **kwargs
     ):
         """
@@ -1087,6 +1089,10 @@ class LigoIo(IoStrategy):
             Only read in pixels overlapping with ``mask``.
         file : file or str
             The file object or filename to read from.
+        name : str, optional
+            The column-name of the pixel data. If not specified and if reading
+            from a file with only one non-index column, that column will be
+            chosen automatically.
         memmap : bool, optional
             Whether to memory-map the input file during read. Useful when
             reading small sky areas from large files to conserve memory.
@@ -1108,8 +1114,8 @@ class LigoIo(IoStrategy):
             m = mask.u⃗
         m = np.unique(m >> (2*min(uniq2order(m.min()), coarsen)))
         p = read_partial_skymap(file, m, memmap=memmap)
-        return PartialUniqSkymap(p['PROBDENSITY'], p['UNIQ'],
-                                 name='PROBDENSITY', meta=p.meta,
+        return PartialUniqSkymap(p[name], p['UNIQ'],
+                                 name=name, meta=p.meta,
                                  point_sources=pt)
 
     def write(
