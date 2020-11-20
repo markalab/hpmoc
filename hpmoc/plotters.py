@@ -565,7 +565,7 @@ def unmask_partial_image(partial_image, mask, shape):
     return hp.ma(img.reshape(shape), copy=False)
 
 
-def label_graticule(ax, ras, decs, δr, δd, ra_window=None, dec_window=None,
+def label_graticule(ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=None,
                     **kwargs):
     """
     Add text labels to a graticule.
@@ -609,7 +609,7 @@ def label_graticule(ax, ras, decs, δr, δd, ra_window=None, dec_window=None,
 
     if isinstance(ax, HpxMollweideAxes):
         # curve dec labels away from leftmost meridian
-        ra4dec += (decs*LEFT_SHIFT_COEFF)**2
+        ra4dec = (rot[0]+165)%360 + (decs*LEFT_SHIFT_COEFF)**2
     elif isinstance(ax, (HpxCartesianAxes, HpxAzimuthalAxes)):
         [xax_ra, xax_dec], [yax_ra, yax_dec] = kwargs['ac']
         yax_pos = (yax_dec > np.roll(yax_dec, 1))[1:]
@@ -705,7 +705,8 @@ def graticule(ax, **kwargs):
     decs = decs[(decs>-90)&(decs<90)]  # keep decs in range
     ax.graticule(δd, δr, color=GRATICULE_COLOR)
 
-    label_graticule(ax, ras, decs, δr, δd, ra_window=r, dec_window=d, **kw)
+    label_graticule(ax, ras, decs, δr, δd, kwargs['rot'], ra_window=r,
+                    dec_window=d, **kw)
 
 
 def visufunc(**default_kwargs):
@@ -781,8 +782,8 @@ def visufunc(**default_kwargs):
 
             Returns
             -------
-            fig : matplotlib.figure.Figure
-                The figure that was plotted to.
+            fig : matplotlib.axes.Axes
+                The axes instance that was plotted to.
 
             See Also
             --------
