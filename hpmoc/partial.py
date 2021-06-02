@@ -94,12 +94,15 @@ def _get_op(name):
     return getattr(operator, name)
 
 
-def diadic_dunder(pad=None, coarse=False):
+def diadic_dunder(pad=None, coarse=False, post=None):
     """
     Implement diadic dunder methods like ``__add__``, ``__radd__``, etc. for
     scalar, array, and ``PartialUniqSkymap`` arguments using ``uniq_diadic``.
     ``pad`` and ``coarse`` are passed to ``uniq_diadic`` when
     performing operations between ``PartialUniqSkymap`` instances.
+    If provided, run ``post`` on the result array before creating a new
+    ``PartialUniqSkymap`` instance out of it (for example, to cast booleans to
+    integers).
     """
 
     def decorator(meth):
@@ -122,7 +125,7 @@ def diadic_dunder(pad=None, coarse=False):
             Ω = Ωᵢ = _get_op(name)
 
         @functools.wraps(meth)
-        def wrapper(s, o, pad=pad, coarse=coarse):
+        def wrapper(s, o, pad=pad, coarse=coarse, post=post):
             import numpy as np
             from astropy.units import Quantity as Qty
             # from IPython.core.debugger import Tracer; Tracer()()
@@ -143,8 +146,8 @@ def diadic_dunder(pad=None, coarse=False):
             m = s.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + [
                 f'DIAD: {meth.__name__}({s.name or "PIXELS"}, {oname})']
-            return PartialUniqSkymap(s⃗, u⃗, point_sources=pts, copy=False,
-                                     meta=m)
+            return PartialUniqSkymap(s⃗ if post is None else post(s⃗), u⃗,
+                                     point_sources=pts, copy=False, meta=m)
 
         wrapper.__doc__ = dedent(f"""
             ``__{name}__`` for scalars, arrays, and `PartialUniqSkymap`
@@ -158,6 +161,13 @@ def diadic_dunder(pad=None, coarse=False):
         return wrapper
 
     return decorator
+
+
+def bool_to_uint8(s):
+    "Convert a boolean value to ``np.uint8``."
+    import numpy as np
+
+    return np.array(s, dtype=np.uint8)
 
 
 class PartialUniqSkymap(AbstractPartialUniqSkymap):
@@ -839,6 +849,23 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         </div>
         '''
         return tab
+
+    # BEGIN COMPARATOR METHODS
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __eq__(self, other): pass  # pylint: disable=C0321
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __le__(self, other): pass  # pylint: disable=C0321
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __lt__(self, other): pass  # pylint: disable=C0321
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __ge__(self, other): pass  # pylint: disable=C0321
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __gt__(self, other): pass  # pylint: disable=C0321
 
     # BEGIN NUMERIC METHODS
 
