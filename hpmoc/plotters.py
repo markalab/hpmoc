@@ -319,64 +319,6 @@ def monochrome_opacity_colormap(name, rgb):
     return m
 
 
-# pylint: disable=too-many-arguments
-def plot_disks(plotter, rgba, disks, ax=None, sigma=1, degrees=True,
-               nˢₘₐₓ=MAX_NSIDE):
-    """
-    Use ``plotter``, e.g. ``hp.visufunc.mollview``, to plot the disks located
-    at locations ``disks`` with color/transparency ``rgba`` and overlay them on
-    ``matplotlib`` axes ``ax`` (or the current axes if ``ax`` is not provided).
-
-    Parameters
-    ----------
-    plotter : func
-        A ``healpy.visufunc`` plotting function, e.g. ``mollview``. Should be
-        the same function that produced ``ax`` (or the current axes if ``ax``
-        is not provided).
-    rgba : Tuple[float, float, float, float]
-        A tuple of red, green, blue, and alpha values between 0 and 1 to use
-        for the disk color. If the disks overlap, the alpha value will
-        gradually increase to reflect their overlap.
-    disks : Iterable[Tuple[float, float, float]]
-        A list of ``(ra, dec, σ)`` tuples where ``ra`` is the right ascension,
-        ``dec`` the declination, and ``σ`` the radius of the disk to be
-        plotted.
-    ax : healpy.projaxes.SphericalProjAxes, optional
-        ``healpy`` axes on which to overlay the disks. If not provided, use
-        current axes.
-    sigma : float, optional
-        The size of the error region in terms of disk σ.
-    degrees : bool, optional
-        Whether the ``disks`` angles are defined in ``degrees``. If ``False``,
-        radians are assumed instead.
-    nˢₘₐₓ : int, optional
-        Maximum HEALPix NSIDE value to use for the disks. Be careful setting to
-        higher values; might use more memory.
-    """
-    if not disks:  # nothing to do if no disks provided
-        return
-
-    import healpy as hp
-    import numpy as np
-    from matplotlib import pyplot as plt
-
-    *rgb, a = rgba
-    rgbhex = Rgba(*rgb, a).to_hex()[:-2]
-    cmap = monochrome_opacity_colormap(rgbhex, rgb)     # set color
-
-    disks = np.array(disks) if degrees else np.degrees(np.array(disks))
-    nˢ = min(nˢₘₐₓ, resol2nside(0.02*disks[:, 2]).max())    # NSIDE out
-    s⃗ = np.zeros(hp.nside2npix(nˢ), dtype=float)        # NEST skymap at nside
-    for ra, dec, σ in disks:                            # NEST disk rasters
-        Ω = hp.ang2vec(ra, dec, True)
-        s⃗[hp.query_disc(nˢ, Ω, np.radians(σ*sigma), nest=True)] += 1
-
-    np.power(1-a, s⃗, out=s⃗)                             # compute layered
-    np.subtract(1, s⃗, out=s⃗)                            #   alpha
-
-    layer_plot(s⃗, vmin=0, vmax=1, cmap=cmap, zorder=0.5)
-
-
 def get_hp_ax_img_shape(ax):
     """
     Get the shape of a ``healpy.projaxes.SphericalProjAxes`` instance's
@@ -500,11 +442,11 @@ def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
     #d = np.float64
 
     # get angles of the disks as well as the max dot-product via σ
-    ϕ, θ, δ = (np.radians(disks) if degrees else np.array(disks, copy=True)).T
-    np.multiply(δ, sigma, out=δ)
-    np.cos(δ, out=δ)                                    # min dot product
-    np.subtract(np.radians(90), θ, out=θ)               # ra/dec -> ϕ/θ
-    disks = hp.ang2vec(θ, ϕ).T                          # rows are x, y, z
+    ϕ̃, θ̃, σ = (np.radians(disks) if degrees else np.array(disks, copy=True)).T
+    np.multiply(σ, sigma, out=σ)                        # scale disk by sigma
+    np.cos(σ, out=σ)                                    # min dot product
+    np.subtract(np.radians(90), θ̃, out=θ̃)               # ra/dec (rad) -> ϕ̃/θ̃
+    disks = hp.ang2vec(θ̃, ϕ̃).T                          # rows are r̂ᵢ = x, y, z
 
     # get the angles of the plot pixels; overwrite θ/ϕ
     θ, ϕ, m = θϕm or get_ax_angles(ax, shape=shape)     # θ/ϕ of pixels
@@ -512,7 +454,7 @@ def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
     del θ, ϕ
 
     # take dot products and sum overlaps of each pixel
-    s⃗ = (plot@disks>δ).sum(axis=1, dtype=d)             # slow for many disks
+    s⃗ = (plot@disks>σ).sum(axis=1, dtype=d)             # slow for many disks
     del plot, disks
     np.power(1-a, s⃗, out=s⃗)                             # compute layered alpha
     np.subtract(1, s⃗, out=s⃗)
