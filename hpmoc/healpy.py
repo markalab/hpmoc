@@ -3,6 +3,7 @@
 """
 
 import importlib
+from math import log2, floor
 
 
 class LazyMod:
@@ -24,6 +25,19 @@ class LazyMod:
         return dir(importlib.import_module(self._mod))+[*self._defaults.keys()]
 
 
+def nside2order(nside):
+    """
+    Work-alike replacement for ``healpy.nside2order``. Might be a little bit
+    more forgiving.
+    """
+    if nside > 0 and nside < 1<<30:
+        res = floor(log2(nside)+.5)
+        if 1<<res == nside:
+            return res
+    raise ValueError(f"{nside} is not a valid nside parameter (must be an "
+                     "integral power of 2, less than 2**30)")
+
+
 if importlib.util.find_spec("healpy") is None:
     actual_hp = 'astropy_healpix.healpy'
 else:
@@ -31,7 +45,7 @@ else:
 
 HP_DEFAULTS = {
     'UNSEEN': -1.6375e+30,
+    'nside2order': nside2order,
 }
 
-# TODO make nside2order shim
 healpy = LazyMod(actual_hp, HP_DEFAULTS)
