@@ -10,7 +10,13 @@ from hpmoc.partial import PartialUniqSkymap
 
 ROOT = Path(__file__).absolute().parent.parent
 
-m = PartialUniqSkymap.read(ROOT/'tests'/'data'/'S191216ap.fits.gz', strategy='ligo')
-m2.mollview()
-fig = plt.gcf()
-fig.set_facecolor('white')
+
+def main():
+    m = PartialUniqSkymap.read(ROOT/'tests'/'data'/'S191216ap.fits.gz', strategy='ligo')
+    m.mollview()
+    fig = plt.gcf()
+    fig.set_facecolor('white')
+
+
+if __name__ == '__main__':
+    main()

@@ -10,6 +10,8 @@ dependencies:
   - matplotlib
   - healpy
   - astropy
+  - astropy-healpix
+  - reproject
   # jup
   - jupyter
   - ipython

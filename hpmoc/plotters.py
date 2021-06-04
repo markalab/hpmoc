@@ -500,7 +500,8 @@ def unmask_partial_image(partial_image, mask, shape):
     import healpy as hp
 
     if mask is not None:
-        img = np.zeros(mask.shape, dtype=partial_image.dtype)
+        #img = np.zeros(mask.shape, dtype=partial_image.dtype)
+        img = np.full(mask.shape, -np.inf, dtype=partial_image.dtype)
         img[mask] = partial_image
     else:
         img = partial_image

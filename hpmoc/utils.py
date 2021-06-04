@@ -21,6 +21,7 @@ import logging
 import gzip
 from tempfile import NamedTemporaryFile
 import binascii
+from .healpy import healpy as hp
 
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5
@@ -80,7 +81,6 @@ def nest2ang(n⃗, N⃗ˢ):
         individually with ``ra, dec = nest2ang(...)``.
     """
     import numpy as np
-    import healpy as hp
     from astropy.units import degree  # pylint: disable=no-name-in-module
 
     N⃗ˢ = np.full(n⃗.shape, N⃗ˢ) if isinstance(N⃗ˢ, Integral) else N⃗ˢ
@@ -107,7 +107,6 @@ def resol2nside(res, coarse=False, degrees=True):
         are assumed.
     """
     import numpy as np
-    import healpy as hp
 
     r = hp.nside2resol(2**np.arange(MAX_ORDER))[::-1]
     r = np.degrees(r) if degrees else r
@@ -149,7 +148,7 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
     >>> import numpy as np
-    >>> import healpy as hp
+    >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = nest2dangle(range(12), 1, 32, 90).to('deg')
     >>> Δθ⃗
     <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
@@ -175,7 +174,6 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     0.0
     """
     import numpy as np
-    import healpy as hp
     from astropy.units import rad, deg, Quantity  # pylint: disable=E0611
 
     n⃗ = np.array(n⃗, copy=False)
@@ -209,7 +207,7 @@ def uniq2dangle(u⃗, ra, dec, degrees=True):
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
     >>> import numpy as np
-    >>> import healpy as hp
+    >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = uniq2dangle(range(4, 16), 32, 90).to('deg')
     >>> Δθ⃗
     <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
@@ -721,7 +719,6 @@ def uniq2nest(u⃗, nˢ, nest=True):
               57,    58,    59,    60,    61,    62,    63, 27712])
     """
     import numpy as np
-    import healpy as hp
 
     check_valid_nuniq(u⃗)
 
@@ -772,11 +769,10 @@ def fill(u⃗, x⃗, nˢ, pad=None):
         missing values filled by ``pad``.
     """
     import numpy as np
-    from healpy import UNSEEN
 
     u⃗ᵒ0 = 4*nˢ**2                               # output offset
     u⃗ᵒ = np.arange(u⃗ᵒ0, 4*u⃗ᵒ0)                  # output NUNIQ indices
-    pad = UNSEEN if pad is None else pad        # default pad value
+    pad = hp.UNSEEN if pad is None else pad        # default pad value
     return reraster(u⃗, x⃗, u⃗ᵒ, pad=pad)
 
 
@@ -1256,7 +1252,6 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
     """
     from astropy.table import Table
     import numpy as np
-    import healpy as hp
 
     T = Table.read(infile, format='fits', memmap=memmap)    # read skymap table
     meta = T.meta.copy()
@@ -1368,8 +1363,6 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
        array([16842752])]],
      (array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])))
     """
-    import healpy as hp
-
     return group_slices(*u⃗, f=uniq2order,
                         fⁱ=lambda x: nest2uniq(0, hp.order2nside(x)),
                         include_empty=include_empty, return_index=return_index,
