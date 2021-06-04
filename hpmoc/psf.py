@@ -9,7 +9,7 @@ Functions for working with point sources, applying point spread functions
 
 from .utils import nest2uniq, resol2nside, nest2dangle
 from .partial import PartialUniqSkymap
-from .plotters import PointsTuple
+from .points import PointsTuple
 from .healpy import healpy as hp
 
 

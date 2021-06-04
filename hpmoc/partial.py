@@ -37,14 +37,9 @@ from . import plotters
 from .plotters import (
     DEFAULT_ROT,
     MAX_NSIDE,
-    PT_META_REGEX,
-    PT_META_KW_REGEX,
-    PT_META_COLOR_REGEX,
     multiplot,
-    PointsTuple,
-    _vecs_for_repr_,
-    Rgba,
 )
+from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
 
 DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
                      'divmod': divmod}
