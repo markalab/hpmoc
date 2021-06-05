@@ -17,6 +17,7 @@ from textwrap import wrap, dedent
 from collections import OrderedDict
 from typing import List, Callable, Optional, Union, IO
 from .utils import (
+    uniq2nest,
     uniq2dangle,
     uniq_diadic,
     uniq_intersection,
@@ -478,19 +479,35 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
     def fill(self, nˢ=None, pad=None, as_skymap=False):
         """
-        Return a full-sky nested HEALPix skymap at NSIDE resolution ``nˢ`` as a
-        ``numpy.ndarray`` from this skymap. If ``nˢ`` is not provided, use the
-        highest NSIDE value in this skymap's ``n⃗ˢ`` values to preserve
-        detail. Fill in missing values with ``pad`` (if not provided, use
-        ``healpy.UNSEEN``). Preserves ``astropy.units.Unit`` of this skymap's
-        pixel values (if ``s⃗`` is an ``astropy.units.Quantity``). If
-        ``as_skymap`` is ``True``, return a ``PartialUniqSkymap`` instance
-        instead with the new pixelization (instead of a bare array with
-        implicit pixel indexing).
+        Return a full-sky *nested* HEALPix skymap at NSIDE resolution ``nˢ``.
+
+        Parameters
+        ----------
+        nˢ : int
+            HEALPix NSIDE value of the output map. If not provided, use the
+            highest NSIDE value in this skymap's ``n⃗ˢ`` values to preserve
+            detail.
+        pad : float, optional
+            Fill in missing values with ``pad`` (if not provided, use
+            ``healpy.UNSEEN``). Preserves ``astropy.units.Unit`` of this
+            skymap's pixel values (if ``s⃗`` is an ``astropy.units.Quantity``).
+        as_skymap : bool, optional
+            If ``True``, return a ``PartialUniqSkymap`` instance with the new
+            pixelization (instead of a bare array with implicit indexing).
+
+        Returns
+        -------
+        s⃗ : array or PartialUniqSkymap
+            The filled-in skymap, either as an array if ``as_skymap == False``
+            or as a new ``PartialUniqSkymap`` instance.
+
+        See Also
+        --------
+        PartialUniqSkymap.fixed
         """
         import numpy as np
 
-        nˢ = nˢ or self.n⃗ˢ().max()
+        nˢ = nˢ or uniq2nside(self.u⃗.max())
         s⃗ᵒ = fill(self.u⃗, self.s⃗, nˢ, pad=pad)
         if not as_skymap:
             return s⃗ᵒ
@@ -498,6 +515,23 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         m['HISTORY'] = m.get('HISTORY', []) + [f'Filled to NEST, NSIDE={nˢ}.']
         return PartialUniqSkymap(s⃗ᵒ, np.arange(4*nˢ**2, 16*nˢ**2), copy=False,
                                  meta=m, point_sources=self.point_sources)
+
+    def fixed(self, nˢ=None):
+        """
+        Re-raster to a fixed NSIDE. Like ``fill`` but for partial skymaps.
+
+        Parameters
+        ----------
+        nˢ : int
+            HEALPix NSIDE value of the output map. If not provided, use the
+            highest NSIDE value in this skymap's ``n⃗ˢ`` values to preserve
+            detail.
+        """
+        nˢ = nˢ or uniq2nside(self.u⃗.max())
+        u⃗ᵒ = uniq2nest(self.u⃗, nˢ, nest=True)
+        s⃗ = self.reraster(u⃗ᵒ, copy=False)
+        s⃗.meta['HISTORY'][-1] += f' (fixed NSIDE={nˢ})'
+        return s⃗
 
     def __getitem__(self, idx) -> '__class__':
         """
@@ -547,19 +581,21 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             u⃗ = u⃗.u⃗
         return uniq_intersection(self.u⃗, u⃗)
 
-    def render(self, u⃗ᵒ, pad=None, copy=True):
+    def render(self, u⃗ᵒ, pad=None):
         """
         Like ``reraster``, but ``u⃗ᵒ`` does not need to be unique. Use this to
-        e.g. render a skymap to a plot. If ``copy`` is ``False``, use ``u⃗ᵒ`` as
-        the indices of the new skymap; otherwise, use a copy.
+        e.g. render a skymap to a plot. Unlike ``reraster``, will not return a
+        ``PartialUniqSkymap``; instead, simply returns the pixel values
+        corresponding to ``u⃗ᵒ``.
+
+        ``u⃗ᵒ`` can also be an ``astropy.wcs.WCS`` world coordinate system, in
+        which case the returned array will contain the pixel values of this
+        skymap in that coordinate system (with regions outside of the
+        projection set to ``np.nan``).
         """
         import numpy as np
 
-        s⃗ᵒ = render(self.u⃗, self.s⃗, u⃗ᵒ, pad)
-        m = self.meta.copy()
-        m['HISTORY'] = m.get('HISTORY', []) + ['Rerasterized.']
-        return PartialUniqSkymap(s⃗ᵒ, np.array(u⃗ᵒ, copy=copy), copy=False,
-                                 meta=m, point_sources=self.point_sources)
+        return render(self.u⃗, self.s⃗, u⃗ᵒ, pad)
 
     def reraster(self, u⃗ᵒ, pad=None, copy=True):
         """

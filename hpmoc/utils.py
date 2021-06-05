@@ -776,6 +776,43 @@ def fill(u⃗, x⃗, nˢ, pad=None):
     return reraster(u⃗, x⃗, u⃗ᵒ, pad=pad)
 
 
+def wcs2resol(wcs):
+    """
+    Get the resolution of an ``astropy.wcs.WCS`` coordinate system, i.e. the
+    smallest inter-pixel distance, as an ``astropy.units.Quantity`` with
+    angular unit.
+    """
+    from astropy.units import Unit
+
+    return min(abs(d)*Unit(u) for d, u in zip(wcs.wcs.cdelt, wcs.wcs.cunit))
+
+
+def wcs2mask_and_uniq(wcs):
+    """
+    Convert an ``astropy.wcs.WCS`` world coordinate system's pixels into NUNIQ
+    indices for HEALPix pixels of approximately the same size.
+    """
+    from astropy.units import Quantity as Qty
+    import numpy as np
+
+    sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
+                                         sparse=True)).icrs
+    ra = sk.ra.deg
+    dec = sk.dec.deg
+    del sk
+    ra_valid = ~np.isnan(ra)
+    dec_valid = ~np.isnan(dec)
+    assert np.all(ra_valid == dec_valid)
+    del dec_valid
+
+    nˢ = resol2nside(wcs2resol(wcs).to('rad').value, degrees=False)
+    return ra_valid, nest2uniq(
+        hp.ang2pix(nˢ, ra[ra_valid], dec[ra_valid], lonlat=True, nest=True),
+        nˢ,
+        in_place=True
+    )
+
+
 def render(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     """
     Like ``reraster``, but allows you to map to a partially-covered ``u⃗ᵒ``
@@ -784,14 +821,29 @@ def render(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     care of repeated pixels. To render a ``healpy`` plot with missing pixels,
     pass ``pad=healpy.UNSEEN``.
 
+    If ``u⃗ᵒ`` is an ``astropy.wcs.WCS`` world coordinate system, then
+    ``wcs2mask_and_uniq`` will be used to get the indices. Non-valid pixels
+    (i.e. pixels outside the projection area) will take on ``np.nan`` values,
+    while valid pixels will be rendered as usual.
+
     See Also
     --------
     reraster
     """
     import numpy as np
+    from astropy.wcs import WCS
 
+    if isinstance(u⃗ᵒ, WCS):
+        mask, u⃗ᵒ = wcs2mask_and_uniq(u⃗ᵒ)
+    else:
+        mask = None
     u⃗ᵘ, u⃗̇ᵘ = np.unique(u⃗ᵒ, return_inverse=True)
-    return reraster(u⃗, x⃗, u⃗ᵘ, pad=pad, Iᵢ⃗ⁱ⃗ᵒ=Iᵢ⃗ⁱ⃗ᵒ)[u⃗̇ᵘ]
+    s⃗ = reraster(u⃗, x⃗, u⃗ᵘ, pad=pad, Iᵢ⃗ⁱ⃗ᵒ=Iᵢ⃗ⁱ⃗ᵒ)[u⃗̇ᵘ]
+    if mask is None:
+        return s⃗
+    s⃗ₒ = np.full(mask.shape, np.nan)
+    s⃗ₒ[mask] = s⃗
+    return s⃗ₒ
 
 
 # pylint: disable=unsupported-assignment-operation,invalid-unary-operand-type

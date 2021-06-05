@@ -181,7 +181,7 @@ def layer_plot(s⃗, ax=None, vmin=None, vmax=None, cmap=None, zorder=0,
 
     if isinstance(s⃗, AbstractPartialUniqSkymap):
         s⃗ = s⃗.value.render(nest2uniq(s⃗̇, nˢ, in_place=True),
-                           pad=hp.UNSEEN, copy=False).s⃗
+                           pad=hp.UNSEEN)
     else:
         if isinstance(s⃗, Qty):
             s⃗ = s⃗.value
