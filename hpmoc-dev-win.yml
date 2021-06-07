@@ -1,0 +1,31 @@
+name: hpmoc-dev-win
+channels:
+  - conda-forge
+dependencies:
+  - python=3.8
+  # base
+  - numpy
+  - matplotlib
+  - astropy
+  - astropy-healpix
+  - reproject
+  # jup
+  - jupyter
+  - ipython
+  # test
+  - pytest
+  - pytest-cov
+  - h5py
+  - pyyaml
+  # dev
+  - pillow
+  #- numba
+  - flit
+  - pip
+  #- black
+  # acceleration
+  #- icc_rt  # -c numba
+  #- intelpython3_full  # -c intel
+  # pip
+  - pip:
+    - nptyping
