@@ -46,7 +46,9 @@ def pix2xyf(nside, ipix, nest=False):
     # Check for mistake in ``astropy_healpix`` scalar handling
     scalar = np.isscalar(ipix)
     ipix = np.uint64(ipix) if scalar else ipix.astype(np.uint64)
-    ipix = ipix if nest else healpy.ring2nest(nside, ipix).astype(np.uint64)
+    # Original healpy expects int64 only; uints cause problems here
+    ipix = ipix if nest else healpy\
+        .ring2nest(int(nside), ipix.astype(np.int64)).astype(np.uint64)
     if scalar and not np.isscalar(ipix):
         ipix = ipix.ravel()[0]
     ipix = np.uint64(ipix) if scalar else ipix.astype(np.uint64)
@@ -68,7 +70,9 @@ def xyf2pix(nside, x, y, face, nest=False):
     face = np.uint64(face) if np.isscalar(face) else face.astype(np.uint64)
     ipix = alt_expand(x) + (alt_expand(y) << np.uint64(1)) + face*nside*nside
     assert isinstance(ipix, np.uint64) or np.issubdtype(ipix.dtype, np.uint64)
-    ipix = ipix if nest else healpy.nest2ring(nside, ipix).astype(np.uint64)
+    # Original healpy expects int64 only; uints cause problems here.
+    ipix = ipix if nest else healpy\
+        .nest2ring(int(nside), ipix.astype(np.int64)).astype(np.uint64)
     return ipix.ravel()[0] if scalar and not np.isscalar(ipix) else ipix
 
 
