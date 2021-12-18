@@ -492,6 +492,134 @@ def uniq2nest_and_nside(indices, in_place=False):
     return indices, nside
 
 
+def nside_quantile_indices(nside, skymap, quantiles):
+    """
+    Get the indices and cumulative values of pixels falling between the given
+    ``quantiles`` (expressed as a fraction of unity) for the skymap value
+    ``skymap``. Also known as confidence/credible region (CR) or percentiles
+    (when using percentages rather than fractions of unity).
+
+    Pixels will be sorted by value (density), but quantiles will be taken by
+    total integrated value (i.e. density times area, i.e. in proportion to
+    density over the square of NSIDE). This puts the highest density regions in
+    the upper quantiles while still normalizing for area in a multi-resolution
+    skymap.
+
+    Note that this will work perfectly well for partial skymaps, though in that
+    case (as one would expect) the quantiles will be taken with respect to the
+    remaining pixels.
+
+    Parameters
+    ----------
+    nside : int or array
+        NSIDE value (or values for a multi-order skymap) for the skymap.
+    skymap : array
+        Skymap values. If ``nside`` is an array, values will correspond to
+        those NSIDEs.
+    quantiles : array
+        Quantiles from which to select pixels. Must be in ascending order with
+        values in the interval ``[0, 1]``. These will form endpoints for
+        partitions of the ``skymap``. For example, ``[0.1, 0.9]`` will omit the
+        lowest and highest value pixels, giving the intermediate pixels
+        accounting for 80% of the integrated skymap.
+        Note that quantiles returned by this function are non-intersecting and
+        half-open on the right (as with python indices), with the exception of
+        ``1`` for the last pixel; for example, ``[0, 1]`` will include all
+        pixels, ``[0.5, 1]`` will include the highest density pixels accounting
+        for 50% of the integrated skymap value, ``[0, 0.5, 1]`` will partition
+        the skymap into non-intersecting sets of pixels accounting for the
+        high- and low-density partitions of the skymap by integrated value,
+        etc.
+
+    Returns
+    -------
+    indices : generator
+        An iterator of arrays of indices suitable for selecting the values from
+        ``skymap`` corresponing to the selected quantiles, sorted in order of
+        increasing values of ``skymap``. Use these to select the values from
+        ``skymap`` corresponding to each of the partitions defined in
+        ``quantiles``. For example, ``quantiles=[0, 0.5, 1]`` will return a
+        generator yielding two arrays of indices for accessing the values in
+        the ``[0, 0.5]`` and ``[0.5, 1]`` quantiles, respectively. For
+        applications where you want to just mask ``skymap`` and preserve sort
+        order, you will want to sort this returned quantity before using it.
+    norm : array
+        The total integral of ``skymap``. The integrated region in a partition
+        defined by quantiles ``[0.1, 0.2]``, for example, will be
+        ``(0.2-0.1)*norm``.
+
+    Raises
+    ------
+    ValueError
+        If ``quantiles`` has length less than 2; if its values are not in order
+        and contained in the interval ``[0, 1]``; if ``nside`` and ``skymap``
+        cannot be broadcast together; if any values in ``skymap`` are negative;
+        or if the total integrated skymap equals zero, in which case quantiles
+        are undefined.
+
+    Examples
+    --------
+    Get the pixel indices for pixels between the 0.1 (10%) and 0.9 (90%)
+    quantiles on a fixed-resolution full skymap:
+    >>> import numpy as np
+    >>> skymap = np.array([ 9, 10, 11,  0,  1,  2,  3,  4,  5,  6,  7,  8])
+    >>> i, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
+    >>> [*i]
+    [array([ 7,  8,  9, 10, 11,  0,  1])]
+
+    The norm in this case is just the average pixel value times the total solid
+    angle of the sky:
+    >>> 4*np.pi*s.mean() == norm
+    True
+
+    Get the pixel indices for the same interval on a mixed resolution partial
+    skymap (where the last six pixels contribute far less area despite having
+    high density):
+    >>> nside = np.array(6*[1]+6*[64])
+    >>> [*nside_quantile_indices(nside, skymap, [0.1, 0.9])[0]][0]
+    array([0, 1])
+
+    Equal lower and upper bounds give empty quantiles:
+    >>> [*nside_quantile_indices(nside, skymap, [0.5, 0.5])[0]][0]
+    array([], dtype=int64)
+
+    Recover all indices (sorted by density):
+    >>> [*nside_quantile_indices(nside, skymap, [0, 1])[0]][0]
+    array([ 3,  4,  5,  6,  7,  8,  9, 10, 11,  0,  1,  2])
+
+    Pick the 90% CR:
+    >>> [*nside_quantile_indices(nside, skymap, [0.1, 1])[0]][0]
+    array([0, 1, 2])
+
+    Get the four top 20% quantiles:
+    >>> [*nside_quantile_indices(nside, skymap, np.arange(0.2, 1.1, 0.2))[0]]
+    [array([0]), array([], dtype=int64), array([1]), array([2])]
+    """
+    import numpy as np
+
+    q = np.array(quantiles, dtype=float)
+    if not np.iterable(q):
+        raise ValueError(f"quantiles ({quantiles}) must be a list of "
+                         "partition boundaries")
+    if len(q) < 2:
+        raise ValueError(f"must provide at least 2 quantiles ({quantiles})")
+    if not (q[1:] >= q[:-1]).all():
+        raise ValueError(f"quantiles ({quantiles}) must be in ascending order")
+    if (q[0] < 0) or (q[-1] > 1):
+        raise ValueError(f"quantiles ({quantiles}) must be in [0, 1]")
+    if (skymap < 0).any():
+        raise ValueError(f"skymap ({skymap}) must be strictly nonnegative")
+    q[q == 1] += 0.1  # make it closed on the right
+    i = skymap.argsort()
+    r = (skymap/(nside*nside))[i].cumsum()
+    norm = r[-1]
+    if norm == 0:
+        raise ValueError(f"skymap ({skymap}) has total integral of 0")
+    r /= norm
+    j = r.searchsorted(q)
+    return (i[l:u] for l, u in zip(j[:-1], j[1:])), norm*np.pi/3
+
+
 def uniq_intersection(u⃗1, u⃗2):
     """Downselect the pixel indices given in ``u⃗1`` to the set that
     overlaps with pixels in ``u⃗2`` and return pairs of indices into
