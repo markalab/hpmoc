@@ -21,6 +21,7 @@ import logging
 import gzip
 from tempfile import NamedTemporaryFile
 import binascii
+from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
 
 LOGGER = logging.getLogger(__name__)
@@ -31,6 +32,41 @@ PIXEL_CONSISTENCY_ERROR = 1e-9
 MAX_ORDER = 30
 UINT_RANGES = {(0, 2**(8*2**i)): f'uint{8*2**i}' for i in range(4)}
 INT_RANGES = {(-i//2, i//2): v[1:] for [_, i], v in UINT_RANGES.items()}
+
+
+# TODO test this much more
+def uniq2xyf_nside(u⃗):
+    """
+    Examples
+    --------
+    >>> uniq2xyf_nside(8)
+    (0, 0, 4, 1)
+
+    See Also
+    --------
+    xyf_nside2uniq
+    """
+    i, nˢ = uniq2nest_and_nside(u⃗)
+    nˢˢ = nˢ*nˢ
+    f = (u⃗//nˢˢ)-4
+    i -= f*nˢˢ
+    return alt_compress(i), alt_compress(i>>1, True), f, nˢ
+
+
+# TODO test this much more
+def xyf_nside2uniq(x, y, f, nˢ):
+    """
+    Examples
+    --------
+    >>> import numpy as np
+    >>> (xyf_nside2uniq(*uniq2xyf_nside(np.arange(4, 10000))) == np.arange(4, 10000)).all()
+    True
+
+    See Also
+    --------
+    uniq2xyf_nside
+    """
+    return alt_expand(x) + (alt_expand(y)<<1) + (f+4)*nˢ*nˢ
 
 
 def min_int_dtype(vmin, vmax):
@@ -154,8 +190,8 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
                 90.       ,  90.       ,  90.       , 131.8103149, 131.8103149,
                131.8103149, 131.8103149] deg>
-    >>> np.all(Δθ⃗.value == 90 - hp.pix2ang(1, np.arange(12), nest=True,
-    ...                                    lonlat=True)[1])
+    >>> np.all(abs(Δθ⃗.value - (90 - hp.pix2ang(1, np.arange(12), nest=True,
+    ...                                        lonlat=True)[1])) < 1e-13)
     True
 
     You can run the same check for larger skymaps, too (though note that
@@ -213,8 +249,8 @@ def uniq2dangle(u⃗, ra, dec, degrees=True):
     <Quantity [ 48.1896851,  48.1896851,  48.1896851,  48.1896851,  90.       ,
                 90.       ,  90.       ,  90.       , 131.8103149, 131.8103149,
                131.8103149, 131.8103149] deg>
-    >>> np.all(Δθ⃗.value == 90 - hp.pix2ang(1, np.arange(12), nest=True,
-    ...                                    lonlat=True)[1])
+    >>> np.all(abs(Δθ⃗.value - (90 - hp.pix2ang(1, np.arange(12), nest=True,
+    ...                                    lonlat=True)[1])) < 1e-13)
     True
 
     See Also

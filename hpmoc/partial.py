@@ -741,7 +741,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         <Quantity [0.84106867, 0.84106867, 0.84106867, 0.84106867, 1.57079633,
                    1.57079633, 1.57079633, 1.57079633, 2.30052398, 2.30052398,
                    2.30052398, 2.30052398] rad>
-        >>> np.all(Δθ⃗+dec-90*deg==0)
+        >>> np.all(abs(Δθ⃗+dec-90*deg).to('deg').value<1e-13)
         True
 
         Likewise, the distance from any pixel to the South pole should be
