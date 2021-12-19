@@ -15,7 +15,7 @@ import base64
 from io import BytesIO
 from textwrap import wrap, dedent
 from collections import OrderedDict
-from typing import List, Callable, Optional, Union, IO
+from typing import List, Iterator, Iterable, Callable, Optional, Union, IO
 from .utils import (
     uniq2nest,
     uniq2dangle,
@@ -30,6 +30,7 @@ from .utils import (
     uniq2order,
     nest2ang,
     nside2pixarea,
+    nside_quantile_indices,
     nside_slices,
     read_partial_skymap,
 )
@@ -515,6 +516,69 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         m['HISTORY'] = m.get('HISTORY', []) + [f'Filled to NEST, NSIDE={nˢ}.']
         return PartialUniqSkymap(s⃗ᵒ, np.arange(4*nˢ**2, 16*nˢ**2), copy=False,
                                  meta=m, point_sources=self.point_sources)
+
+    def quantiles(
+            self,
+            quantiles: Iterable[float]
+    ) -> Iterator:
+        """
+        Get an iterator of downselected skymaps partitioned by ``quantiles``.
+        For example, get the smallest sky area containing 90% of the
+        probability (or whatever other intensive quantity this skymap
+        represents) with ``quantiles=[0.1, 1]``.
+
+        Parameters
+        ----------
+        quantiles : Iterable[float]
+            Quantiles from which to select pixels. Must be in ascending order
+            with values in the interval ``[0, 1]``. These will form endpoints
+            for partitions of the ``skymap``. For example, ``[0.1, 0.9]`` will
+            omit the lowest and highest value pixels, giving the intermediate
+            pixels accounting for 80% of the integrated skymap.  Note that
+            quantiles returned by this function are non-intersecting and
+            half-open on the right (as with python indices), with the exception
+            of ``1`` for the last pixel; for example, ``[0, 1]`` will include
+            all pixels, ``[0.5, 1]`` will include the highest density pixels
+            accounting for 50% of the integrated skymap value, ``[0, 0.5, 1]``
+            will partition the skymap into non-intersecting sets of pixels
+            accounting for the high- and low-density partitions of the skymap
+            by integrated value, etc.
+
+        Returns
+        -------
+        partitions : Iterator[PartialUniqSkymap]
+            A generator containing non-overlapping skymaps falling into the
+            specified ``quantiles``. Will have length one less than the number
+            of quantiles, which form the boundaries of the partitions. Always
+            an iterable, even if only two quantiles are provided; you can
+            unpack a single value with, e.g., ``x, = m.quantiles(...)``.
+
+        Raises
+        ------
+        ValueError
+            If ``quantiles`` has length less than 2; if its values are not in
+            order and contained in the interval ``[0, 1]``; if ``nside`` and
+            ``skymap`` cannot be broadcast together; if any values in
+            ``skymap`` are negative; or if the total integrated skymap equals
+            zero, in which case quantiles are undefined.
+
+        See Also
+        --------
+        hpmoc.utils.nside_quantile_indices
+        """
+        import numpy as np
+
+        quantiles = np.array(quantiles, dtype=float)
+        indices, norm = nside_quantile_indices(self.n⃗ˢ(), self.s⃗, quantiles)
+        for i, l, u in zip(indices, quantiles[:-1], quantiles[1:]):
+            m = self.meta.copy()
+            m['HISTORY'] = m.get('HISTORY', []) + wrap(
+                f'Downselected to [{l:.2g}, {u:.2g}] quantile '
+                f'({(u-l)*100:.2g}%) of {norm:.2g} ({norm*(u-l):.2g} total)',
+                70
+            )
+            yield PartialUniqSkymap(self.s⃗[i], self.u⃗[i], copy=False, meta=m,
+                                    point_sources=self.point_sources)
 
     def fixed(self, nˢ=None):
         """
@@ -1148,9 +1212,7 @@ class LigoIo(IoStrategy):
         file : file or str
             The file object or filename to read from.
         name : str, optional
-            The column-name of the pixel data. If not specified and if reading
-            from a file with only one non-index column, that column will be
-            chosen automatically.
+            The column-name of the pixel data.
         memmap : bool, optional
             Whether to memory-map the input file during read. Useful when
             reading small sky areas from large files to conserve memory.
