@@ -8,12 +8,11 @@ Functions for working with point sources, applying point spread functions
 """
 
 from .utils import nest2uniq, resol2nside, nest2dangle
-from .partial import PartialUniqSkymap
 from .points import PointsTuple
 from .healpy import healpy as hp
 
 
-def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, **kwargs):
+def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None, **kwargs):
     """
     Create a new Gaussian point-spread-function (PSF) ``PartialUniqSkymap``
     from the right-ascension ``ra``, declination ``dec``, and standard
@@ -30,19 +29,23 @@ def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, **kwargs):
     σ : float or astropy.units.Quantity
         Standard deviation of the distribution.
     cutoff : float, optional
-        How large of a disk to query in multiples of σ.
+        How large of a disk to query in multiples of σ, i.e. the support of the
+        PSF in units of σ.
     pt_label : str, optional
         A string label for this point when plotting (e.g. the event ID).
+    nside : int, optional
+        NSIDE to use. If not specified, calculated automatically.
     **kwargs
         Keyword arguments to pass to ``PointsTuple``.
     """
     import numpy as np
     from astropy.units import deg, Quantity as Qnt  # pylint: disable=E0611
+    from .partial import PartialUniqSkymap
 
     Ω = [θ.to(deg) if isinstance(θ, Qnt) else θ*deg for θ in (ra, dec, σ)]
     ra, dec, σ = Ω                              # store with dimensions
 
-    nˢ = resol2nside(σ/5)                       # target NSIDE resolution
+    nˢ = nside or resol2nside(σ/5)              # target NSIDE resolution
     n⃗ = hp.query_disc(nˢ, hp.ang2vec(ra.value, dec.value, True),
                       cutoff*σ.to('rad').value, nest=True)
     inv2σsq = σ.to('rad')**-2/2                 # 1/2σ² factor

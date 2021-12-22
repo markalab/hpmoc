@@ -961,30 +961,73 @@ def wcs2resol(wcs):
     return min(abs(d)*Unit(u) for d, u in zip(wcs.wcs.cdelt, wcs.wcs.cunit))
 
 
+def wcs2ang(wcs: 'astropy.wcs.WCS', lonlat=True):
+    """
+    Convert an ``astropy.wcs.WCS`` world coordinate system's pixels into ICRS
+    coordinate angles.
+
+    Parameters
+    ----------
+    wcs: astropy.wcs.WCS
+        The world coordinate system for whose pixels you want coordinate
+        values.
+    lonlat: bool, optional
+        If ``True``, return right ascension/declination. If ``False``, return
+        (phi, theta) angles.
+
+    Returns
+    -------
+    valid: array
+        Boolean mask indicating which values from the ``WCS`` are valid. The
+        rest can be padded with a fill value by the user (most likely
+        ``np.nan``.
+    ra_or_theta: astropy.units.Quantity
+        The right-ascension/longitude if ``lonlat=True``, otherwise the
+        zenith/theta angle.
+    dec_or_phi: astropy.units.Quantity
+        The declination/latitude angle if ``lonlat=True``, otherwise the
+        azimuthal/phi angle.
+    """
+    import numpy as np
+    from astropy.units import Unit
+
+    sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
+                                         sparse=True)).icrs
+    ra = sk.ra
+    dec = sk.dec
+    del sk
+    valid = ~np.isnan(ra)
+    assert np.all(valid == ~np.isnan(dec))
+    if lonlat:
+        return valid, ra[valid], dec[valid]
+    return valid, 90-dec[valid], ra[valid]
+
+
 def wcs2mask_and_uniq(wcs):
     """
     Convert an ``astropy.wcs.WCS`` world coordinate system's pixels into NUNIQ
     indices for HEALPix pixels of approximately the same size.
     """
-    from astropy.units import Quantity as Qty
-    import numpy as np
-
-    sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
-                                         sparse=True)).icrs
-    ra = sk.ra.deg
-    dec = sk.dec.deg
-    del sk
-    ra_valid = ~np.isnan(ra)
-    dec_valid = ~np.isnan(dec)
-    assert np.all(ra_valid == dec_valid)
-    del dec_valid
-
+    valid, ra, dec = wcs2ang(wcs, lonlat=True)
     nˢ = resol2nside(wcs2resol(wcs).to('rad').value, degrees=False)
-    return ra_valid, nest2uniq(
-        hp.ang2pix(nˢ, ra[ra_valid], dec[ra_valid], lonlat=True, nest=True),
+    return valid, nest2uniq(
+        hp.ang2pix(nˢ, ra.deg, dec.deg, lonlat=True, nest=True),
         nˢ,
         in_place=True
     )
+
+
+def monochrome_opacity_colormap(name, rgb):
+    """
+    Get a monochrome ``matplotlib.colors.LinearSegmentedColormap`` with color
+    defined by ``rgba`` (values between zero and one). Opacity will range from
+    full transparency for the minimum value to the alpha value set in ``rgba``.
+    """
+    from matplotlib.colors import LinearSegmentedColormap
+
+    m = LinearSegmentedColormap.from_list(name, [[*rgb, 0], [*rgb, 1]])
+    m.set_under((0, 0, 0, 0))  # transparent background (-np.inf imgshow)
+    return m
 
 
 def render(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):

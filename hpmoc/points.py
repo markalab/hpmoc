@@ -1,6 +1,7 @@
 import re
 from collections import OrderedDict
 from typing import NamedTuple, Union, List, Tuple, Optional
+from .utils import wcs2ang, uniq2nest_and_nside, monochrome_opacity_colormap
 
 PT_META_REGEX = re.compile('^PT([0-9A-Fa-f])_([0-9A-Fa-f]{2})(RA|DC|SG|ST)$')
 PT_META_KW_REGEX = re.compile('^PT([0-9A-Fa-f])_(MRK|LABEL)$')
@@ -64,6 +65,13 @@ def _vecs_for_repr_(maxlen, *vecs):
     return [[*d[:s], '...', *d[-e:]] for d in vˡ], uˡ
 
 
+class NoDisks(ValueError):
+    """
+    Indicates that there are no point sources with nonzero support (sigma).
+    Catch this to avoid wasting an extra artist plotting non-existent disks.
+    """
+
+
 class PointsTuple(NamedTuple):
     """
     A collection of points for scatterplots.
@@ -75,9 +83,13 @@ class PointsTuple(NamedTuple):
 
     def _repr_html_(self):
         pts = _vecs_for_repr_(20, *zip(*self.points))[0]
-        rows = "\n".join(f'<tr><td>{s or i}</td><td>{r}</td><td>{d}</td>'
-                         f'<td>{σ}</td></tr>'
-                         for i, [r, d, σ, s] in enumerate(zip(*pts)))
+        rowa = []
+        for i, [r, d, *σs] in enumerate(zip(*pts)):
+            σ = '--' if len(σs) == 0 else σs[0]
+            s = '--' if len(σs) < 2 else σs[1]
+            rowa.append(f'<tr><td>{s or i}</td><td>{r}</td><td>{d}</td>'
+                        f'<td>{σ}</td></tr>')
+        rows = "\n".join(rowa)
         bgcolor = Rgba(*self.rgba).to_hex()
         return f'''
             <table>
@@ -201,3 +213,107 @@ class PointsTuple(NamedTuple):
             if pt not in unique:
                 unique.append(pt)
         return unique
+
+    def render(self, u⃗ᵒ, pad=0., extent=1.):
+        """
+        Similar to ``hpmoc.PartialUniqSkymap.render``, but for support disks
+        specified by the input points' sigma parameters. Will raise
+        ``NoDisks`` if all point source sigmas are undefined and/or zero.
+        Use this with the ``cmap`` method and your ``WCSAxes`` instance's
+        ``imshow`` method to display these disks. You will need to call
+        ``WCSAxes.scatter`` separately to display the point locations
+        themselves using ``self.marker``. You will also need to label the
+        point names separately using ``self.label_points``.
+
+        All of this is done automatically if this instance is passed as a
+        ``scatter`` parameter to ``PartialUniqSkymap.plot``.
+
+        Parameters
+        ----------
+        u⃗ᵒ: array or astropy.wcs.WCS
+            The pixels to fill. If an array, treated as UNIQ indices
+            (duplicates allowed); if WCS, treated as a set of pixels to render
+            to.
+        pad: float, optional
+            A pad value to use for pixels not contained in the maps. Defaults
+            to transparency.
+        extent: float, optional
+            How many multiples of ``sigma`` to extend the disk out to.
+
+        Returns
+        -------
+        pixels: array
+            Pixel values at locations specified in ``u⃗ᵒ``. If a ``WCS``
+            instance, then the pixels will be suitable for immediate display
+            in a ``WCSAxes`` instance using ``imshow``; otherwise, you might
+            wish to use the nonzero values as a mask to select pixels in a
+            ``PartialUniqSkymap`` near the point sources in this instance.
+
+        Raises
+        ------
+        NoDisks
+            If all sigmas are zero or undefined. Use this to avoid an
+            extraneous call to ``imshow``, or to catch missing sigmas.
+
+        See Also
+        --------
+        hpmoc.PartialUniqSkymap.plot
+        hpmoc.PartialUniqSkymap.render
+        WCSAxes.scatter
+        """
+
+        import numpy as np
+        from astropy.wcs import WCS
+        #from .healpy import healpy as hp
+        import healpy as hp
+
+        # get the disks to be plotted, raising ``NoDisks`` if none match
+        p, t, s = np.radians([(r, d, s[0]) for (r, d, *s) in self.points
+                              if len(s) > 0 and s[0] > 0]).T
+        if p.size == 0:
+            raise NoDisks()
+        a = self.rgba.alpha
+        d = np.float32 if len(self.points) < 16777216 else np.float64
+
+        # get angles of disks as well as the max dot-product with s (sigma)
+        # and normalize angles p, t to phi, theta conventions.
+        np.multiply(s, extent, out=s)
+        np.cos(s, out=s)
+        np.subtract(np.radians(90), t, out=t)
+        points = hp.ang2vec(t, p, lonlat=False).T
+        del t, p
+
+        # get the coordinates to plot to and convert them to vectors
+        if isinstance(u⃗ᵒ, WCS):
+            valid, tp, pp  = wcs2ang(u⃗ᵒ, lonlat=False)
+        else:
+            valid = None
+            tp, pp = hp.pix2ang(*uniq2nest_and_nside(u⃗ᵒ)[::-1], nest=True,
+                                 lonlat=False)
+        plot = hp.ang2vec(tp, pp, lonlat=False)
+        del tp, pp
+
+        # take dot products and sum overlaps of each pixel before applying
+        # alpha
+        m = (plot@points>s).sum(axis=1, type=d)
+        del plot, points
+        np.power(1-a, m, out=m)
+        np.subtract(1, m, out=m)
+
+        # fill the output with rendered values if necessary and return
+        if valid is None:
+            return m
+        o = np.full(valid, np.nan)
+        o[valid] = m
+        return o
+
+
+    def cmap(self):
+        """
+        Returns
+        -------
+        cmap: matplotlib.colors.LinearSegmentedColormap
+            A color map to be used as the ``cmap`` argument to ``imshow``
+            alongside the return value of ``render``.
+        """
+        return monochrome_opacity_colormap(self.rgba.to_hex()[:-2], self.rgba[:-1])

@@ -18,6 +18,7 @@ from .points import Rgba, PointsTuple
 from .utils import (
     resol2nside,
     nest2uniq,
+    monochrome_opacity_colormap,
 )
 from .abstract import AbstractPartialUniqSkymap
 
@@ -101,19 +102,6 @@ def outline_effect():
         linewidth=OUTLINE_STROKE,
         foreground=OUTLINE_COLOR,
     )
-
-
-def monochrome_opacity_colormap(name, rgb):
-    """
-    Get a monochrome ``matplotlib.colors.LinearSegmentedColormap`` with color
-    defined by ``rgba`` (values between zero and one). Opacity will range from
-    full transparency for the minimum value to the alpha value set in ``rgba``.
-    """
-    from matplotlib.colors import LinearSegmentedColormap
-
-    m = LinearSegmentedColormap.from_list(name, [[*rgb, 0], [*rgb, 1]])
-    m.set_under((0, 0, 0, 0))  # transparent background (-np.inf imgshow)
-    return m
 
 
 def get_hp_ax_img_shape(ax):
@@ -235,7 +223,6 @@ def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
     ax = ax or plt.gca()
     shape = shape or get_hp_ax_img_shape(ax)
     d = np.float32 if len(disks) < 16777216 else np.float64
-    #d = np.float64
 
     # get angles of the disks as well as the max dot-product via σ
     ϕ̃, θ̃, σ = (np.radians(disks) if degrees else np.array(disks, copy=True)).T

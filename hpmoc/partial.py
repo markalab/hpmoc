@@ -656,6 +656,26 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         which case the returned array will contain the pixel values of this
         skymap in that coordinate system (with regions outside of the
         projection set to ``np.nan``).
+
+        Parameters
+        ----------
+        u⃗ᵒ: array or astropy.wcs.WCS
+            The pixels to fill. If an array, treated as UNIQ indices
+            (duplicates allowed); if WCS, treated as a set of pixels to render
+            to.
+        pad: float, optional
+            A pad value to use for pixels not contained in the maps. Defaults
+            to ``None``, which will raise an error if suitable values cannot
+            be found for every valid pixel in ``u⃗ᵒ`` (this does not apply to
+            values outside a ``WCS`` projection, which will take on ``np.nan``
+            values).
+
+        Returns
+        -------
+        pixels: array
+            Pixel values at locations specified in ``u⃗ᵒ``. If ``u⃗ᵒ`` is a
+            ``WCS`` instance, then values outside of the projection will be
+            set to ``np.nan``.
         """
         import numpy as np
 
