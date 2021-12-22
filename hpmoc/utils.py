@@ -989,18 +989,18 @@ def wcs2ang(wcs: 'astropy.wcs.WCS', lonlat=True):
         azimuthal/phi angle.
     """
     import numpy as np
-    from astropy.units import Unit
+    from astropy.units import deg, Quantity
 
     sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
                                          sparse=True)).icrs
-    ra = sk.ra
-    dec = sk.dec
+    ra = Quantity(sk.ra)
+    dec = Quantity(sk.dec)
     del sk
     valid = ~np.isnan(ra)
     assert np.all(valid == ~np.isnan(dec))
     if lonlat:
         return valid, ra[valid], dec[valid]
-    return valid, 90-dec[valid], ra[valid]
+    return valid, 90*deg-dec[valid], ra[valid]
 
 
 def wcs2mask_and_uniq(wcs):
@@ -1011,7 +1011,8 @@ def wcs2mask_and_uniq(wcs):
     valid, ra, dec = wcs2ang(wcs, lonlat=True)
     nˢ = resol2nside(wcs2resol(wcs).to('rad').value, degrees=False)
     return valid, nest2uniq(
-        hp.ang2pix(nˢ, ra.deg, dec.deg, lonlat=True, nest=True),
+        hp.ang2pix(nˢ, ra.to('deg').value, dec.to('deg').value,
+                   lonlat=True, nest=True),
         nˢ,
         in_place=True
     )

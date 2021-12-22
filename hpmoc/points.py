@@ -44,11 +44,12 @@ class Rgba(NamedTuple):
         c = 1 if l in (3, 4) else 2
         return cls(*(int(h[i:i+c], 16)/(16**c-1) for i in range(0, l, c)))
 
-    def to_hex(self):
+    def to_hex(self, include_alpha=True):
         """
         Get a hex string of the form ``#rrggbbaa`` for this ``Rgba`` tuple.
         """
-        return "#"+("{:02x}"*4).format(*(int(255*c) for c in self))
+        cs = self if include_alpha else self[:-1]
+        return "#"+("{:02x}"*4).format(*(int(255*c) for c in cs))
 
 
 def _vecs_for_repr_(maxlen, *vecs):
@@ -214,7 +215,7 @@ class PointsTuple(NamedTuple):
                 unique.append(pt)
         return unique
 
-    def render(self, u⃗ᵒ, pad=0., extent=1.):
+    def render(self, u⃗ᵒ, extent=1.):
         """
         Similar to ``hpmoc.PartialUniqSkymap.render``, but for support disks
         specified by the input points' sigma parameters. Will raise
@@ -234,9 +235,6 @@ class PointsTuple(NamedTuple):
             The pixels to fill. If an array, treated as UNIQ indices
             (duplicates allowed); if WCS, treated as a set of pixels to render
             to.
-        pad: float, optional
-            A pad value to use for pixels not contained in the maps. Defaults
-            to transparency.
         extent: float, optional
             How many multiples of ``sigma`` to extend the disk out to.
 
@@ -264,8 +262,8 @@ class PointsTuple(NamedTuple):
 
         import numpy as np
         from astropy.wcs import WCS
-        #from .healpy import healpy as hp
-        import healpy as hp
+        from astropy.units import rad
+        from .healpy import healpy as hp
 
         # get the disks to be plotted, raising ``NoDisks`` if none match
         p, t, s = np.radians([(r, d, s[0]) for (r, d, *s) in self.points
@@ -280,22 +278,24 @@ class PointsTuple(NamedTuple):
         np.multiply(s, extent, out=s)
         np.cos(s, out=s)
         np.subtract(np.radians(90), t, out=t)
-        points = hp.ang2vec(t, p, lonlat=False).T
+        points = hp.ang2vec(t, p, lonlat=False)
         del t, p
 
         # get the coordinates to plot to and convert them to vectors
         if isinstance(u⃗ᵒ, WCS):
             valid, tp, pp  = wcs2ang(u⃗ᵒ, lonlat=False)
+            tp = tp.to(rad).value
+            pp = pp.to(rad).value
         else:
             valid = None
             tp, pp = hp.pix2ang(*uniq2nest_and_nside(u⃗ᵒ)[::-1], nest=True,
                                  lonlat=False)
-        plot = hp.ang2vec(tp, pp, lonlat=False)
+        plot = hp.ang2vec(tp, pp, lonlat=False).T
         del tp, pp
 
         # take dot products and sum overlaps of each pixel before applying
         # alpha
-        m = (plot@points>s).sum(axis=1, type=d)
+        m = (plot@points>s).sum(axis=1, dtype=d)
         del plot, points
         np.power(1-a, m, out=m)
         np.subtract(1, m, out=m)
@@ -303,7 +303,7 @@ class PointsTuple(NamedTuple):
         # fill the output with rendered values if necessary and return
         if valid is None:
             return m
-        o = np.full(valid, np.nan)
+        o = np.full(valid.shape, np.nan)
         o[valid] = m
         return o
 
