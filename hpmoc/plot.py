@@ -195,67 +195,178 @@ ligo.skymap
 healpy
 """
 
+from warnings import warn
 from typing import Optional, Union, Tuple, Iterable, Callable
 from textwrap import indent, wrap
+from .utils import outline_effect, N_X_OFFSET, N_Y_OFFSET, FONT_SIZE
 from .points import PointsTuple
 
 import hpmoc
 
-_ALLSKY = """
-NAXIS   =                    2
-NAXIS1  =                  360
-NAXIS2  =                  180
-CTYPE1  = 'RA---{proj}'
-CRVAL1  =                180.0
-CUNIT1  = 'deg     '
-CTYPE2  = 'DEC--{proj}'
-CRVAL2  =                  0.0
-CUNIT2  = 'deg     '
-COORDSYS= 'icrs    '
-"""
+DEFAULT_WIDTH = 360
+DEFAULT_HEIGHT = 180
+DEFAULT_ROT = (180, 0, 0)
+DEFAULT_FACING = True
+BASE_FONT_SIZE = 10
+_ALLSKY = {
+    "NAXIS": 2,
+    "NAXIS1": 360,
+    "NAXIS2": 180,
+    "CTYPE1": 'RA---',
+    "CRVAL1": 180.0,
+    "CUNIT1": 'deg',
+    "CTYPE2": 'DEC--',
+    "CRVAL2": 0.0,
+    "CUNIT2": 'deg',
+    "COORDSYS": 'icrs'
+}
 _WCS_HEADERS = dict()
-_PROJ_DOC = """
-    All-sky:
+_WCS_FRAMES = dict()
+_ALL_SKY_DOC = """
 """
-for proj, aliases in {
-    'MOL': ('Mollweide',),
-    'AIT': ('Hammer-Aitoff', 'Aitoff', 'Hammer'),
-    'CAR': ('Carée', 'Plate-carée', 'Caree', 'Plate-caree', 'Cartesian',
-            'Tyre'),
-    'SFL': ('Sanson-Flamsteed',),
-    'PAR': ('Parabolic', 'Craster'),
+for proj, (frame, aliases) in {
+    'MOL': ('e', ('Mollweide',)),
+    'AIT': ('e', ('Hammer-Aitoff', 'Aitoff', 'Hammer')),
+    'CAR': ('r', ('Carée', 'Plate-carée', 'Caree', 'Plate-caree', 'Cartesian',
+                  'Tyre')),
+    'SFL': ('p', ('Sanson-Flamsteed',)),
+    'PAR': ('p', ('Parabolic', 'Craster')),
 }.items():
-    _PROJ_DOC += '    - ' + indent('\n'.join(
+    _ALL_SKY_DOC += '    - ' + indent('\n'.join(
         wrap(f"{proj}: *{', '.join(aliases)}*", 73)), ' '*6)[6:] + '\n'
-    _WCS_HEADERS[proj] = _ALLSKY.format(proj=proj)
+    _WCS_FRAMES[proj] = frame
+    _WCS_HEADERS[proj] = _ALLSKY.copy()
+    _WCS_HEADERS[proj]['CTYPE1'] += proj
+    _WCS_HEADERS[proj]['CTYPE2'] += proj
     for alias in aliases:
         _WCS_HEADERS[alias.upper()] = _WCS_HEADERS[proj]
+        _WCS_FRAMES[alias.upper()] = frame
+
+
+def get_frame_class(
+        projection: str
+) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
+    """
+    Get the frame class associated with a given projection.
+    Parameters
+    ----------
+    projection: str
+        The projection to use. See ``get_wcs`` for details.
+
+    Returns
+    -------
+    frame_class: astropy.visualization.wcsaxes.frame.BaseFrame
+        The frame class best-suited to this type of projection.
+
+    Raises
+    ------
+    IndexError
+        If the specified projection could not be found.
+    """
+    from astropy.visualization.wcsaxes import frame
+
+    f = _WCS_FRAMES[projection.upper()]
+    if f == 'e':
+        return frame.EllipticalFrame
+    if f == 'r':
+        return frame.RectangularFrame
+    warn(f"Frame class for {projection} not yet available. Using default for "
+         "now; specify your own for a better-looking plot.", UserWarning)
+    return frame.RectangularFrame
 
 
 def get_wcs(
         projection: str,
-        width: float,
-        height: float,
-        rot: Tuple[float, float, float],
+        width: int = DEFAULT_WIDTH,
+        height: int = DEFAULT_HEIGHT,
+        rot: Tuple[float, float, float] = DEFAULT_ROT,
+        facing_sky: bool = DEFAULT_FACING,
 ) -> 'astropy.wcs.WCS':
+    """
+    Get a ``WCS`` instance by name to match the given parameters.
+
+    Parameters
+    ----------
+    projection: str
+        The following projections are available by default. See ``hpmoc.plot``
+        documentation for instructions on constructing your own WCS headers for
+        other plot styles, which can be passed in instead using a ``WCS``
+        instance. You can also use this approach to plot the skymap over an
+        existing ``WCS`` taken from another fits file, making it easy to plot
+        skymaps over other astrophysical data. This function will return
+        ``WCS`` instances for the following projection types:
+
+        All-sky:{_ALL_SKY_DOC}
+    width: int
+        Width of the image in pixels.
+    height: int
+        Height of the image in pixels.
+    rot: Tuple[float, float, float]
+        Euler angles for rotations about the Z, X, Z axes. These are
+        immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
+        ``WCS``; that is, the first two angles specify the angle of the center
+        of the image, while the last specifies an additional rotation of the
+        reference pole about the Z-axis. See ``hpmoc.plot`` documentation for
+        further references.
+    facing_sky: bool
+        Whether the projection is outward- or inward-facing. Equivalent to
+        reversing the direction of the longitude.
+
+    Returns
+    -------
+    wcs: astropy.wcs.WCS
+        A ``WCS`` instance that can be used for rendering and plotting.
+
+    Raises
+    ------
+    IndexError
+        If the specified projection could not be found.
+    """
     from astropy.io.fits import Header
     from astropy.wcs import WCS
+    import numpy as np
 
-    header = Header.fromstring(_WCS_HEADERS[projection.upper()])
+    dec_dir = -1 if facing_sky else 1
+    header = Header(_WCS_HEADERS[projection.upper()].copy())
+    header['NAXIS1'] = width
+    header['CRPIX1'] = width / 2 + 0.5
+    header['CDELT1'] = dec_dir * np.sqrt(8) / np.pi * 360 / width
+    header['CRVAL1'] = rot[0]
+    header['NAXIS2'] = height
+    header['CRPIX2'] = height / 2 + 0.5
+    header['CDELT2'] = np.sqrt(8) / np.pi * 180 / height
+    header['CRVAL2'] = rot[1]
+    header['LONPOLE'] = rot[2]
+    return WCS(header)
 
 
 def plot(
         skymap: 'hpmoc.PartialUniqSkymap',
         *scatter: PointsTuple,
-        projection: Union[str, 'astropy.wcs.WCS'] = 'Mollweide',
-        frame: Optional['astropy.visualization.wcsaxes.frame.BaseFrame'] = None,
-        width: float = 360,
-        height: float = 180,
-        rot: Tuple[float, float, float] = (180, 0, 0),
-        facing_sky: bool = True,
+        vmin: Optional[float] = None,
+        vmax: Optional[float] = None,
+        cmap: Union[str, 'matplotlib.colors.Colormap'] = 'gist_heat_r',
+        sigmas: Iterable[float] = (1,),
+        scatter_labels: bool = True,
+        ax: Optional[Union[
+            'astropy.visualization.wcsaxes.WCSAxes',
+            'astropy.visualization.wcsaxes.WCSAxesSubplot'
+        ]] = None,
+        projection: Union[
+            str,
+            'astropy.wcs.WCS',
+            'astropy.io.fits.Header',
+        ] = 'Mollweide',
+        frame_class: Optional[
+            'astropy.visualization.wcsaxes.frame.BaseFrame'
+        ] = None,
+        width: int = DEFAULT_WIDTH,
+        height: int = DEFAULT_HEIGHT,
+        rot: Tuple[float, float, float] = DEFAULT_ROT,
+        facing_sky: bool = DEFAULT_FACING,
         fig: Optional['matplotlib.figure.Figure'] = None,
         subplot: Optional[Tuple[int, int, int]] = None,
-        cr: Optional[Iterable[float]] = None,
+        cr: Iterable[float] = tuple(),
         cr_format: Callable[[float, float], str] = None,
         cr_filled: bool = False,
         cr_kwargs: Optional[dict] = None,
@@ -264,17 +375,169 @@ def plot(
     'astropy.visualization.wcsaxes.WCSAxesSubplot'
 ]:
     """
+    Parameters
+    ----------
     skymap: hpmoc.PartialUniqSkymap
-        The HEALPix skymap to plot. You can overlay further plots using ``
-    projection: str or astropy.wcs.WCS, optional
-        The following projections are available by default. See ``hpmoc.plot``
-        documentation for instructions on constructing your own WCS headers for
-        other plot styles, which can be passed in instead using a ``WCS``
-        instance. You can also use this approach to plot the skymap over an
-        existing ``WCS`` taken from another fits file, making it easy to plot
-        skymaps over other astrophysical data. You can select from any of the
-        projections available in ``get_wcs``.
+        The skymap to plot.
+    scatter: PointsTuple
+        Point-sources to plot as a scatter-map, with disks showing their error
+        regions. Provide multiple (ideally with different colors) to plot many
+        populations at once.
+    vmin: float, optional
+        The smallest value in the color map used to plot ``skymap``. Set
+        ``None`` to have it calculated automatically.
+    vmax: float, optional
+        The largest value in the color map used to plot ``skymap``. Set
+        ``None`` to have it calculated automatically.
+    cmap: str or matplotlib.colors.Colormap
+        The color map to use to plot ``skymap``. Note that the colors for the
+        point sources in ``scatter`` are set using the ``rgba`` parameter in
+        ``PointsTuple`` and will not be affected by this value.
+    sigmas: Iterable[float], optional
+        The size of the error region about each point source to plot in units
+        of its error parameter sigma.
+    scatter_labels: bool, optional
+        Whether to show labels for the scattered points. If ``True``, display
+        either their labels (if defined) or their indices within the
+        ``PointsTuple.points`` list.
+    ax: WCSAxes or WCSAxesSubplot, optional
+        Axes to plot to. If provided, all other arguments pertaining to
+        creating a ``WCS`` and ``WCSAxes`` instance are ignored, and these axes
+        are used instead.
+    projection: str, WCS, or Header, optional
+        Either provide the name of the projection (see ``get_wcs`` docstring
+        for valid names) to create a new ``WCS`` for this plot, or provide
+        a ready-made ``WCS`` instance or FITS ``Header`` from which such an
+        instance can be crafted. In the first case, you will need to specify
+        other parameters needed to fully define the world coordinate system.
+        In the latter cases, you might need to customize ``frame``.
+        *Ignored if* ``ax`` *is given.*
+    frame_class: BaseFrame, optional
+        The frame type to use for this plot, e.g. a ``RectangularFrame`` (for
+        a Plate-carée/Cartesian plot) or an ``EllipticalFrame`` for a
+        Mollweide plot. Selected automatically when ``projection`` is specified
+        by name, otherwise defaults to ``RectangularFrame``.
+        *Ignored if* ``ax`` *is given.*
+    width: int, optional
+        The width of the plot in pixels. *Ignored if* ``ax`` *is given.*
+    height: int, optional
+        The height of the plot in pixels. *Ignored if* ``ax`` *is given.*
+    rot: Tuple[float, float, float], optional
+        Euler angles for rotations about the Z, X, Z axes. These are
+        immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
+        ``WCS``; that is, the first two angles specify the angle of the center
+        of the image, while the last specifies an additional rotation of the
+        reference pole about the Z-axis. See ``hpmoc.plot`` documentation for
+        further references. *Ignored if* ``ax`` *is given.*
+    facing_sky: bool, optional
+        Whether the projection is outward- or inward-facing. Equivalent to
+        reversing the direction of the longitude. *Ignored if* ``ax`` *is
+        given.*
+    fig: matplotlib.figure.Figure, optional
+        The figure to plot to. If not provided, a new figure will be created.
+        *Ignored if* ``ax`` *is given.*
+    subplot: Tuple[int, int, int], optional
+        If provided, initialize the plot as a subplot using the standard
+        ``Figure.subplot`` matplotlib interface, returning a ``WCSAxesSubplot``
+        instance rather than a ``WCSAxes`` instance.
+        *Ignored if* ``ax`` *is given.*
+    cr: Iterable[float], optional
+        If provided, plot contour lines around the credible regions
+        specified in this list. For example, ``cr=[0.9]`` will plot contours
+        around the smallest region containing 90% of the skymap's integrated
+        value.
+    cr_format: Callable[[float, float], str], optional
+        A function taking the CR level (e.g. ``0.9`` for 90% CR) and the actual
+        value of the skymap on that contour and returning a string to be used
+        to label each contour. If not provided, contours will not be labeled.
+        *Ignored if* ``cr`` *is empty.*
+    cr_filled: bool, optional
+        Whether to fill the contours using ``contourf`` rather than
+        ``contour``. *Ignored if* ``cr`` *is empty.*
+    cr_kwargs: dict, optional
+        Additional arguments to pass to either ``contour`` or ``contourf``.
+        *Ignored if* ``cr`` *is empty.*
+
+    Returns
+    -------
+
     """
-CRPIX1  =                180.5
-CRPIX2  =                 90.5
-LONPOLE =               0
+    import numpy as np
+    from matplotlib import pyplot as plt
+    from matplotlib.transforms import ScaledTranslation
+    from astropy.wcs import WCS
+    from astropy.visualization.wcsaxes import WCSAxes
+    from astropy.visualization.wcsaxes.frame import RectangularFrame
+    from astropy.io.fits import Header
+    from astropy.units import deg
+
+    # initialize our axes
+    if ax is None:
+        if fig is None:
+            fig = plt.figure()
+        if frame_class is None:
+            if isinstance(projection, str):
+                frame_class = get_frame_class(projection)
+            else:
+                frame_class = RectangularFrame
+        if not isinstance(projection, WCS):
+            if not isinstance(projection, Header):
+                try:
+                    projection = get_wcs(projection, width, height, rot,
+                                         facing_sky)
+                except IndexError:
+                    projection = WCS(Header.fromstring(projection))
+            else:
+                projection = WCS(projection)
+        if subplot is None:
+            ax = WCSAxes(fig, rect=[0.1, 0.1, 0.9, 0.9], wcs=projection,
+                         frame_class=frame_class)
+            fig.add_axes(ax)
+        else:
+            ax = fig.add_subplot(*subplot, projection=projection,
+                                 frame_class=frame_class)
+
+    # set default coordinate ticks and style
+    outline = [outline_effect()]
+    co_ra, co_dec = ax.coords
+    co_ra.set_major_formatter("dd")
+    co_dec.set_major_formatter("dd")
+    co_ra.set_ticks(np.arange(30, 360, 30) * deg)
+    co_dec.set_ticks(np.arange(-75, 90, 15) * deg)
+    co_ra.set_ticks_visible(False)
+    co_dec.set_ticks_visible(False)
+    co_ra.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
+    co_dec.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
+    co_ra.set_axislabel("Right ascension (ICRS) [deg]",
+                        size=BASE_FONT_SIZE, path_effects=outline)
+    co_dec.set_axislabel("Declination (ICRS) [deg]",
+                         size=BASE_FONT_SIZE, path_effects=outline)
+    ax.grid(True)
+
+    # plot skymap
+    ax.imshow(skymap.render(projection), vmin=vmin, vmax=vmax, cmap=cmap)
+
+    # plot scatterplots, layering sigma regions first
+    # TODO see if z level need be specified
+    transform = ax.get_transform('world')
+    label_transform = transform + ScaledTranslation(N_X_OFFSET/2, N_Y_OFFSET/2,
+                                                    ax.figure.dpi_scale_trans)
+    for pts in scatter:
+        cm = pts.cmap()
+        for sigma in sigmas:
+            ax.imshow(pts.render(projection, sigma), vmin=0, vmax=1, cmap=cm)
+    for pts in scatter:
+        col = pts.rgba.to_hex(False)
+        ax.scatter(*np.array([(r, d) for (r, d, *_) in pts.points]).T,
+                   c=col, marker=pts.marker, transform=transform,
+                   s=BASE_FONT_SIZE*2, label=pts.label)
+        if scatter_labels:
+            for i, (r, d, *sl) in enumerate(pts.points):
+                if len(sl) == 2:
+                    pt_label = sl[1]
+                else:
+                    pt_label = str(i)
+                ax.text(r, d, pt_label, va='bottom', ha='left',
+                        path_effects=outline, color=col,
+                        fontsize=BASE_FONT_SIZE,
+                        transform=label_transform)

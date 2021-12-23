@@ -19,6 +19,11 @@ from .utils import (
     resol2nside,
     nest2uniq,
     monochrome_opacity_colormap,
+    outline_effect,
+    OUTLINE_STROKE,
+    N_X_OFFSET,
+    N_Y_OFFSET,
+    FONT_SIZE,
 )
 from .abstract import AbstractPartialUniqSkymap
 
@@ -29,9 +34,7 @@ HEIGHT = 4  # [inches]
 HSPACE = 0.2
 WSPACE = 0.04
 NCOLS = 2
-OUTLINE_STROKE = 1.2  # thickness of outline surrounding text
 TITLE_OUTLINE_STROKE = 2  # thickness of outline surrounding plot titles
-OUTLINE_COLOR = (1, 1, 1, 1)  # outlines of text and neutrino markers
 LEFT_SHIFT_COEFF = 1/20.  # quadratic curve dec labels away from meridian
 LEFT_SHIFT_BASE = -20  # baseline shift from leftmost meridian [deg]
 XMARGIN = 0.4  # additional margin in x (make sure text fits) [inches]
@@ -44,8 +47,6 @@ DEC_X_OFFSET = -0.37  # [inches]
 DEC_Y_OFFSET = -0.02  # [inches]
 RA_X_OFFSET = 0  # [inches]
 RA_Y_OFFSET = 0.06  # [inches]
-N_X_OFFSET = 0.08  # [inches]
-N_Y_OFFSET = 0.08  # [inches]
 MIN_GRAT = 3
 _DELTA_HIGHRES = tuple(v*.1**i for i in range(20) for v in (5, 2, 1))
 DELTA_PARALLELS = (15.,)+_DELTA_HIGHRES     # space btwn graticule parallels
@@ -59,7 +60,6 @@ TITLES = (
 )
 DEFAULT_SCATTER_MARKER = "$\\bigodot$"  # bullseye hides less GW density
 MERIDIAN_FONT_SIZE = 11
-FONT_SIZE = 14  # matplotlib font size
 UNCERTAINTY_ALPHA = 0.4  # opacity in [0,1] for scatterplot uncertainty discs
 DEFAULT_ROT = (180, 0, 0)
 
@@ -91,17 +91,6 @@ def default_cmap():
     cmap = cm.gist_heat_r
     cmap.set_under((0, 0, 0, 0))  # transparent background (-np.inf imgshow)
     return cmap
-
-
-def outline_effect():
-    """Get a ``matplotlib.patheffects.withStroke`` effect that outlines text
-    nicely to improve plot readability."""
-    from matplotlib.patheffects import withStroke
-
-    return withStroke(
-        linewidth=OUTLINE_STROKE,
-        foreground=OUTLINE_COLOR,
-    )
 
 
 def get_hp_ax_img_shape(ax):

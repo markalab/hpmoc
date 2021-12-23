@@ -35,6 +35,7 @@ from .utils import (
     read_partial_skymap,
 )
 from .abstract import AbstractPartialUniqSkymap
+from .plot import plot
 from . import plotters
 from .plotters import (
     DEFAULT_ROT,
@@ -645,7 +646,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             u⃗ = u⃗.u⃗
         return uniq_intersection(self.u⃗, u⃗)
 
-    def render(self, u⃗ᵒ, pad=None):
+    def render(self, u⃗ᵒ, pad=None, mask=None):
         """
         Like ``reraster``, but ``u⃗ᵒ`` does not need to be unique. Use this to
         e.g. render a skymap to a plot. Unlike ``reraster``, will not return a
@@ -669,6 +670,15 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             be found for every valid pixel in ``u⃗ᵒ`` (this does not apply to
             values outside a ``WCS`` projection, which will take on ``np.nan``
             values).
+        mask: array, optional
+            If provided, results will be scattered into an array of the same
+            shape as ``mask``, filling the indices where ``mask==True``. The
+            number of ``True`` values in ``mask`` must therefore equal the
+            length of ``u⃗ᵒ``. This argument only makes sense if ``u⃗ᵒ`` is an
+            array of NUNIQ indices; if it is a ``WCS`` instance and ``mask`` is
+            provided, an error is raised. Use ``mask`` to produce plots or to
+            reuse indices produced by ``wcs2mask_and_uniq`` in several
+            ``render`` invocations.
 
         Returns
         -------
@@ -677,9 +687,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             ``WCS`` instance, then values outside of the projection will be
             set to ``np.nan``.
         """
-        import numpy as np
-
-        return render(self.u⃗, self.s⃗, u⃗ᵒ, pad)
+        return render(self.u⃗, self.s⃗, u⃗ᵒ, pad=pad, mask=mask)
 
     def reraster(self, u⃗ᵒ, pad=None, copy=True):
         """
@@ -824,6 +832,31 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     @partial_visufunc
     def mollview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
         pass
+
+    def plot(self, *scatter, **kwargs):
+        """
+        Plot this skymap. A thin wrapper around ``hpmoc.plot.plot`` that
+        automatically includes scatter plots for this instance's
+        ``point_sources``.
+
+        Parameters
+        ----------
+        scatter: PointsTuple
+            Additional point sources to plot (in addition to those stored
+            in ``self.point_sources``).
+        kwargs
+            Keywork arguments to be passed to ``hpmoc.plot.plot``.
+
+        Returns
+        -------
+        ax: WCSAxes or WCSAxesSubplot
+            The axes that were just plotted to.
+
+        See Also
+        --------
+        hpmoc.plot.plot
+        """
+        plot(self, *(*self.point_sources, *scatter), **kwargs)
 
     def multiplot(*s⃗ₗ: List['__class__'], nest: bool = True, **kwargs):
         """

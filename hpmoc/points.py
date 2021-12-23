@@ -49,7 +49,7 @@ class Rgba(NamedTuple):
         Get a hex string of the form ``#rrggbbaa`` for this ``Rgba`` tuple.
         """
         cs = self if include_alpha else self[:-1]
-        return "#"+("{:02x}"*4).format(*(int(255*c) for c in cs))
+        return "#"+("{:02x}"*len(cs)).format(*(int(255*c) for c in cs))
 
 
 def _vecs_for_repr_(maxlen, *vecs):
@@ -215,7 +215,7 @@ class PointsTuple(NamedTuple):
                 unique.append(pt)
         return unique
 
-    def render(self, u⃗ᵒ, extent=1.):
+    def render(self, u⃗ᵒ, pad=0., extent=1.):
         """
         Similar to ``hpmoc.PartialUniqSkymap.render``, but for support disks
         specified by the input points' sigma parameters. Will raise

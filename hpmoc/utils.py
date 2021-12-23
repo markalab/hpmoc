@@ -32,6 +32,11 @@ PIXEL_CONSISTENCY_ERROR = 1e-9
 MAX_ORDER = 30
 UINT_RANGES = {(0, 2**(8*2**i)): f'uint{8*2**i}' for i in range(4)}
 INT_RANGES = {(-i//2, i//2): v[1:] for [_, i], v in UINT_RANGES.items()}
+OUTLINE_STROKE = 1.2  # thickness of outline surrounding text
+OUTLINE_COLOR = (1, 1, 1, 1)  # outlines of text and neutrino markers
+FONT_SIZE = 14  # matplotlib font size
+N_X_OFFSET = 0.08  # [inches]
+N_Y_OFFSET = 0.08  # [inches]
 
 
 # TODO test this much more
@@ -1018,6 +1023,17 @@ def wcs2mask_and_uniq(wcs):
     )
 
 
+def outline_effect():
+    """Get a ``matplotlib.patheffects.withStroke`` effect that outlines text
+    nicely to improve plot readability."""
+    from matplotlib.patheffects import withStroke
+
+    return withStroke(
+        linewidth=OUTLINE_STROKE,
+        foreground=OUTLINE_COLOR,
+    )
+
+
 def monochrome_opacity_colormap(name, rgb):
     """
     Get a monochrome ``matplotlib.colors.LinearSegmentedColormap`` with color
@@ -1031,30 +1047,58 @@ def monochrome_opacity_colormap(name, rgb):
     return m
 
 
-def render(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
+def render(u⃗, x⃗, u⃗ᵒ, pad=None, mask=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     """
     Like ``reraster``, but allows you to map to a partially-covered ``u⃗ᵒ``
-    skymap, e.g. for rendering a plot. The same as ``reraster`` but with a call
-    to ``np.unique(u⃗ᵒ, return_inverse=True)`` wrapping the whole thing to take
-    care of repeated pixels. To render a ``healpy`` plot with missing pixels,
-    pass ``pad=healpy.UNSEEN``.
+    skymap, e.g. for rendering a plot, thanks to a call to
+    ``np.unique(u⃗ᵒ, return_inverse=True)`` wrapping the whole thing (to take
+    care of scattering values to repeated pixels).
 
-    If ``u⃗ᵒ`` is an ``astropy.wcs.WCS`` world coordinate system, then
-    ``wcs2mask_and_uniq`` will be used to get the indices. Non-valid pixels
-    (i.e. pixels outside the projection area) will take on ``np.nan`` values,
-    while valid pixels will be rendered as usual.
+    Parameters
+    ----------
+    u⃗: array
+        The indices of the skymap.
+    x⃗: array
+        The values of the skymap.
+    u⃗ᵒ: array or astropy.wcs.WCS
+        If ``u⃗ᵒ`` is an ``astropy.wcs.WCS`` world coordinate system, then
+        ``wcs2mask_and_uniq`` will be used to get the indices. Non-valid pixels
+        (i.e. pixels outside the projection area) will take on ``np.nan`` values,
+        while valid pixels will be rendered as usual.
+    pad: float, optional
+        Pad value for missing pixels. If not provided, will raise an error if
+        missing parts of the skymap fall in ``u⃗ᵒ``. To render a ``healpy``
+        plot with missing pixels, pass ``pad=healpy.UNSEEN``.
+    mask: array, optional
+        If provided, results will be scattered into an array of the same shape
+        as ``mask``, filling the indices where ``mask==True``. The number of
+        ``True`` values in ``mask`` must therefore equal the length of ``u⃗ᵒ``.
+        This argument only makes sense if ``u⃗ᵒ`` is an array of NUNIQ indices;
+        if it is a ``WCS`` instance and ``mask`` is provided, an error is
+        raised. Use ``mask`` to produce plots or to reuse indices produced by
+        ``wcs2mask_and_uniq`` in several ``render`` invocations.
+    Iᵢ⃗ⁱ⃗ᵒ : Tuple[array, array, array]
+        Return tuple of ``uniq_intersection``. Use this to save time in
+        repeated invocations.
+
+    Raises
+    ------
+    ValueError
+        If ``u⃗ᵒ`` is a ``WCS`` instance and ``mask`` is not ``None``.
 
     See Also
     --------
     reraster
+    hpmoc.PartialUniqSkymap.render
+    hpmoc.points.PointsTuple.render
     """
     import numpy as np
     from astropy.wcs import WCS
 
     if isinstance(u⃗ᵒ, WCS):
+        if mask != None:
+            raise ValueError("mask must be None if u⃗ᵒ is WCS.")
         mask, u⃗ᵒ = wcs2mask_and_uniq(u⃗ᵒ)
-    else:
-        mask = None
     u⃗ᵘ, u⃗̇ᵘ = np.unique(u⃗ᵒ, return_inverse=True)
     s⃗ = reraster(u⃗, x⃗, u⃗ᵘ, pad=pad, Iᵢ⃗ⁱ⃗ᵒ=Iᵢ⃗ⁱ⃗ᵒ)[u⃗̇ᵘ]
     if mask is None:
