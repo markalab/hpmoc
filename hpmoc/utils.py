@@ -586,6 +586,10 @@ def nside_quantile_indices(nside, skymap, quantiles):
         the ``[0, 0.5]`` and ``[0.5, 1]`` quantiles, respectively. For
         applications where you want to just mask ``skymap`` and preserve sort
         order, you will want to sort this returned quantity before using it.
+    levels: astropy.units.Quantity or array
+        Values of the skymap at each quantile. Useful for e.g. contour
+        plots (though ``PartialUniqSkymap.plot`` will handle this
+        automatically).
     norm : array
         The total integral of ``skymap``. The integrated region in a partition
         defined by quantiles ``[0.1, 0.2]``, for example, will be
@@ -606,9 +610,13 @@ def nside_quantile_indices(nside, skymap, quantiles):
     quantiles on a fixed-resolution full skymap:
     >>> import numpy as np
     >>> skymap = np.array([ 9, 10, 11,  0,  1,  2,  3,  4,  5,  6,  7,  8])
-    >>> i, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
+    >>> i, levels, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
     >>> [ii.astype(np.int) for ii in i]
     [array([ 7,  8,  9, 10, 11,  0,  1])]
+
+    The levels will be the values of the array at the 0.1 and 0.9 quantiles
+    >>> print(levels)
+    [ 4 11]
 
     The norm in this case is just the average pixel value times the total solid
     angle of the sky:
@@ -667,7 +675,9 @@ def nside_quantile_indices(nside, skymap, quantiles):
         raise ValueError(f"skymap ({skymap}) has total integral of 0")
     r /= norm
     j = r.searchsorted(q)
-    return (i[l:u] for l, u in zip(j[:-1], j[1:])), norm*np.pi/3
+    l = j.copy()
+    l[l >= len(i)] = len(i) - 1
+    return (i[l:u] for l, u in zip(j[:-1], j[1:])), skymap[i[l]], norm*np.pi/3
 
 
 def uniq_intersection(u⃗1, u⃗2):

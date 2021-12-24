@@ -15,7 +15,17 @@ import base64
 from io import BytesIO
 from textwrap import wrap, dedent
 from collections import OrderedDict
-from typing import List, Iterator, Iterable, Callable, Optional, Union, IO
+from typing import (
+    List,
+    Iterator,
+    Iterable,
+    Callable,
+    Optional,
+    Union,
+    IO,
+    Tuple,
+)
+from nptyping import NDArray
 from .utils import (
     uniq2nest,
     uniq2dangle,
@@ -267,7 +277,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                                      **kwargs)
         return n
 
-    def o⃗(self, as_skymap=False, copy=False, **kwargs):
+    def o⃗(self, as_skymap=False, copy=True, **kwargs):
         """
         HEALPix order values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
@@ -520,8 +530,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
     def quantiles(
             self,
-            quantiles: Iterable[float]
-    ) -> Iterator:
+            quantiles: Iterable[float],
+    ) -> Tuple[Iterator, NDArray, float]:
         """
         Get an iterator of downselected skymaps partitioned by ``quantiles``.
         For example, get the smallest sky area containing 90% of the
@@ -547,12 +557,19 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
         Returns
         -------
-        partitions : Iterator[PartialUniqSkymap]
+        partitions: Iterator[PartialUniqSkymap]
             A generator containing non-overlapping skymaps falling into the
             specified ``quantiles``. Will have length one less than the number
             of quantiles, which form the boundaries of the partitions. Always
             an iterable, even if only two quantiles are provided; you can
             unpack a single value with, e.g., ``x, = m.quantiles(...)``.
+        levels: astropy.units.Quantity or array
+            Values of the skymap at each quantile. Useful for e.g. contour
+            plots (though ``PartialUniqSkymap.plot`` will handle this
+            automatically).
+        norm: astropy.units.Quantity or float
+            The integrated value of the skymap. Useful for calculating the
+            integral of each quantile.
 
         Raises
         ------
@@ -570,16 +587,22 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         import numpy as np
 
         quantiles = np.array(quantiles, dtype=float)
-        indices, norm = nside_quantile_indices(self.n⃗ˢ(), self.s⃗, quantiles)
-        for i, l, u in zip(indices, quantiles[:-1], quantiles[1:]):
-            m = self.meta.copy()
-            m['HISTORY'] = m.get('HISTORY', []) + wrap(
-                f'Downselected to [{l:.2g}, {u:.2g}] quantile '
-                f'({(u-l)*100:.2g}%) of {norm:.2g} ({norm*(u-l):.2g} total)',
-                70
-            )
-            yield PartialUniqSkymap(self.s⃗[i], self.u⃗[i], copy=False, meta=m,
-                                    point_sources=self.point_sources)
+        indices, levels, norm = nside_quantile_indices(self.n⃗ˢ(), self.s⃗,
+                                                       quantiles)
+
+        def skymaps():
+            for i, l, u in zip(indices, quantiles[:-1], quantiles[1:]):
+                m = self.meta.copy()
+                m['HISTORY'] = m.get('HISTORY', []) + wrap(
+                    f'Downselected to [{l:.2g}, {u:.2g}] quantile '
+                    f'({(u-l)*100:.2g}%) of {norm:.2g} ({norm*(u-l):.2g} ',
+                    70
+                )
+                yield PartialUniqSkymap(self.s⃗[i], self.u⃗[i], copy=False,
+                                        meta=m,
+                                        point_sources=self.point_sources)
+
+        return skymaps(), levels, norm
 
     def fixed(self, nˢ=None):
         """
@@ -856,7 +879,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         --------
         hpmoc.plot.plot
         """
-        plot(self, *(*self.point_sources, *scatter), **kwargs)
+        return plot(self, *(*self.point_sources, *scatter), **kwargs)
 
     def multiplot(*s⃗ₗ: List['__class__'], nest: bool = True, **kwargs):
         """

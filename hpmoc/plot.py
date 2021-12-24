@@ -198,7 +198,7 @@ healpy
 from warnings import warn
 from typing import Optional, Union, Tuple, Iterable, Callable
 from textwrap import indent, wrap
-from .utils import outline_effect, N_X_OFFSET, N_Y_OFFSET, FONT_SIZE
+from .utils import outline_effect, N_X_OFFSET, N_Y_OFFSET
 from .points import PointsTuple
 
 import hpmoc
@@ -208,6 +208,11 @@ DEFAULT_HEIGHT = 180
 DEFAULT_ROT = (180, 0, 0)
 DEFAULT_FACING = True
 BASE_FONT_SIZE = 10
+DEFAULT_C_KWARGS = {}
+DEFAULT_CLABEL_KWARGS = {
+    'inline': False,
+    'fontsize': BASE_FONT_SIZE,
+}
 _ALLSKY = {
     "NAXIS": 2,
     "NAXIS1": 360,
@@ -345,7 +350,10 @@ def plot(
         *scatter: PointsTuple,
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
-        cmap: Union[str, 'matplotlib.colors.Colormap'] = 'gist_heat_r',
+        cmap: Optional[
+            Union[str, 'matplotlib.colors.Colormap']
+        ] = 'gist_heat_r',
+        alpha: float = 1.,
         sigmas: Iterable[float] = (1,),
         scatter_labels: bool = True,
         ax: Optional[Union[
@@ -370,6 +378,12 @@ def plot(
         cr_format: Callable[[float, float], str] = None,
         cr_filled: bool = False,
         cr_kwargs: Optional[dict] = None,
+        cr_label_kwargs: Optional[dict] = None,
+        pixels: bool = False,
+        pixels_format: Optional[
+            Callable[['hpmoc.PartialUniqSkymap'], Iterable[str]]
+        ] = None,
+        pixels_kwargs: Optional[dict] = None,
 ) -> Union[
     'astropy.visualization.wcsaxes.WCSAxes',
     'astropy.visualization.wcsaxes.WCSAxesSubplot'
@@ -392,7 +406,11 @@ def plot(
     cmap: str or matplotlib.colors.Colormap
         The color map to use to plot ``skymap``. Note that the colors for the
         point sources in ``scatter`` are set using the ``rgba`` parameter in
-        ``PointsTuple`` and will not be affected by this value.
+        ``PointsTuple`` and will not be affected by this value. If ``None``,
+        the skymap itself will not be plotted; this can be useful if overlaying
+        multiple skymaps.
+    alpha: float, optional
+        The opacity of the plotted skymap image.
     sigmas: Iterable[float], optional
         The size of the error region about each point source to plot in units
         of its error parameter sigma.
@@ -457,6 +475,29 @@ def plot(
     cr_kwargs: dict, optional
         Additional arguments to pass to either ``contour`` or ``contourf``.
         *Ignored if* ``cr`` *is empty.*
+    cr_label_kwargs: dict, optional
+        Arguments to pass to ``clabel`` governing the display format of
+        contour labels.
+    pixels: bool, optional
+        Whether to plot pixel borders. *You should probably keep this*
+        ``False`` *if you are doing an all-sky plot, since border plotting is
+        slow for a large number of pixels, and the boundaries will not be
+        visible anyway unless each visible pixel's size is comparable to the
+        overall size of the plot window.* If you just want to see information
+        about e.g. the size of pixels across the whole sky, consider plotting
+        ``skymap.o⃗(as_skymap=True)`` to see a color map of pixel sizes
+        instead.
+    pixels_format: Callable[[PartialUniqSkymap], Iterable[str]], optional
+        A function that takes a skymap and returns a string for each pixel.
+        Will be called on the selection of pixels overlapping with the visible
+        area, so don't worry about optimizing it, since just plotting the
+        borders will be slow enough for a large number of visible pixels.
+        The returned string will be plotted over the center of each pixel,
+        which again is only useful if the pixels are large with respect to the
+        size of the plot window.
+    pixels_kwargs: dict, optional
+        Keyword arguments to pass to ``WCSAxes.plot``, which can be used to
+        control the appearance of the pixel borders.
 
     Returns
     -------
@@ -469,7 +510,10 @@ def plot(
     from astropy.visualization.wcsaxes import WCSAxes
     from astropy.visualization.wcsaxes.frame import RectangularFrame
     from astropy.io.fits import Header
-    from astropy.units import deg
+    from astropy.units import Quantity, deg
+
+    # initialize arguments
+    cr = np.unique([*cr, 1])
 
     # initialize our axes
     if ax is None:
@@ -515,7 +559,10 @@ def plot(
     ax.grid(True)
 
     # plot skymap
-    ax.imshow(skymap.render(projection), vmin=vmin, vmax=vmax, cmap=cmap)
+    if (cmap is None) or (cr.size > 1):
+        render = skymap.render(projection, pad=np.nan)
+    if cmap is not None:
+        ax.imshow(render, vmin=vmin, vmax=vmax, cmap=cmap, alpha=alpha)
 
     # plot scatterplots, layering sigma regions first
     # TODO see if z level need be specified
@@ -541,3 +588,29 @@ def plot(
                         path_effects=outline, color=col,
                         fontsize=BASE_FONT_SIZE,
                         transform=label_transform)
+
+    # plot contours
+    if cr.size > 1:
+        q = (1-cr)[::-1]
+        _, levels, _ = skymap.quantiles((1-cr[::-1]))
+        levels = levels[1:]
+        cr_lut = dict(
+            zip(
+                levels.value if isinstance(levels, Quantity) else levels,
+                cr[:-1]
+            )
+        )
+        ptrans = ax.get_transform(projection)
+        contour = ax.contourf if cr_filled else ax.contour
+        ckw = DEFAULT_C_KWARGS.copy()
+        if cr_kwargs is not None:
+            ckw.update(cr_kwargs)
+        cntrs = contour(render, transform=ptrans, levels=levels, **ckw)
+        if cr_format is not None:
+            clabelkw = DEFAULT_CLABEL_KWARGS.copy()
+            if cr_label_kwargs is not None:
+                clabelkw.update(cr_label_kwargs)
+            ax.clabel(cntrs, cntrs.levels, **clabelkw,
+                      fmt=lambda v: cr_format(cr_lut[v], v))
+
+    return ax
