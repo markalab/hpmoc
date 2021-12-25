@@ -6,6 +6,7 @@ channels:
 dependencies:
   - python=3.7
   # base
+  - deprecated
   - numpy
   - matplotlib
   - healpy

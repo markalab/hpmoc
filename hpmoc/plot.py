@@ -213,7 +213,9 @@ DEFAULT_CLABEL_KWARGS = {
     'inline': False,
     'fontsize': BASE_FONT_SIZE,
 }
-_ALLSKY = {
+_WCS_HEADERS = dict()
+_WCS_FRAMES = dict()
+_ALL_SKY = {
     "NAXIS": 2,
     "NAXIS1": 360,
     "NAXIS2": 180,
@@ -225,27 +227,43 @@ _ALLSKY = {
     "CUNIT2": 'deg',
     "COORDSYS": 'icrs'
 }
-_WCS_HEADERS = dict()
-_WCS_FRAMES = dict()
-_ALL_SKY_DOC = """
-"""
-for proj, (frame, aliases) in {
-    'MOL': ('e', ('Mollweide',)),
-    'AIT': ('e', ('Hammer-Aitoff', 'Aitoff', 'Hammer')),
-    'CAR': ('r', ('Carée', 'Plate-carée', 'Caree', 'Plate-caree', 'Cartesian',
-                  'Tyre')),
-    'SFL': ('p', ('Sanson-Flamsteed',)),
-    'PAR': ('p', ('Parabolic', 'Craster')),
+_ZENITHAL = {
+}
+_docs = {
+    "allsky": "\n",
+    "zenithal": "\n",
+}
+# Add all-sky projections; aliases drawn from common usage, healpy.visufunc,
+# WCS standard, and aliases as given in astro-ph/0207413
+# TODO put in default CDELT params for each projection
+for docname, config in {
+         "allsky": {
+            'MOL': ('e', ('Mollweide', 'mollview', 'Homolographic', 'Homalographic',
+                          'Babinet', 'Elliptical')),
+            'AIT': ('e', ('Hammer-Aitoff', 'Aitoff', 'Hammer')),
+            'CAR': ('r', ('Carée', 'Plate-carée', 'Caree', 'Plate-caree', 'Cartesian',
+                          'Tyre', 'cartview', 'Equidistant cylindrical')),
+            'SFL': ('p', ('Sanson-Flamsteed',)),
+            'PAR': ('p', ('Parabolic', 'Craster')),
+        },
+        "zenithal": {
+            # NB: TAN is just AZP (zenithal perspective) with mu set to zero.
+            'TAN': ('r', ('gnomonic', 'gnomview', 'Central')),
+        }
 }.items():
-    _ALL_SKY_DOC += '    - ' + indent('\n'.join(
-        wrap(f"{proj}: *{', '.join(aliases)}*", 73)), ' '*6)[6:] + '\n'
-    _WCS_FRAMES[proj] = frame
-    _WCS_HEADERS[proj] = _ALLSKY.copy()
-    _WCS_HEADERS[proj]['CTYPE1'] += proj
-    _WCS_HEADERS[proj]['CTYPE2'] += proj
-    for alias in aliases:
-        _WCS_HEADERS[alias.upper()] = _WCS_HEADERS[proj]
-        _WCS_FRAMES[alias.upper()] = frame
+    for proj, (frame, aliases) in config.items():
+        _docs[docname] += '    - ' + indent('\n'.join(
+            wrap(f"{proj}: *{', '.join(aliases)}*", 73)), ' '*6)[6:] + '\n'
+        _WCS_FRAMES[proj] = frame
+        _WCS_HEADERS[proj] = _ALL_SKY.copy()
+        _WCS_HEADERS[proj]['CTYPE1'] += proj
+        _WCS_HEADERS[proj]['CTYPE2'] += proj
+        for alias in aliases:
+            _WCS_HEADERS[alias.upper()] = _WCS_HEADERS[proj]
+            _WCS_FRAMES[alias.upper()] = frame
+# Add zenithal projections
+for proj, (frame, aliases) in :
+    pass
 
 
 def get_frame_class(
@@ -280,6 +298,8 @@ def get_frame_class(
     return frame.RectangularFrame
 
 
+# TODO put in a CDELT override/general param override for WCS headers
+# TODO allow ICRS override
 def get_wcs(
         projection: str,
         width: int = DEFAULT_WIDTH,
@@ -345,6 +365,8 @@ def get_wcs(
     return WCS(header)
 
 
+# TODO put in a CDELT override/general param override for WCS headers
+# TODO allow ICRS override
 def plot(
         skymap: 'hpmoc.PartialUniqSkymap',
         *scatter: PointsTuple,
@@ -521,6 +543,7 @@ def plot(
             fig = plt.figure()
         if frame_class is None:
             if isinstance(projection, str):
+                # TODO rect. frame if not all-sky
                 frame_class = get_frame_class(projection)
             else:
                 frame_class = RectangularFrame
@@ -552,6 +575,7 @@ def plot(
     co_dec.set_ticks_visible(False)
     co_ra.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
     co_dec.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
+    # TODO override if not ICRS
     co_ra.set_axislabel("Right ascension (ICRS) [deg]",
                         size=BASE_FONT_SIZE, path_effects=outline)
     co_dec.set_axislabel("Declination (ICRS) [deg]",
