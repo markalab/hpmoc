@@ -7,13 +7,20 @@ from math import log2, floor
 from .healpy_utils import alt_compress, alt_expand
 
 
+_ANG2VEC_TRANSPOSED = [None]
+EXCEPTIONS = {}
+
+
 class LazyMod:
 
-    def __init__(self, mod, defaults):
+    def __init__(self, mod, defaults, exceptions=None):
         self._mod = mod
         self._defaults = defaults
+        self._exceptions = exceptions if exceptions is not None else {}
 
     def __getattr__(self, name):
+        if name in self._exceptions:
+            return self._exceptions[name]
         try:
             return getattr(importlib.import_module(self._mod), name)
         except AttributeError as ae:
@@ -23,7 +30,8 @@ class LazyMod:
                 raise ae
 
     def __dir__(self):
-        return dir(importlib.import_module(self._mod))+[*self._defaults.keys()]
+        return sorted({*dir(importlib.import_module(self._mod)),
+                       *self._defaults.keys(), *self._exceptions.keys()})
 
 
 def nside2order(nside):
@@ -77,9 +85,37 @@ def xyf2pix(nside, x, y, face, nest=False):
 
 
 if importlib.util.find_spec("healpy") is None:
-    actual_hp = 'astropy_healpix.healpy'
+    ACTUAL_HP = 'astropy_healpix.healpy'
 else:
-    actual_hp = 'healpy'
+    ACTUAL_HP = 'healpy'
+
+
+def ang2vec(theta, phi, lonlat=False):
+    """
+    A drop-in replacement for ``healpy.ang2vec`` that preserves the
+    ``healpy`` row, column ordering (since ``astropy_healpix.healpy.ang2vec``
+    returns a transposed version). Dynamically checks behavior in case
+    ``astropy_healpix`` fixes its return value to conform to ``healpy``
+    behavior at some point in the future.
+
+    See Also
+    --------
+    healpy.ang2vec
+    astropy_healpix.healpy.ang2vec
+    """
+    from astropy_healpix.healpy import ang2vec
+
+    # test behavior and set default in case they fix this in the future
+    if _ANG2VEC_TRANSPOSED[0] == None:
+        transposed = ang2vec([1, 2], [3, 4], lonlat=False).shape == (3, 2)
+        _ANG2VEC_TRANSPOSED[0] = transposed
+    ans = ang2vec(theta, phi, lonlat=lonlat)
+    return ans.T if _ANG2VEC_TRANSPOSED[0] else ans
+
+
+if ACTUAL_HP == 'astropy_healpix.healpy':
+    EXCEPTIONS['ang2vec'] = ang2vec
+
 
 HP_DEFAULTS = {
     'UNSEEN': -1.6375e+30,
@@ -88,4 +124,4 @@ HP_DEFAULTS = {
     'xyf2pix': xyf2pix,
 }
 
-healpy = LazyMod(actual_hp, HP_DEFAULTS)
+healpy = LazyMod(ACTUAL_HP, HP_DEFAULTS, EXCEPTIONS)
