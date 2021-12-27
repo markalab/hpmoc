@@ -13,7 +13,6 @@ import functools
 from colorsys import rgb_to_hsv, hsv_to_rgb
 from typing import List, Tuple, Callable, Optional, Union
 from textwrap import dedent
-
 from .points import Rgba, PointsTuple
 from .utils import (
     resol2nside,
