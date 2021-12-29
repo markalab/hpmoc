@@ -10,6 +10,7 @@ Utility functions used across healpix_skymap classes.
 """
 
 import os
+from operator import eq
 from numbers import Integral
 from typing import Union, IO  # possible removal for older pythons
 import functools
@@ -1216,7 +1217,7 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     return x⃗ᵒ
 
 
-def uniq_minimize(u⃗, x⃗=None):
+def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
     """
     Take a set of HEALPix NUNIQ indices ``u⃗`` (and, optionally, pixel values
     ``x⃗``) and find the shortest equivalent multi-order pixelation by combining
@@ -1226,52 +1227,120 @@ def uniq_minimize(u⃗, x⃗=None):
 
     Parameters
     ----------
-        u⃗ : array-like
-            HEALPix NUNIQ indices of the skymap in question.
-        x⃗ : array-like, optional
-            Pixel values of the array. If included, sub-pixels will only be
-            combined if their pixel values are equal.
+    u: array-like
+        HEALPix NUNIQ indices of the skymap in question.
+    x: array-like, optional
+        Pixel values of the array. If included, sub-pixels will only be
+        combined if their pixel values are equal accordint to ``test`` for all
+        ``x`` values provided.
+    test: func, optional
+        An equality test for determining whether adjacent pixels can be
+        combined. Defaults to a standard equality check, ``operator.eq``.
+        Override this if you want, e.g., approximately equal floating point
+        values to be combined, small values rounded to zero, etc.
+    combine: func, optional
+        A function for combining pixels. Expects an argument ``x``, of the form
+        of one of the arrays passed in for ``x``, as well as a boolean mask of
+        pixels ``i`` which select the first pixel of each four to be combined.
+        By default, simply selects this first pixel; you could alternatively
+        provide a function which, e.g., averages the combined pixels.
 
     Returns
     -------
-        u⃗ᵐ : numpy.ndarray
-            The shortest equivalent NUNIQ indexing that can describe u⃗.
-        x⃗ᵐ : numpy.ndarray, optional
-            Corresponding pixel values x⃗. Only returned if ``x⃗`` is provided.
+    u⃗ᵐ : numpy.ndarray
+        The shortest equivalent NUNIQ indexing that can describe ``u``.
+    *x⃗ᵐ : numpy.ndarray, optional
+        Corresponding pixel values in ``x``, combined according to
+        ``combined``.
+
+    Examples
+    --------
+    Make a set of pixels corresponding to the first four base pixels as well as
+    the first pixel at NSIDE = 2 lying in the fifth base pixel:
+    >>> import numpy as np
+    >>> u = np.concatenate([nest2uniq(np.arange(2), 1),
+    ...                     nest2uniq(np.arange(8, 17), 2)])
+    >>> print(u)
+    [ 4  5 24 25 26 27 28 29 30 31 32]
+
+    UNIQ indices 24-31 cover the same area as 6-7; ``uniq_minimize`` will
+    detect this:
+    >>> um, = uniq_minimize(u)
+    >>> print(um)
+    [ 4  5  6  7 32]
+
+    This makes no difference against a constant skymap, with, e.g., values of
+    ``1`` everywhere:
+    >>> um, xm = uniq_minimize(u, np.full_like(u, 1))
+    >>> print(um)
+    [ 4  5  6  7 32]
+    >>> print(xm)
+    [1 1 1 1 1]
+
+    If, however, the 4 pixels in the range 28-31 do *not* have equal values,
+    they will not be combined with the default choice of ``test``:
+    >>> um, xm = uniq_minimize(u, np.array([1, 2, 3, 3, 3, 3, 4, 5, 6, 7, 8]))
+    >>> print(um)
+    [ 4  5  6 28 29 30 31 32]
+    >>> print(xm)
+    [1 2 3 4 5 6 7 8]
     """
     import numpy as np
 
-    u⃗̇ = np.argsort(u⃗)                               # sort inputs by NUNIQ
-    u⃗ = u⃗[u⃗̇]
-    x⃗ = x⃗ if x⃗ is None else x⃗[u⃗̇]
-    u̇ⁱ = u⃗.searchsorted(16)                         # u⃗ < 16 irreducible
-    u⃗ᵐₗ = [u⃗[:u̇ⁱ]]                                  # results list
-    x⃗ᵐₗ = x⃗ if x⃗ is None else [x⃗[:u̇ⁱ]]              # result pixels, if given
-    u⃗ = u⃗[u̇ⁱ:]                                      # iteration initial value
-    x⃗ = x⃗ if x⃗ is None else x⃗[u̇ⁱ:]                  # pixel iter init value
-    del u⃗̇
-    while len(u⃗) > 3:  # pylint: disable=len-as-condition
-        u⃗ᶠ = (u⃗[:-3] >> 2) << 2                     # first ind in base pixel
-        q⃗ = u⃗[3:] == u⃗ᶠ+3                           # is last ind in base pix?
-        for i in range(3):                          # check other 4 indices
-            q⃗ &= u⃗[i:i-3] == u⃗ᶠ+i                   # is this ind in base pix?
-            if x⃗ is not None:                       # if x⃗ given, values must
-                q⃗ &= x⃗[i:i-3] == x⃗[3:]              #   be identical to combine
-        q⃗ = np.concatenate((q⃗, np.zeros(3, dtype=bool)))    # can't combine -3:
-        u⃗ᵈ = u⃗[q⃗] >> 2                              # combine pixels to base
-        x⃗ᵈ = x⃗ if x⃗ is None else x⃗[q⃗]               # base value if given
-        q⃗[1:-2] |= q⃗[:-3]                           # pixel indices we just
-        q⃗[2:-1] |= q⃗[:-3]                           #   combined; exclude from
-        q⃗[3:] |= q⃗[:-3]                             #   results for now.
-        u⃗ᵐₗ.append(u⃗[~q⃗])                           # non-combined in results
-        if x⃗ᵐₗ is not None:                         #   w pixels, if given
-            x⃗ᵐₗ.append(x⃗[~q⃗])
-        u⃗, x⃗ = u⃗ᵈ, x⃗ᵈ                               # next loop on combined
-    u⃗ᵐ = np.concatenate([*u⃗ᵐₗ, u⃗])
-    del u⃗ᵐₗ, u⃗
-    u⃗̇ᵐ = np.argsort(u⃗ᵐ)
-    u⃗ᵐ = u⃗ᵐ[u⃗̇ᵐ]
-    return u⃗ᵐ if x⃗ is None else u⃗ᵐ, np.concatenate([*x⃗ᵐₗ, x⃗])[u⃗̇ᵐ]
+    isort = np.argsort(u)
+    u = u[isort]
+    x = [*x]
+    us = []
+    xs = [[] for _ in x]
+    orders = np.arange(uniq2order(u[-1])+1, -1, -1)
+    bounds = np.searchsorted(u, nest2uniq(np.zeros_like(orders),
+                                             hp.order2nside(orders)))
+    for xx in x:
+        if len(xx) != len(u):
+            raise ValueError("Indices and values must have same length.")
+        xx = xx[isort]
+    for i in range(len(bounds)-2):
+        last, first = bounds[i:i+2]
+        if last - first < 4:
+            continue
+        uu = u[first:last-3].copy()
+        # find 0th pixels from matching quartets
+        m = np.zeros((last-first,), dtype=bool)
+        m[:-3] = uu % 4 == 0
+        for j in range(3):
+            uu += 1
+            m[:-3] &= uu == u[first+1+j:last-2+j]
+            for xx in x:
+                m[:-3] &= test(xx[first:last-3], xx[first+1+j:last-2+j])
+        # now find skipped indices
+        s = m.copy()
+        # do not mutate and compare simultaneously
+        s[1:-2] = s[1:-2] | s[:-3]
+        s[2:] = s[2:] | s[:-2]
+        np.logical_not(s, out=s)
+        # store the skipped indices for later concatenation
+        us.append(u[first:last][s])
+        for xxs, xx in zip(xs, x):
+            xxs.append(xx[first:last][s])
+        # combine pixels and put into existing buf adjacent next lowest order
+        combined = u[first:last][m] // 4
+        nc = len(combined)
+        u[first:first+nc] = combined
+        del combined
+        for xx in x:
+            xx[first:first+nc] = combine(xx[first:last], m)
+        assert 4 * nc + len(us[-1]) == last - first
+        # absorb combined pixels by modifying the next lowest order's bounds
+        bounds[i+1] += nc
+        # now re-sort the next lowest order
+        next_last, next_first = bounds[i+1:i+3]
+        isort = u[next_first:next_last].argsort()
+        u[next_first:next_last] = u[next_first:next_last][isort]
+        for xx in x:
+            xx[next_first:next_last] = xx[next_first:next_last][isort]
+    #breakpoint()
+    return [np.concatenate([y[:bounds[-2]], *ys[::-1]])
+            for y, ys in zip([u, *x], [us, *xs])]
 
 
 def uniq_diadic(Ω, u⃗ⁱ, x⃗ⁱ, pad=None, coarse=True):
