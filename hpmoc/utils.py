@@ -40,6 +40,18 @@ N_X_OFFSET = 0.08  # [inches]
 N_Y_OFFSET = 0.08  # [inches]
 
 
+def max_uint_type(largest):
+    import numpy as np
+
+    if largest < 0:
+        raise ValueError(f"Positive values only: {largest}")
+    for dt in ('u1', 'u2', 'u4', 'u8'):
+        if ~np.array(0, dt) > largest:
+            return dt
+    raise ValueError("You didn't pass an integer representable in less than "
+                     "64 bits: {largest}")
+
+
 class EmptyStream(OSError):
     "Raised when a file stream returns no further content."
 
@@ -1227,6 +1239,71 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     return x⃗ᵒ
 
 
+def uniq_coarsen(u, orders):
+    """
+    Coarsen the pixel indices in ``u`` to reduce storage and computation
+    requirements.
+
+    Parameters
+    ----------
+    u : array
+        UNIQ indices to coarsen.
+    orders : int
+        How many times the resolution of the smallest pixels will be halved.
+
+    Returns
+    -------
+    uc : array
+        Unique coarsened pixel values in ascending order. All pixels will have
+        a HEALPix order capped at the maximum order present in ``u`` minus
+        ``orders``, unless this value is negative, in which case the output
+        will only consist of base pixels. *If pixels in* ``u`` *overlap, it
+        is possible that there will also be overlapping pixels in the output;
+        no check is made for this.*
+
+    Raises
+    ------
+    ValueError
+        If ``orders < 0``.
+
+    Examples
+    --------
+    Pixels 353, 354, and 355 lie within pixels 88, 22, and 5; pixels 80 and
+    81 lie within pixels 20 and 5; pixel 21 lies within pixel 5.
+    >>> u = [4, 21, 80, 81, 353, 354, 355]
+
+    Coarsening by zero will have no effect:
+    >>> print(uniq_coarsen(u, 0))
+    [  4  21  80  81 353 354 355]
+
+    Coarsening by one will only combine the very smallest pixels:
+    >>> print(uniq_coarsen(u, 1))
+    [ 4 21 80 81 88]
+
+    Coarsening by larger numbers will combine so many higher orders:
+    >>> print(uniq_coarsen(u, 2))
+    [ 4 20 21 22]
+    >>> print(uniq_coarsen(u, 3))
+    [4 5]
+
+    Coarsening by a value greater than the largest order will have no
+    further effect, since the 12 base pixels cannot be combined:
+    >>> print(uniq_coarsen([4, 21, 80, 81, 353, 354, 355], 4))
+    [4 5]
+    """
+    import numpy as np
+
+    if orders < 0:
+        raise ValueError(f"orders must be > 0, instead got: {orders}")
+    u = np.array(u, copy=True)
+    o = uniq2order(u)
+    omax = o.max()
+    oout = max(omax - orders, 0)
+    i = o > oout
+    u[i] >>= 2 * (o[i] - oout)
+    return np.unique(u)
+
+
 def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
     """
     Take a set of HEALPix NUNIQ indices ``u⃗`` (and, optionally, pixel values
@@ -1299,7 +1376,7 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
 
     isort = np.argsort(u)
     u = u[isort]
-    x = [*x]
+    x = [xx[isort] for xx in x]
     us = []
     xs = [[] for _ in x]
     orders = np.arange(uniq2order(u[-1])+1, -1, -1)
@@ -1308,7 +1385,6 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
     for xx in x:
         if len(xx) != len(u):
             raise ValueError("Indices and values must have same length.")
-        xx = xx[isort]
     for i in range(len(bounds)-2):
         last, first = bounds[i:i+2]
         if last - first < 4:
@@ -1560,7 +1636,7 @@ def is_gz(infile: Union[IO, str]):
     return magic_number == b'1f8b'
 
 
-def set_partial_skymap_metadata(meta, mask):
+def set_partial_skymap_metadata(meta, mask, caller):
     """
     Write metadata to a partial skymap.
     """
@@ -1573,8 +1649,9 @@ def set_partial_skymap_metadata(meta, mask):
     history += [''] + wrap(
         dedent(
             f"""
-            Pixels were downselected by the LLAMA pipeline to overlap with the
-            sky regions specified in NUNIQ mask indices:
+            Pixels were downselected by the HPMOC library using {caller} to
+            overlap with the sky regions specified in the following NUNIQ mask
+            indices:
 
             {{mask}}.
 
@@ -1616,8 +1693,7 @@ def handle_compressed_infile(func):
 
 
 @handle_compressed_infile
-def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True,
-                        processor=uniq_minimize, post=True):
+def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
     """
     Read in pixels from a FITS skymap (or a gzip-compressed FITS skymap) that
     lie in a specific sky region.  Attempts to minimize memory usage by
@@ -1641,8 +1717,6 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True,
         this can require the availability of several gigabytes of tempfile
         storage. You will need to make use of ``TmpGunzipFits`` when working
         with zipped files in order to be able to use ``memmap=True``.
-    minimize : bool, optional
-        If ``True``, reduce the size
 
     Returns
     -------
@@ -1669,7 +1743,7 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True,
     meta = T.meta.copy()
     nˢ = T.meta.get('NSIDE', None)
     ordering = T.meta['ORDERING']
-    set_partial_skymap_metadata(meta, u⃗)
+    set_partial_skymap_metadata(meta, u⃗, read_partial_skymap.__qualname__)
 
     if ordering == 'NUNIQ':
         s⃗̇ = np.concatenate([uniq_intersection(T['UNIQ'][i:i+PIX_READ], u⃗)[0]+i

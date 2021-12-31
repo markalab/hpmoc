@@ -206,6 +206,10 @@ from .points import PointsTuple
 
 import hpmoc
 
+DEFAULT_CBAR_KWARGS = {
+    'orientation': 'horizontal',
+    'aspect': 40,
+}
 AIT_MOL_CDELT_BASE = math.sqrt(8) / math.pi
 GNOM_CDELT_BASE = 0.025
 ORTH_CDELT_BASE = 2 / math.pi
@@ -471,6 +475,7 @@ def plot(
             Callable[['hpmoc.PartialUniqSkymap'], Iterable[str]]
         ] = None,
         pixels_kwargs: Optional[dict] = None,
+        cbar: Union[bool, dict] = False,
 ) -> Union[
     'astropy.visualization.wcsaxes.WCSAxes',
     'astropy.visualization.wcsaxes.WCSAxesSubplot'
@@ -595,6 +600,10 @@ def plot(
     pixels_kwargs: dict, optional
         Keyword arguments to pass to ``WCSAxes.plot``, which can be used to
         control the appearance of the pixel borders.
+    cbar: bool or dict, optional
+        If ``True``, add a colorbar for the plotted skymap. If a ``dict`` is
+        provided, pass it as the keyword arguments to
+        ``matplotlib.pyplot.colorbar``. *Ignored if* ``cmap=None``.
 
     Returns
     -------
@@ -671,7 +680,17 @@ def plot(
     if (cmap is not None) or (cr.size > 1):
         render = skymap.render(projection, pad=np.nan)
     if cmap is not None:
-        ax.imshow(render, vmin=vmin, vmax=vmax, cmap=cmap, alpha=alpha)
+        img = ax.imshow(render, vmin=vmin, vmax=vmax, cmap=cmap, alpha=alpha)
+        if cbar is not False:
+            kw = DEFAULT_CBAR_KWARGS.copy()
+            label = skymap.name or ''
+            if isinstance(skymap.s⃗, Quantity):
+                label += (' [{}]' if label else '{}').format(skymap.s⃗.unit)
+            if label:
+                kw['label'] = label
+            if cbar is not True:
+                kw.update(cbar)
+            plt.colorbar(img, ax=ax, **kw)
 
     # plot scatterplots, layering sigma regions first
     # TODO see if z level need be specified

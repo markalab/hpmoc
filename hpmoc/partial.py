@@ -27,6 +27,8 @@ from typing import (
 )
 from nptyping import NDArray
 from .utils import (
+    uniq_coarsen,
+    max_uint_type,
     uniq2nest,
     uniq2dangle,
     uniq_diadic,
@@ -43,6 +45,7 @@ from .utils import (
     nside_quantile_indices,
     nside_slices,
     read_partial_skymap,
+    uniq_minimize,
 )
 from .abstract import AbstractPartialUniqSkymap
 from .plot import plot
@@ -52,6 +55,7 @@ from .plotters import (
     MAX_NSIDE,
     multiplot,
 )
+from .fits import load_ligo
 from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
 
 DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
@@ -330,39 +334,40 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             raise TypeError("Can only convert dimensions of a ``Quantity``")
         return PartialUniqSkymap(self.s⃗.to(*args, **kwargs), self.u⃗,
                                  copy=False, name=self.name,
-                                 meta=self.meta,
+                                 meta=self.meta.copy(),
                                  point_sources=self.point_sources)
 
-    def compress(self, ϵ, cmp=lambda _m, δ, ϵ: δ < ϵ, stype=None, utype=None):
+    def compress(self, stype=None, utype=None, **kwargs):
         """
         Eliminate redundant pixels with ``utils.uniq_minimize`` and store
         indices ``u⃗`` in the smallest integer size that represents all values.
 
         Parameters
         ----------
-        ϵ : float or astropy.units.Quantity
-            The maximum difference between adjacent pixels under which they are
-            considered equal and combined into a single pixel. You can modify
-            its meaning with ``cmp``.
-        cmp : Callable[[array, array, Union[float, Quantity]], bool], optional
-            A function taking the minimum value of a group of pixels as well as
-            ``max-min`` as well as ``ϵ`` and returning a boolean indicating
-            whether the pixels are the same. By default, simply checks whether
-            ``max-min`` is less than ``ϵ``. Must be broadcastable to an array
-            of ``min`` and ``max-min`` values, returning a boolean ``array``
-            result.
         stype : type, optional
             If provided, store ``s⃗`` as this type. Defaults to ``s⃗.dtype``.
         utype : type, optional
             If provided, store ``u⃗`` as this type. Defaults to the smallest
             ``np.int`` type required to store all values of ``u⃗``.
+        kwargs
+            Keyword arguments to pass to ``hpmoc.utils.uniq_minimize``.
 
         Returns
         -------
         compressed : PartialUniqSkymap
             A compressed version of this skymap.
+
+        See Also
+        --------
+        hpmoc.utils.uniq_minimize
         """
-        raise NotImplementedError("Not yet implemented.")
+        u, s = uniq_minimize(self.u⃗, self.s⃗)
+        if utype is None:
+            utype = max_uint_type(self.u⃗.max())
+        s = s if stype is None else s.astype(stype)
+        return PartialUniqSkymap(s, u.astype(utype), copy=False,
+                                 name=self.name, meta=self.meta.copy(),
+                                 point_sources=self.point_sources)
 
     def sort(self, copy=True):
         """
@@ -1274,12 +1279,12 @@ class LigoIo(IoStrategy):
 
     @staticmethod
     def read(
-            mask: Optional[PartialUniqSkymap],
+            mask: Optional[Union[PartialUniqSkymap, NDArray]],
             file: Union[IO, str],
             *args,
             name: str = 'PROBDENSITY',
             memmap: bool = True,
-            coarsen: int = 0,
+            coarsen: Optional[int] = None,
             **kwargs
     ):
         """
@@ -1287,36 +1292,27 @@ class LigoIo(IoStrategy):
 
         Parameters
         ----------
-        mask : PartialUniqSkymap
+        mask : PartialUniqSkymap or array, optional
             Only read in pixels overlapping with ``mask``.
         file : file or str
-            The file object or filename to read from.
+            The file object or filename to read from. Can be a stream as no
+            seeking will be performed.
         name : str, optional
             The column-name of the pixel data.
-        memmap : bool, optional
-            Whether to memory-map the input file during read. Useful when
-            reading small sky areas from large files to conserve memory.
-            The returned skymap will be stored as a copy in memory.
         coarsen : int, optional
             If provided, coarsen the ``mask`` by up to this many HEALPix
             orders (up to order 0) to speed up read times. This will select
             a superset of the sky region defined in ``mask``.
         *args, **kwargs
-            Arguments to pass on to ``astropy.table.Table.read``.
+            Arguments to pass on to ``hpmoc.fits.load_ligo``.
         """
-        import numpy as np
-
-        if mask is None:
-            pt = []
-            m = np.arange(12)+4  # 12 base pixels = whole sky
-        else:
-            pt = mask.point_sources
-            m = mask.u⃗
-        m = np.unique(m >> (2*min(uniq2order(m.min()), coarsen)))
-        p = read_partial_skymap(file, m, memmap=memmap)
-        return PartialUniqSkymap(p[name], p['UNIQ'],
-                                 name=name, meta=p.meta,
-                                 point_sources=pt)
+        pt = mask.point_sources if isinstance(mask, PartialUniqSkymap) else []
+        if mask is not None:
+            mask = mask.u⃗ if isinstance(mask, PartialUniqSkymap) else mask
+            mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
+            mask = uniq_minimize(mask)
+        [[u, s, meta]] = load_ligo(file, mask=mask, **kwargs)
+        return PartialUniqSkymap(s, u, name=name, meta=meta, point_sources=pt)
 
     def write(
             skymap: PartialUniqSkymap,

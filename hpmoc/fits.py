@@ -7,8 +7,20 @@ Load skymaps from fits files.
 import re
 import gzip
 import logging
+from pathlib import Path
 from math import ceil
-from typing import Union, IO, List, Tuple, Callable, Iterator, Any
+from collections import OrderedDict
+from typing import (
+    Union,
+    IO,
+    List,
+    Tuple,
+    Callable,
+    Iterator,
+    Any,
+    Optional,
+    Iterable,
+)
 from nptyping import NDArray
 from .healpy import healpy as hp
 from .utils import (
@@ -17,6 +29,9 @@ from .utils import (
     nest2uniq,
     uniq2nside,
     nside2pixarea,
+    uniq_minimize,
+    uniq_intersection,
+    is_gz,
 )
 
 LOGGER = logging.getLogger(__name__)
@@ -39,6 +54,22 @@ BINTABLE_TO_NUMPY_TYPES = {
     # 'P': 32-bit array descriptor, not supported for now
     # 'Q': 64-bit array descriptor, not supported for now
 }
+HEADER_NON_META = re.compile(
+    "|".join(
+        (
+            'XTENSION',
+            'BITPIX',
+            'NAXIS[0-9]*',
+            'PCOUNT',
+            'GCOUNT',
+            'TFIELDS',
+            'TTYPE[0-9]*',
+            'TFORM[0-9]*',
+            'TUNIT[0-9]*',
+            'EXTNAME',
+        )
+    )
+)
 TFORM = re.compile(r'([0-9]*)([LXBIJKAEDCMPQ])(.*)')
 BUFFER_ROWS = 4**8
 
@@ -121,11 +152,14 @@ def read_bintable_chunks(
             int
         ] = calculate_max_rows_read,
 ) -> Iterator[
-        Iterator[
-            Tuple[
-                NDArray[(Any,), Any],
-                List['astropy.units.Quantity']
-            ]
+        Tuple[
+            'astropy.io.fits.BinTableHDU',
+            Iterator[
+                Tuple[
+                    NDArray[(Any,), Any],
+                    List['astropy.units.Quantity'],
+                ]
+            ],
         ]
 ]:
     import numpy as np
@@ -155,8 +189,95 @@ def read_bintable_chunks(
             if position_in_block != 0:
                 stream.read(FITS_BLOCKSIZE - position_in_block)
 
-        yield chunk_iter()
+        yield hdu, chunk_iter()
         tables -= 1
+
+
+def load_ligo(
+        infile: Union[IO, str, Path],
+        mask: Optional[NDArray[(Any,), int]] = None,
+        maps: Optional[Union[int, Iterable[int]]] = None,
+        extractor: Callable[
+            ['astropy.io.fits.BinTableHDU', NDArray[(Any,), Any], int],
+            Tuple[
+                NDArray[(Any,), int],
+                List['astropy.units.Quantity'],
+            ]
+        ] = extract_probdensity,
+        row_calculator: Callable[
+            [
+                'astropy.io.fits.BinTableHDU',
+                List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
+                int,
+            ],
+            int
+        ] = calculate_max_rows_read,
+        chunk_processor: Callable[
+            [NDArray[(Any,), int], NDArray[(Any,), Any]],
+            Tuple[NDArray[(Any,), int], NDArray[(Any,), Any]]
+        ] = uniq_minimize,
+        post_processor: Callable[
+            [NDArray[(Any,), int], NDArray[(Any,), Any]],
+            Tuple[NDArray[(Any,), int], NDArray[(Any,), Any]]
+        ] = uniq_minimize,
+        buf_rows: int = BUFFER_ROWS,
+        max_nside: Optional[int] = None
+) -> Iterator[Tuple[NDArray[(Any,), int], 'astropy.units.Quantity', OrderedDict]]:
+    import numpy as np
+
+    if isinstance(infile, (str, Path)):
+        with (gzip.open if is_gz(infile) else open)(infile, 'rb') as stream:
+            for tab in load_ligo(stream, mask, maps, extractor, row_calculator,
+                                 chunk_processor, post_processor, buf_rows,
+                                 max_nside):
+                yield tab
+        return
+    if maps is None:
+        tables = -1
+    elif isinstance(maps, int):
+        maps = None
+        tables = maps
+    else:
+        maps = [*maps]
+        tables = max(maps)
+    # read the first HDU, which will be empty for a BINTABLE extension
+    # fits file
+    hdu0 = next_hdu(infile)
+    for i, [hdu, table] in enumerate(
+            read_bintable_chunks(
+                infile,
+                tables=tables,
+                buf_rows=buf_rows,
+                extractor=extractor,
+                row_calculator=row_calculator
+            )
+    ):
+        us = []
+        ss = []
+        for u, [s] in table:
+            if maps is None or i in maps:
+                u, s = chunk_processor(u, s)
+                if mask is not None:
+                    ui = uniq_intersection(u, mask)[0]
+                # TODO apply max_nside here
+                us.append(u[ui] if mask is not None else u)
+                ss.append(s[ui] if mask is not None else s)
+        u = np.concatenate(us)
+        s = np.concatenate(ss)
+        del us, ss
+        meta = OrderedDict()
+        for k, v, *_ in hdu.header.cards:
+            if HEADER_NON_META.match(k) is not None:
+                continue
+            if k == 'HISTORY':
+                if k in meta:
+                    meta[k].append(v)
+                else:
+                    meta[k] = [v]
+            elif k not in meta:
+                meta[k] = v
+        set_partial_skymap_metadata(meta, mask, load_ligo.__name__)
+        yield (*post_processor(u, s), meta)
 
 
 def bintable_dtype(
@@ -195,7 +316,7 @@ def next_header(stream: IO):
     header = _next_header_blocks(stream)
     if not header:
         raise EmptyStream("Stream ended.")
-    return fits.Header.fromstring()
+    return fits.Header.fromstring(header)
 
 
 def next_hdu(stream: IO):
