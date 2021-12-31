@@ -27,7 +27,7 @@ from .healpy import healpy as hp
 
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5
-PIX_READ = 10**5
+PIX_READ = 4**8
 OP_CHUNKSIZE = 10**6
 PIXEL_CONSISTENCY_ERROR = 1e-9
 MAX_ORDER = 30
@@ -38,6 +38,10 @@ OUTLINE_COLOR = (1, 1, 1, 1)  # outlines of text and neutrino markers
 FONT_SIZE = 14  # matplotlib font size
 N_X_OFFSET = 0.08  # [inches]
 N_Y_OFFSET = 0.08  # [inches]
+
+
+class EmptyStream(OSError):
+    "Raised when a file stream returns no further content."
 
 
 # TODO test this much more
@@ -429,7 +433,7 @@ def nside2pixarea(nside, degrees=False):
 
     Examples
     --------
-    At NSIDE = 1, we should get a quarter of the sky, or about 1/steradian:
+    At NSIDE = 1, we should get 1/12 of the sky, or about 1/steradian:
     >>> from math import pi
     >>> allsky = 4*pi
     >>> nside2pixarea(1) == allsky / 12
@@ -442,8 +446,14 @@ def nside2pixarea(nside, degrees=False):
     >>> np.all(nside2pixarea(nsides) == areas)
     True
     """
+    import numpy as np
+
     check_valid_nside(nside)
-    return pi/3/nside**2
+    result = pi/3/nside**2
+    if degrees:
+        np.degrees(result, out=result)
+        np.degrees(result, out=result)
+    return result
 
 
 def check_valid_nuniq(indices):
@@ -1606,7 +1616,8 @@ def handle_compressed_infile(func):
 
 
 @handle_compressed_infile
-def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
+def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True,
+                        processor=uniq_minimize, post=True):
     """
     Read in pixels from a FITS skymap (or a gzip-compressed FITS skymap) that
     lie in a specific sky region.  Attempts to minimize memory usage by
@@ -1628,7 +1639,10 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
         decompressed to a temporary file and data will be read from it
         (necessary to constrain memory usage); for high-resolution skymaps,
         this can require the availability of several gigabytes of tempfile
-        storage.
+        storage. You will need to make use of ``TmpGunzipFits`` when working
+        with zipped files in order to be able to use ``memmap=True``.
+    minimize : bool, optional
+        If ``True``, reduce the size
 
     Returns
     -------
@@ -1642,6 +1656,11 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
         the resolution of the smallest pixel loaded from the input file (in
         the case of ``ring`` or ``nested`` ordering, this is just the
         resolution of the input skymap).
+
+    See Also
+    --------
+    TmpGunzipFits
+    hpmoc.utils.uniq_minimize
     """
     from astropy.table import Table
     import numpy as np

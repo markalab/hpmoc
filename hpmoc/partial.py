@@ -267,6 +267,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         Pixel NSIDE values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
         """
+        import numpy as np
+
         n = uniq2nside(self.u⃗)
         if as_skymap:
             u⃗ = np.array(self.u⃗, copy=True) if copy else self.u⃗
@@ -282,6 +284,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         HEALPix order values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
         """
+        import numpy as np
+
         o = uniq2order(self.u⃗)
         if as_skymap:
             u⃗ = np.array(self.u⃗, copy=True) if copy else self.u⃗
