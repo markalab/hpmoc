@@ -188,13 +188,16 @@ can be displayed by astropy at time of writing; in particular, the HEALPIX
 See Also
 --------
 hpmoc.PartialUniqSkymap
+hpmoc.plotters
 astropy.wcs.WCS
 astropy.visualization.wcsaxes
-hpmoc.plotters
+matplotlib.axes.Axes
+matplotlib.figure.Figure
 ligo.skymap
 healpy
 """
 
+import math
 from warnings import warn
 from typing import Optional, Union, Tuple, Iterable, Callable
 from textwrap import indent, wrap
@@ -203,6 +206,11 @@ from .points import PointsTuple
 
 import hpmoc
 
+AIT_MOL_CDELT_BASE = math.sqrt(8) / math.pi
+GNOM_CDELT_BASE = 0.025
+ORTH_CDELT_BASE = 2 / math.pi
+AZEQ_CDELT_BASE = 2
+ZEA_CDELT_BASE = 4 / math.pi
 DEFAULT_WIDTH = 360
 DEFAULT_HEIGHT = 180
 DEFAULT_ROT = (180, 0, 0)
@@ -215,55 +223,86 @@ DEFAULT_CLABEL_KWARGS = {
 }
 _WCS_HEADERS = dict()
 _WCS_FRAMES = dict()
-_ALL_SKY = {
+_SHARED = {
     "NAXIS": 2,
-    "NAXIS1": 360,
     "NAXIS2": 180,
-    "CTYPE1": 'RA---',
     "CRVAL1": 180.0,
+    "CTYPE1": 'RA---',
     "CUNIT1": 'deg',
-    "CTYPE2": 'DEC--',
     "CRVAL2": 0.0,
+    "CTYPE2": 'DEC--',
     "CUNIT2": 'deg',
     "COORDSYS": 'icrs'
 }
-_ZENITHAL = {
-}
+_ALL_SKY = _SHARED.copy()
+_ALL_SKY["NAXIS1"] = 360.0
+_ZENITHAL = _SHARED.copy()
+_ZENITHAL["NAXIS1"] = 180.0
 _docs = {
     "allsky": "\n",
     "zenithal": "\n",
 }
+PROJ_SETTINGS = {
+    "allsky": (
+        _ALL_SKY,
+        {
+            'MOL': (('Mollweide', 'mollview', 'Homolographic', 'Homalographic',
+                     'Babinet', 'Elliptical'),
+                    {'CDELT1': -AIT_MOL_CDELT_BASE,
+                     'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
+            'AIT': (('Hammer-Aitoff', 'Aitoff', 'Hammer', 'Aitov',
+                     'Hammer equal-area'),
+                    {'CDELT1': -AIT_MOL_CDELT_BASE,
+                     'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
+            'CAR': (('Carée', 'Plate-carée', 'Caree', 'Plate-caree',
+                     'Cartesian', 'Tyre', 'cartview',
+                     'Equidistant cylindrical'),
+                    {'CDELT1': -1, 'CDELT2': 1}, 'r'),
+            'SFL': (('Sanson-Flamsteed',),
+                    {'CDELT1': -1, 'CDELT2': 1}, 'p'),
+            'PAR': (('Parabolic', 'Craster'),
+                    {'CDELT1': -1, 'CDELT2': 1}, 'p'),
+        },
+    ),
+    "zenithal": (
+        _ZENITHAL,
+        {
+            # NB: TAN is just AZP (zenithal perspective) with mu set to zero.
+            'TAN': (('gnomonic', 'gnomview', 'Central', 'zoom'),
+                    {'CDELT1': -GNOM_CDELT_BASE, 'CDELT2': GNOM_CDELT_BASE},
+                    'r'),
+            'SIN': (('Slant Orthographic', 'Orthographic', 'Globe',
+                     'orthview'),
+                    {'CDELT1': -ORTH_CDELT_BASE, 'CDELT2': ORTH_CDELT_BASE},
+                    'e'),
+            'ARC': (('Zenithal Equidistant', 'azimuthal equidistant',
+                     'azeqview', 'Postel', 'Equidistant', 'Globular'),
+                    {'CDELT1': -AZEQ_CDELT_BASE, 'CDELT2': AZEQ_CDELT_BASE},
+                    'e'),
+            'ZEA': (('Zenithal Equal-area', 'Azimuthal equivalent',
+                     'polar azimuthal', 'Lambert azimuthal equivalent',
+                     'Lambert azimuthal equal-area',
+                     'Lambert polar azimuthal', 'Lambert'),
+                    {'CDELT1': -ZEA_CDELT_BASE, 'CDELT2': ZEA_CDELT_BASE},
+                    'e'),
+        },
+    ),
+}
 # Add all-sky projections; aliases drawn from common usage, healpy.visufunc,
 # WCS standard, and aliases as given in astro-ph/0207413
-# TODO put in default CDELT params for each projection
-for docname, config in {
-         "allsky": {
-            'MOL': ('e', ('Mollweide', 'mollview', 'Homolographic', 'Homalographic',
-                          'Babinet', 'Elliptical')),
-            'AIT': ('e', ('Hammer-Aitoff', 'Aitoff', 'Hammer')),
-            'CAR': ('r', ('Carée', 'Plate-carée', 'Caree', 'Plate-caree', 'Cartesian',
-                          'Tyre', 'cartview', 'Equidistant cylindrical')),
-            'SFL': ('p', ('Sanson-Flamsteed',)),
-            'PAR': ('p', ('Parabolic', 'Craster')),
-        },
-        "zenithal": {
-            # NB: TAN is just AZP (zenithal perspective) with mu set to zero.
-            'TAN': ('r', ('gnomonic', 'gnomview', 'Central')),
-        }
-}.items():
-    for proj, (frame, aliases) in config.items():
-        _docs[docname] += '    - ' + indent('\n'.join(
-            wrap(f"{proj}: *{', '.join(aliases)}*", 73)), ' '*6)[6:] + '\n'
+for docname, (defaults, config) in PROJ_SETTINGS.items():
+    for proj, (aliases, projdefaults, frame) in config.items():
+        _docs[docname] += '        - ' + indent('\n'.join(
+            wrap(f"{proj}: *{', '.join(aliases)}*", 69)), ' '*10)[10:] + '\n'
         _WCS_FRAMES[proj] = frame
-        _WCS_HEADERS[proj] = _ALL_SKY.copy()
+        _WCS_HEADERS[proj] = defaults.copy()
         _WCS_HEADERS[proj]['CTYPE1'] += proj
         _WCS_HEADERS[proj]['CTYPE2'] += proj
+        _WCS_HEADERS[proj].update(projdefaults)
         for alias in aliases:
             _WCS_HEADERS[alias.upper()] = _WCS_HEADERS[proj]
             _WCS_FRAMES[alias.upper()] = frame
-# Add zenithal projections
-for proj, (frame, aliases) in :
-    pass
+    _docs[docname] = _docs[docname].rstrip('\n')
 
 
 def get_frame_class(
@@ -271,6 +310,7 @@ def get_frame_class(
 ) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
     """
     Get the frame class associated with a given projection.
+
     Parameters
     ----------
     projection: str
@@ -298,12 +338,13 @@ def get_frame_class(
     return frame.RectangularFrame
 
 
-# TODO put in a CDELT override/general param override for WCS headers
 # TODO allow ICRS override
 def get_wcs(
         projection: str,
-        width: int = DEFAULT_WIDTH,
+        width: Optional[int] = None,
         height: int = DEFAULT_HEIGHT,
+        hdelta: Optional[float] = None,
+        vdelta: Optional[float] = None,
         rot: Tuple[float, float, float] = DEFAULT_ROT,
         facing_sky: bool = DEFAULT_FACING,
 ) -> 'astropy.wcs.WCS':
@@ -321,11 +362,25 @@ def get_wcs(
         skymaps over other astrophysical data. This function will return
         ``WCS`` instances for the following projection types:
 
-        All-sky:{_ALL_SKY_DOC}
-    width: int
-        Width of the image in pixels.
+        All-sky
+        ======={allsky}
+
+        Zenithal
+        ========{zenithal}
+    width: int, optional
+        Width of the image in pixels. If not provided, default to the height
+        for zenithal projections and twice the height for azimuthal
+        projections.
     height: int
         Height of the image in pixels.
+    hdelta: float, optional
+        The CDELT1 value, if you wish to override the default. Note that the
+        actual angular width of a pixel at the reference point depends on this
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
+    vdelta: float, optional
+        The CDELT2 value, if you wish to override the default. Note that the
+        actual angular height of a pixel at the reference point depends on this
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
     rot: Tuple[float, float, float]
         Euler angles for rotations about the Z, X, Z axes. These are
         immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
@@ -353,19 +408,27 @@ def get_wcs(
 
     dec_dir = -1 if facing_sky else 1
     header = Header(_WCS_HEADERS[projection.upper()].copy())
-    header['NAXIS1'] = width
-    header['CRPIX1'] = width / 2 + 0.5
-    header['CDELT1'] = dec_dir * np.sqrt(8) / np.pi * 360 / width
+    if width is not None:
+        header['CDELT1'] *= header['NAXIS1'] / width
+        header['NAXIS1'] = width
+    header['CRPIX1'] = header['NAXIS1'] / 2 + 0.5
     header['CRVAL1'] = rot[0]
+    header['CDELT2'] *= header['NAXIS2'] / height
     header['NAXIS2'] = height
-    header['CRPIX2'] = height / 2 + 0.5
-    header['CDELT2'] = np.sqrt(8) / np.pi * 180 / height
+    header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5
     header['CRVAL2'] = rot[1]
     header['LONPOLE'] = rot[2]
+    if hdelta is not None:
+        header['CDELT1'] = hdelta
+    if vdelta is not None:
+        header['CDELT2'] = vdelta
     return WCS(header)
 
 
-# TODO put in a CDELT override/general param override for WCS headers
+get_wcs.__doc__ = get_wcs.__doc__.format(allsky=_docs['allsky'],
+                                         zenithal=_docs['zenithal'])
+
+
 # TODO allow ICRS override
 def plot(
         skymap: 'hpmoc.PartialUniqSkymap',
@@ -390,8 +453,10 @@ def plot(
         frame_class: Optional[
             'astropy.visualization.wcsaxes.frame.BaseFrame'
         ] = None,
-        width: int = DEFAULT_WIDTH,
+        width: Optional[int] = None,
         height: int = DEFAULT_HEIGHT,
+        hdelta: Optional[float] = None,
+        vdelta: Optional[float] = None,
         rot: Tuple[float, float, float] = DEFAULT_ROT,
         facing_sky: bool = DEFAULT_FACING,
         fig: Optional['matplotlib.figure.Figure'] = None,
@@ -459,9 +524,19 @@ def plot(
         by name, otherwise defaults to ``RectangularFrame``.
         *Ignored if* ``ax`` *is given.*
     width: int, optional
-        The width of the plot in pixels. *Ignored if* ``ax`` *is given.*
+        Width of the image in pixels. If not provided, default to the height
+        for zenithal projections and twice the height for azimuthal
+        projections. *Ignored if* ``ax`` *is given.*
     height: int, optional
         The height of the plot in pixels. *Ignored if* ``ax`` *is given.*
+    hdelta: float, optional
+        The CDELT1 value, if you wish to override the default. Note that the
+        actual angular width of a pixel at the reference point depends on this
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
+    vdelta: float, optional
+        The CDELT2 value, if you wish to override the default. Note that the
+        actual angular height of a pixel at the reference point depends on this
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
     rot: Tuple[float, float, float], optional
         Euler angles for rotations about the Z, X, Z axes. These are
         immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
@@ -523,7 +598,17 @@ def plot(
 
     Returns
     -------
+    ax: WCSAxes or WCSAxesSubplot
+        The axes that were just plotted to.
 
+    See Also
+    --------
+    hpmoc.PartialUniqSkymap
+    matplotlib.figure.Figure
+    matplotlib.axes.Axes
+    astropy.io.fits.Header
+    astropy.wcs.WCS
+    astropy.visualization.wcsaxes.WCSAxes
     """
     import numpy as np
     from matplotlib import pyplot as plt
@@ -542,16 +627,15 @@ def plot(
         if fig is None:
             fig = plt.figure()
         if frame_class is None:
-            if isinstance(projection, str):
-                # TODO rect. frame if not all-sky
+            if isinstance(projection, str) and {vdelta, hdelta} == {None}:
                 frame_class = get_frame_class(projection)
             else:
                 frame_class = RectangularFrame
         if not isinstance(projection, WCS):
             if not isinstance(projection, Header):
                 try:
-                    projection = get_wcs(projection, width, height, rot,
-                                         facing_sky)
+                    projection = get_wcs(projection, width, height, hdelta,
+                                         vdelta, rot, facing_sky)
                 except IndexError:
                     projection = WCS(Header.fromstring(projection))
             else:
@@ -569,6 +653,7 @@ def plot(
     co_ra, co_dec = ax.coords
     co_ra.set_major_formatter("dd")
     co_dec.set_major_formatter("dd")
+    # TODO set ticks based on CDELT and visible window
     co_ra.set_ticks(np.arange(30, 360, 30) * deg)
     co_dec.set_ticks(np.arange(-75, 90, 15) * deg)
     co_ra.set_ticks_visible(False)
@@ -583,13 +668,14 @@ def plot(
     ax.grid(True)
 
     # plot skymap
-    if (cmap is None) or (cr.size > 1):
+    if (cmap is not None) or (cr.size > 1):
         render = skymap.render(projection, pad=np.nan)
     if cmap is not None:
         ax.imshow(render, vmin=vmin, vmax=vmax, cmap=cmap, alpha=alpha)
 
     # plot scatterplots, layering sigma regions first
     # TODO see if z level need be specified
+    # TODO do not scatter plot or label points that are off of the plot axes
     transform = ax.get_transform('world')
     label_transform = transform + ScaledTranslation(N_X_OFFSET/2, N_Y_OFFSET/2,
                                                     ax.figure.dpi_scale_trans)
@@ -625,6 +711,8 @@ def plot(
             )
         )
         ptrans = ax.get_transform(projection)
+        # TODO handle contourf needing two levels and reconcile it with
+        # disposing of the 1.0 quantile
         contour = ax.contourf if cr_filled else ax.contour
         ckw = DEFAULT_C_KWARGS.copy()
         if cr_kwargs is not None:

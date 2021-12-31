@@ -278,7 +278,7 @@ class PointsTuple(NamedTuple):
         np.multiply(s, extent, out=s)
         np.cos(s, out=s)
         np.subtract(np.radians(90), t, out=t)
-        points = hp.ang2vec(t, p, lonlat=False)
+        points = hp.ang2vec(t, p, lonlat=False).T
         del t, p
 
         # get the coordinates to plot to and convert them to vectors
@@ -290,7 +290,7 @@ class PointsTuple(NamedTuple):
             valid = None
             tp, pp = hp.pix2ang(*uniq2nest_and_nside(u⃗ᵒ)[::-1], nest=True,
                                  lonlat=False)
-        plot = hp.ang2vec(tp, pp, lonlat=False).T
+        plot = hp.ang2vec(tp, pp, lonlat=False)
         del tp, pp
 
         # take dot products and sum overlaps of each pixel before applying
