@@ -24,7 +24,9 @@ from typing import (
     Union,
     IO,
     Tuple,
+    Any,
 )
+from deprecated import deprecated
 from nptyping import NDArray
 from .utils import (
     uniq_coarsen,
@@ -44,60 +46,33 @@ from .utils import (
     nside2pixarea,
     nside_quantile_indices,
     nside_slices,
+    nest2uniq,
     read_partial_skymap,
     uniq_minimize,
 )
 from .abstract import AbstractPartialUniqSkymap
-from .plot import plot
-from . import plotters
+from .plot import plot, gridplot
 from .plotters import (
-    DEFAULT_ROT,
-    MAX_NSIDE,
     multiplot,
 )
-from .fits import load_ligo
+from .healpy import healpy as hp
 from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
 
 DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
                      'divmod': divmod}
 
 
-def plot_fill(s⃗):
-    """
-    ``PartialUniqSkymap.fill`` a skymap either to its native max resolution or
-    to the max resolution suggested by ``plotters.MAX_NSIDE``. Does nothing if
-    not passed a ``PartialUniqSkymap``.
-    """
-    if not isinstance(s⃗, PartialUniqSkymap):
-        return s⃗
-    return s⃗.fill(nˢ=min(MAX_NSIDE, s⃗.n⃗ˢ().max()))
-
-
-def partial_visufunc(meth):
-    """
-    Plot a ``PartialUniqSkymap`` using the ``healpy.visufunc`` function of the
-    same name as the wrapped method ``meth``, then call ``meth`` passing it the
-    plot as ``fig``. This allows ``meth`` to focus on any special handling of
-    the figure after it's been called.
-    """
-    func = vars(plotters)[meth.__name__]
-    addendum = '\n'.join(wrap("""
-        This method is a wrapper around ``{plotters.__name__}.{func.__name__}``
-        that uses this partial skymap's pixels.
-    """))
-    doc = re.sub(r'\n\nParameters', f"\n\n{addendum}\n\nParameters",
-                 re.sub(r'\n(s⃗ : .*)(\n\*scatter)', lambda m: m.group(2),
-                        func.__doc__, 0, re.DOTALL))
-
-    #@functools.wraps(meth)
-    #def wrapper(self, *args, nest=True, **kwargs):
-    #    return func(plot_fill(self), *self.point_sources, *args, nest=True,
-    #                **kwargs)
-    #wrapper.__doc__ = (wrapper.__doc__ or '') + doc
-
-    wrapped = functools.wraps(meth)(func)
-    wrapped.__doc__ = (wrapped.__doc__ or '') + doc
-    return wrapped
+_depr_visufunc = deprecated(
+    reason=dedent("""
+        healpy visufunc plotting methods have been replaced with more powerful,
+        cross-platform WCSAxes-based plotters.  Use ``hpmoc.plot.plot`` and
+        ``PartialUniqSkymap.plot`` instead, for which this method is now a thin
+        wrapper. This method is retained for convenience, but its interface
+        has changed somewhat, and it may be removed or further modified without
+        warning in the future.
+    """.rstrip().strip('\n')).replace('\n', ' '),
+    version = "0.3.0"
+)
 
 
 def _get_op(name):
@@ -143,13 +118,13 @@ def diadic_dunder(pad=None, coarse=False, post=None):
             # from IPython.core.debugger import Tracer; Tracer()()
 
             if isinstance(o, PartialUniqSkymap):
-                u⃗, s⃗ = uniq_diadic(Ω, srt(s.u⃗, o.u⃗), srt(s.s⃗, o.s⃗),
-                                   pad=pad, coarse=coarse)
+                uu, ss = uniq_diadic(Ω, srt(s.u, o.u), srt(s.s, o.s),
+                                     pad=pad, coarse=coarse)
                 pts = o.point_sources
                 oname = o.name or 'PIXELS'
             elif (not np.iterable(o)) or isinstance(o, (np.ndarray, Qty)):
-                s⃗ = Ωᵢ(*srt(s.s⃗, o))
-                u⃗ = s.u⃗
+                ss = Ωᵢ(*srt(s.s, o))
+                uu = s.u
                 pts = []
                 oname = 'array'
             else:
@@ -158,12 +133,12 @@ def diadic_dunder(pad=None, coarse=False, post=None):
             m = s.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + [
                 f'DIAD: {meth.__name__}({s.name or "PIXELS"}, {oname})']
-            return PartialUniqSkymap(s⃗ if post is None else post(s⃗), u⃗,
+            return PartialUniqSkymap(ss if post is None else post(ss), uu,
                                      point_sources=pts, copy=False, meta=m)
 
         wrapper.__doc__ = dedent(f"""
             ``__{name}__`` for scalars, arrays, and `PartialUniqSkymap`
-            instances. Arrays must match ``s⃗`` pixel-for-pixel. Provide keyword
+            instances. Arrays must match ``s`` pixel-for-pixel. Provide keyword
             arguments ``pad`` to provide a pad value for missing pixels and/or
             ``coarse`` to specify whether the resulting skymap should take the
             higher or lower resolution in overlapping areas (default coarse
@@ -190,18 +165,28 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     missing values with a second index argument). You can also use index
     notation to set pixel values at the specified NUNIQ index locations.
     """
+    s: Union[NDArray[(Any,), Any], 'astropy.units.Quantity']
+    u: NDArray[(Any,), int]
+    point_sources: List['hpmoc.points.PointsTuple']
 
-    def __init__(self, s⃗, u⃗, copy=False, name=None, point_sources=None,
-                 meta=None, empty=None, compress=False):
+    def __init__(self, s, u, copy=False, name=None, point_sources=None,
+                 meta=None, empty=None, compress=False, interp_order=0):
         """
         Initialize a skymap with the pixel values and NUNIQ indices used.
 
         Parameters
         ----------
-        s⃗ : array-like
+        s : array-like
             Pixel values. Must be numeric.
-        u⃗ : array-like
-            NUNIQ indices corresponding to pixels in s⃗.
+        u : array-like, WCS, or None
+            NUNIQ indices corresponding to pixels in s. If ``None``, assume
+            ``s`` is given as a single-resolution, all-sky NEST HEALPix skymap.
+            Pass ``u='RING'`` to indicate a HEALPix RING-ordered all-sky
+            skymap, or ``u='NEST'`` to explicitly indicate NEST ordering
+            If a ``WCS`` instance, assume ``s`` is the image described by that
+            ``WCS`` and convert the image into an MOC HEALPix image using
+            bilinear interpolation (pixel sizes will locally be approximately
+            the same as those in the original ``WCS``).
         copy : bool, optional
             Whether to make copies of the input arrays.
         name : str, optional
@@ -224,29 +209,45 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             implies ``copy=True``. For example, set this to ``healpy.UNSEEN``
             to automatically discard pixels not included in a standard full-sky
             ``healpy`` skymap.
+        interp_order : int, optional
+            The interpolation order to use. Pass ``0`` for nearest-neighbor or
+            ``1`` for bilinear. *Ignored if* ``u`` *is not a* ``WCS``
+            *instance.*
 
         Raises
         ------
         ValueError
-            If ``s⃗`` is not a numeric data type.
+            If ``s`` is not a numeric data type; if ``u`` is not provided and
+            ``s`` cannot be interpreted as an all-sky fixed-resolution NEST
+            HEALPix skymap; or if ``interp_order`` is not a valid value.
         """
         import numpy as np
+        from astropy.wcs import WCS
         from astropy.units import Quantity as Qty
         from astropy.table.column import Column as Col
 
-        if len(s⃗) != len(u⃗):
-            raise ValueError(f"Must have same lengths: s⃗={s⃗}, u⃗={u⃗}")
+        if u is None or isinstance(u, str):
+            idx = np.arange(len(s))
+            ns = hp.npix2nside(len(s))
+            if u is not None and u.upper() == 'RING':
+                idx = hp.ring2nest(ns, idx)
+            u = nest2uniq(idx, ns, in_place=True)
+            del idx, ns
+        elif isinstance(u, WCS):
+            raise NotImplementedError("WCS interpolation not yet supported.")
+        if len(s) != len(u):
+            raise ValueError(f"Must have same lengths: s={s}, u={u}")
         self.name = name
         if empty is None:
-            self.s⃗ = np.array(s⃗, copy=copy)
-            self.u⃗ = np.array(u⃗, copy=copy)
+            self.s = np.array(s, copy=copy)
+            self.u = np.array(u, copy=copy)
         else:
-            s⃗̇ = s⃗ == empty
-            self.s⃗ = np.array(s⃗, copy=False)[s⃗̇]
-            self.u⃗ = np.array(u⃗, copy=False)[s⃗̇]
-        check_valid_nuniq(self.u⃗)
-        if not np.issubdtype(self.s⃗.dtype, np.number):
-            raise ValueError(f"`s⃗` must be numeric. got: {s⃗}")
+            si = s == empty
+            self.s = np.array(s, copy=False)[si]
+            self.u = np.array(u, copy=False)[si]
+        check_valid_nuniq(self.u)
+        if not np.issubdtype(self.s.dtype, np.number):
+            raise ValueError(f"`s` must be numeric. got: {s}")
 
         # provide point sources and deduplicate
         self.point_sources = PointsTuple.dedup(*(point_sources or []))
@@ -263,54 +264,54 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         newmeta['PARTIAL'] = True
         self.meta = newmeta
 
-        if isinstance(s⃗, (Qty, Col)):              # preserve astropy unit
-            self.s⃗ = Qty(self.s⃗, s⃗.unit, copy=False)
+        if isinstance(s, (Qty, Col)):              # preserve astropy unit
+            self.s = Qty(self.s, s.unit, copy=False)
 
-    def n⃗ˢ(self, as_skymap=False, copy=False, **kwargs):
+    def nside(self, as_skymap=False, copy=False, **kwargs):
         """
         Pixel NSIDE values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
         """
         import numpy as np
 
-        n = uniq2nside(self.u⃗)
+        n = uniq2nside(self.u)
         if as_skymap:
-            u⃗ = np.array(self.u⃗, copy=True) if copy else self.u⃗
+            u = np.array(self.u, copy=True) if copy else self.u
             m = self.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix NSIDE.']
-            return PartialUniqSkymap(n, u⃗, copy=False, name='NSIDE', meta=m,
+            return PartialUniqSkymap(n, u, copy=False, name='NSIDE', meta=m,
                                      point_sources=self.point_sources,
                                      **kwargs)
         return n
 
-    def o⃗(self, as_skymap=False, copy=True, **kwargs):
+    def orders(self, as_skymap=False, copy=True, **kwargs):
         """
         HEALPix order values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
         """
         import numpy as np
 
-        o = uniq2order(self.u⃗)
+        o = uniq2order(self.u)
         if as_skymap:
-            u⃗ = np.array(self.u⃗, copy=True) if copy else self.u⃗
+            u = np.array(self.u, copy=True) if copy else self.u
             m = self.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix order.']
-            return PartialUniqSkymap(o, u⃗, copy=False, name='ORDER', meta=m,
+            return PartialUniqSkymap(o, u, copy=False, name='ORDER', meta=m,
                                      point_sources=self.point_sources,
                                      **kwargs)
         return o
 
     def astype(self, dtype, copy=True, **kwargs):
         """
-        Return a new ``PartialUniqSkymap`` with the data-type of ``s⃗`` set to
-        ``dtype``. If ``copy=True``, always make sure both ``u⃗`` and ``s⃗`` are
-        copies of the original data in the new array. Otherwise, re-use ``u⃗``
-        and (if possible given the provided ``dtype`` and ``**kwargs``) ``s⃗``.
-        ``copy`` and ``**kwargs`` are passed on to ``s⃗.astype`` to make the
+        Return a new ``PartialUniqSkymap`` with the data-type of ``s`` set to
+        ``dtype``. If ``copy=True``, always make sure both ``u`` and ``s`` are
+        copies of the original data in the new array. Otherwise, re-use ``u``
+        and (if possible given the provided ``dtype`` and ``**kwargs``) ``s``.
+        ``copy`` and ``**kwargs`` are passed on to ``s.astype`` to make the
         conversion.
         """
-        return PartialUniqSkymap(self.s⃗.astype(dtype, copy=copy, **kwargs),
-                                 self.u⃗, name=self.name, meta=self.meta,
+        return PartialUniqSkymap(self.s.astype(dtype, copy=copy, **kwargs),
+                                 self.u, name=self.name, meta=self.meta,
                                  point_sources=self.point_sources)
 
     def to(self, *args, **kwargs):
@@ -326,13 +327,13 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         Raises
         ------
         TypeError
-            If ``self.s⃗`` is not a ``Quantity``.
+            If ``self.s`` is not a ``Quantity``.
         """
         from astropy.units import Quantity
 
-        if not isinstance(self.s⃗, Quantity):
+        if not isinstance(self.s, Quantity):
             raise TypeError("Can only convert dimensions of a ``Quantity``")
-        return PartialUniqSkymap(self.s⃗.to(*args, **kwargs), self.u⃗,
+        return PartialUniqSkymap(self.s.to(*args, **kwargs), self.u,
                                  copy=False, name=self.name,
                                  meta=self.meta.copy(),
                                  point_sources=self.point_sources)
@@ -340,15 +341,15 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     def compress(self, stype=None, utype=None, **kwargs):
         """
         Eliminate redundant pixels with ``utils.uniq_minimize`` and store
-        indices ``u⃗`` in the smallest integer size that represents all values.
+        indices ``u`` in the smallest integer size that represents all values.
 
         Parameters
         ----------
         stype : type, optional
-            If provided, store ``s⃗`` as this type. Defaults to ``s⃗.dtype``.
+            If provided, store ``s`` as this type. Defaults to ``s.dtype``.
         utype : type, optional
-            If provided, store ``u⃗`` as this type. Defaults to the smallest
-            ``np.int`` type required to store all values of ``u⃗``.
+            If provided, store ``u`` as this type. Defaults to the smallest
+            ``np.int`` type required to store all values of ``u``.
         kwargs
             Keyword arguments to pass to ``hpmoc.utils.uniq_minimize``.
 
@@ -361,9 +362,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         --------
         hpmoc.utils.uniq_minimize
         """
-        u, s = uniq_minimize(self.u⃗, self.s⃗)
+        u, s = uniq_minimize(self.u, self.s)
         if utype is None:
-            utype = max_uint_type(self.u⃗.max())
+            utype = max_uint_type(self.u.max())
         s = s if stype is None else s.astype(stype)
         return PartialUniqSkymap(s, u.astype(utype), copy=False,
                                  name=self.name, meta=self.meta.copy(),
@@ -371,45 +372,45 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
     def sort(self, copy=True):
         """
-        Sort this skymap by UNIQ indices ``u⃗`` (sorting ``s⃗`` as well, of
-        course). If ``copy=True``, copy ``u⃗`` and ``s⃗`` and return a new
+        Sort this skymap by UNIQ indices ``u`` (sorting ``s`` as well, of
+        course). If ``copy=True``, copy ``u`` and ``s`` and return a new
         ``PartialUniqSkymap``; otherwise, sort them in-place and return this
         ``PartialUniqSkymap``.
         """
-        u⃗̇ = self.u⃗.argsort()
+        ui = self.u.argsort()
         if not copy:
-            self.u⃗[:] = self.u⃗[u⃗̇]
-            self.s⃗[:] = self.u⃗[u⃗̇]
+            self.u[:] = self.u[ui]
+            self.s[:] = self.s[ui]
             return self
-        return PartialUniqSkymap(self.s⃗[u⃗̇], self.u⃗[u⃗̇], name=self.name,
+        return PartialUniqSkymap(self.s[ui], self.u[ui], name=self.name,
                                  meta=self.meta, copy=True,
                                  point_sources=self.point_sources)
 
     @property
     def value(self):
         """
-        Get a dimensionless view of this skymap (no effect if ``s⃗`` is not an
+        Get a dimensionless view of this skymap (no effect if ``s`` is not an
         ``astropy.units.Quantity``).
         """
         from astropy.units import Quantity
 
-        s⃗ = self.s⃗.value if isinstance(self.s⃗, Quantity) else self.s⃗
-        return PartialUniqSkymap(s⃗, self.u⃗, copy=False, name=self.name,
+        s = self.s.value if isinstance(self.s, Quantity) else self.s
+        return PartialUniqSkymap(s, self.u, copy=False, name=self.name,
                                  meta=self.meta,
                                  point_sources=self.point_sources)
 
     def to_table(self, name=None, uname='UNIQ'):
         """
         Return a new ``astropy.table.Table`` whose ``UNIQ`` column is the NUNIQ
-        indices ``n⃗ˢ`` and ``PIXELS`` (or ``self.name``, if set) column is the
-        skymap pixel values ``s⃗``. Optionally override the pixel value column
-        name and/or the NUNIQ column name with the ``name`` and ``uname``
-        arguments respectively.
+        indices ``self.u`` and ``PIXELS`` (or ``self.name``, if set) column is
+        the skymap pixel values ``s``. Optionally override the pixel value
+        column name and/or the NUNIQ column name with the ``name`` and
+        ``uname`` arguments respectively.
         """
         from astropy.table import Table
 
         name = name or self.name or 'PIXELS'
-        t = Table([self.u⃗, self.s⃗], names=[uname, name], meta=self.meta)
+        t = Table([self.u, self.s], names=[uname, name], meta=self.meta)
         for pt in self.point_sources:
             t.meta.update(PointsTuple(*pt).meta_dict())
         return t
@@ -445,6 +446,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         IoRegistry
         IoRegistry.basic
         """
+        from .io import IoRegistry
+
         return getattr(IoRegistry, strategy).write(self, file, *args, **kwargs)
 
     def read(
@@ -494,31 +497,34 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         IoRegistry
         IoRegistry.basic
         """
+        from .io import IoRegistry
+
         if not isinstance(args[0], PartialUniqSkymap):  # unbound method; add
             args = (None,) + args                       #   placeholder to args
         return getattr(IoRegistry, strategy).read(*args, **kwargs)
 
-    def fill(self, nˢ=None, pad=None, as_skymap=False):
+    def fill(self, nside=None, pad=None, as_skymap=False):
         """
-        Return a full-sky *nested* HEALPix skymap at NSIDE resolution ``nˢ``.
+        Return a full-sky *nested* HEALPix skymap at NSIDE resolution
+        ``nside``.
 
         Parameters
         ----------
-        nˢ : int
+        nside : int
             HEALPix NSIDE value of the output map. If not provided, use the
-            highest NSIDE value in this skymap's ``n⃗ˢ`` values to preserve
+            highest NSIDE value in this skymap's ``nside`` values to preserve
             detail.
         pad : float, optional
             Fill in missing values with ``pad`` (if not provided, use
             ``healpy.UNSEEN``). Preserves ``astropy.units.Unit`` of this
-            skymap's pixel values (if ``s⃗`` is an ``astropy.units.Quantity``).
+            skymap's pixel values (if ``s`` is an ``astropy.units.Quantity``).
         as_skymap : bool, optional
             If ``True``, return a ``PartialUniqSkymap`` instance with the new
             pixelization (instead of a bare array with implicit indexing).
 
         Returns
         -------
-        s⃗ : array or PartialUniqSkymap
+        s : array or PartialUniqSkymap
             The filled-in skymap, either as an array if ``as_skymap == False``
             or as a new ``PartialUniqSkymap`` instance.
 
@@ -528,14 +534,16 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         """
         import numpy as np
 
-        nˢ = nˢ or uniq2nside(self.u⃗.max())
-        s⃗ᵒ = fill(self.u⃗, self.s⃗, nˢ, pad=pad)
+        nside = nside or uniq2nside(self.u.max())
+        sᵒ = fill(self.u, self.s, nside, pad=pad)
         if not as_skymap:
-            return s⃗ᵒ
+            return sᵒ
         m = self.meta.copy()
-        m['HISTORY'] = m.get('HISTORY', []) + [f'Filled to NEST, NSIDE={nˢ}.']
-        return PartialUniqSkymap(s⃗ᵒ, np.arange(4*nˢ**2, 16*nˢ**2), copy=False,
-                                 meta=m, point_sources=self.point_sources)
+        m['HISTORY'] = (m.get('HISTORY', []) +
+                        [f'Filled to NEST, NSIDE={nside}.'])
+        return PartialUniqSkymap(sᵒ, np.arange(4*nside**2, 16*nside**2),
+                                 copy=False, meta=m,
+                                 point_sources=self.point_sources)
 
     def quantiles(
             self,
@@ -596,7 +604,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         import numpy as np
 
         quantiles = np.array(quantiles, dtype=float)
-        indices, levels, norm = nside_quantile_indices(self.n⃗ˢ(), self.s⃗,
+        indices, levels, norm = nside_quantile_indices(self.nside(), self.s,
                                                        quantiles)
 
         def skymaps():
@@ -607,33 +615,33 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                     f'({(u-l)*100:.2g}%) of {norm:.2g} ({norm*(u-l):.2g} ',
                     70
                 )
-                yield PartialUniqSkymap(self.s⃗[i], self.u⃗[i], copy=False,
+                yield PartialUniqSkymap(self.s[i], self.u[i], copy=False,
                                         meta=m,
                                         point_sources=self.point_sources)
 
         return skymaps(), levels, norm
 
-    def fixed(self, nˢ=None):
+    def fixed(self, nside=None):
         """
         Re-raster to a fixed NSIDE. Like ``fill`` but for partial skymaps.
 
         Parameters
         ----------
-        nˢ : int
+        nside : int
             HEALPix NSIDE value of the output map. If not provided, use the
-            highest NSIDE value in this skymap's ``n⃗ˢ`` values to preserve
+            highest NSIDE value in this skymap's ``nside`` values to preserve
             detail.
         """
-        nˢ = nˢ or uniq2nside(self.u⃗.max())
-        u⃗ᵒ = uniq2nest(self.u⃗, nˢ, nest=True)
-        s⃗ = self.reraster(u⃗ᵒ, copy=False)
-        s⃗.meta['HISTORY'][-1] += f' (fixed NSIDE={nˢ})'
-        return s⃗
+        nside = nside or uniq2nside(self.u.max())
+        u⃗ᵒ = uniq2nest(self.u, nside, nest=True)
+        s = self.reraster(u⃗ᵒ, copy=False)
+        s.meta['HISTORY'][-1] += f' (fixed NSIDE={nside})'
+        return s
 
     def __getitem__(self, idx) -> '__class__':
         """
-        Get a view into this skymap with the given index applied to ``u⃗`` and
-        ``s⃗``. Uses their provided ``__getitem__`` semantics, so you'll get
+        Get a view into this skymap with the given index applied to ``u`` and
+        ``s``. Uses their provided ``__getitem__`` semantics, so you'll get
         e.g. a view on the same data if using a slice index.
 
         Note that the return value will *always* be a ``PartialUniqSkymap``,
@@ -653,16 +661,17 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         msg = repidx if len(repidx) < 60 else repidx[:58]+'...'
         m['HISTORY'] = m.get('HISTORY', []) + [f'Got view: {msg}']
         args = [a if np.iterable(a) else np.array(a).reshape((1,))
-                for a in (self.s⃗[idx], self.u⃗[idx])]
+                for a in (self.s[idx], self.u[idx])]
         return PartialUniqSkymap(*args, copy=False, meta=m,
                                  point_sources=self.point_sources)
 
     def __setitem__(self, idx, value):
         """
-        Like ``__getitem__``, will set values using the semantics of ``s⃗``
+        Like ``__getitem__``, will set values using the semantics of ``s``
         datatype.
         """
-        self.s⃗[idx] = value
+        raise NotImplementedError("Revisit this.")
+        self[idx].s = value
 
     def _iparser(self, item):
         """
@@ -670,15 +679,15 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         ``__delitem__``.
         """
 
-    def intersection(self, u⃗):
+    def intersection(self, u):
         """
         See ``utils.uniq_intersection``.
         """
-        if isinstance(u⃗, AbstractPartialUniqSkymap):
-            u⃗ = u⃗.u⃗
-        return uniq_intersection(self.u⃗, u⃗)
+        if isinstance(u, AbstractPartialUniqSkymap):
+            u = u.u
+        return uniq_intersection(self.u, u)
 
-    def render(self, u⃗ᵒ, pad=None, mask=None):
+    def render(self, u⃗ᵒ, pad=None, valid=None, mask_missing=False):
         """
         Like ``reraster``, but ``u⃗ᵒ`` does not need to be unique. Use this to
         e.g. render a skymap to a plot. Unlike ``reraster``, will not return a
@@ -702,15 +711,25 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             be found for every valid pixel in ``u⃗ᵒ`` (this does not apply to
             values outside a ``WCS`` projection, which will take on ``np.nan``
             values).
-        mask: array, optional
+        valid: array, optional
             If provided, results will be scattered into an array of the same
-            shape as ``mask``, filling the indices where ``mask==True``. The
-            number of ``True`` values in ``mask`` must therefore equal the
+            shape as ``valid``, filling the indices where ``valid==True``. The
+            number of ``True`` values in ``valid`` must therefore equal the
             length of ``u⃗ᵒ``. This argument only makes sense if ``u⃗ᵒ`` is an
-            array of NUNIQ indices; if it is a ``WCS`` instance and ``mask`` is
-            provided, an error is raised. Use ``mask`` to produce plots or to
-            reuse indices produced by ``wcs2mask_and_uniq`` in several
-            ``render`` invocations.
+            array of NUNIQ indices; if it is a ``WCS`` instance and ``valid``
+            is provided, an error is raised. Use ``valid`` to produce plots or
+            to reuse indices produced by ``wcs2mask_and_uniq`` in several
+            ``render`` invocations.  See note on how ``mask_missing`` affects
+            the result.
+        mask_missing : bool
+            If ``mask_missing=True``, return a ``np.ma.core.MaskedArray``.
+            Missing values are tolerated and are marked as ``True`` in the
+            ``mask_missing``. They will be set to ``pad or 0`` in the ``data``
+            field. If ``valid`` is also provided, then the output will still be
+            a ``np.ma.core.MaskedArray``, but will be set to ``True`` wherever
+            ``valid == False`` in addition to wherever pixels are missing (and
+            will still take on masked values of ``np.nan`` in the invalid
+            regions).
 
         Returns
         -------
@@ -719,48 +738,49 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             ``WCS`` instance, then values outside of the projection will be
             set to ``np.nan``.
         """
-        return render(self.u⃗, self.s⃗, u⃗ᵒ, pad=pad, mask=mask)
+        return render(self.u, self.s, u⃗ᵒ, pad=pad, valid=valid,
+                      mask_missing=mask_missing)
 
-    def reraster(self, u⃗ᵒ, pad=None, copy=True):
+    def reraster(self, u⃗ᵒ, pad=None, mask_missing=False, copy=True):
         """
         Return a new ``PartialUniqSkymap`` instance with the same pixel values
         rerasterized to match the output NUNIQ indices ``u⃗ᵒ``. Fill in missing
         values in the output skymap with ``pad``. If ``pad`` is not provided
         and this skymap does not cover the full region defined in ``u⃗ᵒ``,
         raises a ``ValueError``. Preserves ``astropy.units.Unit`` of this
-        skymap's pixel values (if ``s⃗`` is an ``astropy.units.Quantity``). If
+        skymap's pixel values (if ``s`` is an ``astropy.units.Quantity``). If
         ``copy`` is ``False``, use ``u⃗ᵒ`` as the indices of the new skymap;
         otherwise, use a copy.
         """
         import numpy as np
 
-        s⃗ᵒ = reraster(self.u⃗, self.s⃗, u⃗ᵒ, pad)
+        sᵒ = reraster(self.u, self.s, u⃗ᵒ, pad=pad, mask_missing=mask_missing)
         m = self.meta.copy()
         m['HISTORY'] = m.get('HISTORY', []) + ['Rerasterized.']
-        return PartialUniqSkymap(s⃗ᵒ, np.array(u⃗ᵒ, copy=copy), copy=False,
+        return PartialUniqSkymap(sᵒ, np.array(u⃗ᵒ, copy=copy), copy=False,
                                  meta=m, point_sources=self.point_sources)
 
-    def Ω⃗(self):
+    def coords(self):
         """
-        Get the sky coordinates (right-ascension and declination) corresponding
-        to each pixel in the skymap.
+        Get the sky coordinates (right-ascension and declination, ICRS)
+        corresponding to each pixel in the skymap.
 
         Returns
         -------
         ra_dec : astropy.units.Quantity
             2D array whose first row is the right-ascension and second row is
             the declination (in degrees) of each pixel. You can get each of
-            these individually with ``ra, dec = self.Ω⃗()``.
-            ``self.ang()[:, i]`` corresponds to RA, Dec for ``self.s⃗[i]``.
+            these individually with ``ra, dec = self.coords()``.
+            ``self.coords()[:, i]`` corresponds to RA, Dec for ``self.s[i]``.
         """
-        return nest2ang(*uniq2nest_and_nside(self.u⃗))
+        return nest2ang(*uniq2nest_and_nside(self.u))
 
-    def A⃗(self):
+    def area(self):
         "Area per-pixel for pixels in this skymap in ``astropy.unit.sr``."
         from astropy.units import sr  # pylint: disable=no-name-in-module
-        return nside2pixarea(self.n⃗ˢ(), degrees=False)*sr     # steradian
+        return nside2pixarea(self.nside(), degrees=False)*sr     # steradian
 
-    def Δθ⃗(self, ra, dec, degrees=True):
+    def ang_dist(self, ra, dec, degrees=True):
         """
         Get distances from each pixel in this skymap to the point at
         right-ascension ``ra`` and declination ``dec``.
@@ -779,7 +799,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
         Returns
         -------
-        Δθ⃗ : astropy.units.Quantity
+        ang_dist : astropy.units.Quantity
             The distances of each pixel in this skymap to the point at ``ra``,
             ``dec`` in degrees.
 
@@ -791,12 +811,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         >>> import numpy as np
         >>> from astropy.units import deg
         >>> skymap = PartialUniqSkymap(*([4+np.arange(12)]*2))
-        >>> _, dec = skymap.Ω⃗()
+        >>> _, dec = skymap.coords()
         >>> dec
         <Quantity [ 41.8103149,  41.8103149,  41.8103149,  41.8103149,   0.       ,
                      0.       ,   0.       ,   0.       , -41.8103149, -41.8103149,
                    -41.8103149, -41.8103149] deg>
-        >>> Δθ⃗ = skymap.Δθ⃗(32, 90)
+        >>> Δθ⃗ = skymap.ang_dist(32, 90)
         >>> Δθ⃗
         <Quantity [0.84106867, 0.84106867, 0.84106867, 0.84106867, 1.57079633,
                    1.57079633, 1.57079633, 1.57079633, 2.30052398, 2.30052398,
@@ -807,10 +827,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         Likewise, the distance from any pixel to the South pole should be
         equal to 90 plus the declination:
 
-        >>> not np.around(skymap.Δθ⃗(359, -90)-dec-90*deg, 15).value.any()
+        >>> not np.around(skymap.ang_dist(359, -90)-dec-90*deg,
+        ...               15).value.any()
         True
         """
-        return uniq2dangle(self.u⃗, ra, dec, degrees=degrees)
+        return uniq2dangle(self.u, ra, dec, degrees=degrees)
 
     def unzip_orders(self):
         """
@@ -819,53 +840,52 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         maximum order of this skymap. Empty terms indicate that this skymap
         does not have pixels of the corresponding HEALPix order.
         """
+        # TODO test
         srt = self.sort()
-        [[s⃗], o⃗] = nside_slices(srt.u⃗)[1:3]
-        return [srt[s] for s in [slice(0, 0)]*o⃗[0]+s⃗]
+        [[s], o⃗] = nside_slices(srt.u)[1:3]
+        return [srt[s] for s in [slice(0, 0)]*o⃗[0]+s]
 
     def unzip_atlas(self):
         "Return 12 sub-skymaps corresponding to the HEALPix base pixels."
         raise NotImplementedError()
 
     def min(self):
-        "Minimum skymap value == ``self.s⃗.min()``."
-        return self.s⃗.min()
+        "Minimum skymap value = ``self.s.min()``."
+        return self.s.min()
 
     def max(self):
-        "Maximum skymap value == ``self.s⃗.max()``."
-        return self.s⃗.max()
+        "Maximum skymap value = ``self.s.max()``."
+        return self.s.max()
 
     @property
     def unit(self):
-        "``self.s⃗.unit``, if defined; otherwise ``None``."
-        return getattr(self.s⃗, 'unit', None)
+        "``self.s.unit``, if defined; otherwise ``None``."
+        return getattr(self.s, 'unit', None)
 
-    # pylint: disable=unused-argument,missing-docstring
-    @partial_visufunc
-    def azeqview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
-        pass
+    @_depr_visufunc
+    def azeqview(self, *scatter, **kwargs):
+        return self.plot(*scatter, projection='ARC', **kwargs)
 
-    # pylint: disable=unused-argument,missing-docstring
-    @partial_visufunc
-    def cartview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
-        pass
+    @_depr_visufunc
+    def cartview(self, *scatter, **kwargs):
+        return self.plot(*scatter, projection='CAR', **kwargs)
 
-    # pylint: disable=unused-argument,missing-docstring
-    @partial_visufunc
-    def gnomview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
-        pass
+    @_depr_visufunc
+    def gnomview(self, *scatter, **kwargs):
+        return self.plot(*scatter, projection='TAN', **kwargs)
 
-    # pylint: disable=unused-argument,missing-docstring
-    @partial_visufunc
-    def orthview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
-        pass
+    @_depr_visufunc
+    def orthview(self, *scatter, **kwargs):
+        return self.plot(*scatter, projection='SIN', **kwargs)
 
-    # pylint: disable=unused-argument,missing-docstring
-    @partial_visufunc
-    def mollview(self, *scatter, rot=DEFAULT_ROT, **kwargs):
-        pass
+    @_depr_visufunc
+    def mollview(self, *scatter, **kwargs):
+        return self.plot(*scatter, projection='MOL', **kwargs)
 
-    def plot(self, *scatter, **kwargs):
+    def plot(self, *scatter: PointsTuple, **kwargs) -> Union[
+            'astropy.visualization.wcsaxes.WCSAxes',
+            'astropy.visualization.wcsaxes.WCSAxesSubplot'
+    ]:
         """
         Plot this skymap. A thin wrapper around ``hpmoc.plot.plot`` that
         automatically includes scatter plots for this instance's
@@ -890,14 +910,55 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         """
         return plot(self, *(*self.point_sources, *scatter), **kwargs)
 
-    def multiplot(*s⃗ₗ: List['__class__'], nest: bool = True, **kwargs):
+    def gridplot(
+            self,
+            *skymaps: Union[
+                'hpmoc.PartialUniqSkymap',
+                NDArray[(Any,), Any],
+                Tuple[
+                    NDArray[(Any,), Any],
+                    Optional[
+                        Union[
+                            NDArray[(Any,), int],
+                            'astropy.wcs.WCS',
+                            str,
+                        ]
+                    ],
+                ],
+            ],
+            **kwargs
+    ) -> Tuple[
+            'matplotlib.gridspec.GridSpec',
+            List[List['astropy.visualization.wcsaxes.WCSAxes']]
+    ]:
+        """
+        Plot this skymap and any others in ``skymaps``. A thin wrapper around
+        ``hpmoc.plot.gridplot``.
+
+        Parameters
+        ----------
+        *skymaps : PartialUniqSkymap or map-like
+            Skymaps to pass to ``gridplot``. Can be anything accepted by
+            ``hpmoc.plot.plot``, which ``hpmoc.plot.gridplot`` will use to
+            display them.
+        **kwargs
+            Keyword arguments for ``hpmoc.plot.gridplot``.
+
+        See Also
+        --------
+        hpmoc.plot.gridplot
+        """
+        return gridplot(self, *skymaps, **kwargs)
+
+    @_depr_visufunc
+    def multiplot(*skymapsₗ: List['__class__'], nest: bool = True, **kwargs):
         """
         Call ``plotters.multiplot`` with the default ``transform``
         suitable for a ``PartialUniqSkymap``.
 
         Parameters
         ----------
-        *s⃗ₗ : List[Union[PartialUniqSkymap, array]]
+        *skymapsₗ : List[Union[PartialUniqSkymap, array]]
             Skymaps to plot. Can be ``PartialUniqSkymap`` instances or
             full-sky single-resolution skymaps.
         **kwargs
@@ -910,21 +971,15 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
         See Also
         --------
-        plotters.multiplot
-        plotters.mollview
-        plotters.orthview
-        plotters.gnomview
-        plotters.cartview
-        plotters.azeqview
+        plot.multiplot
+        PartialUniqSkymap.plot
+        plot.plot
         """
-        # s⃗ₗ = [*s⃗ₗ]
-        # s = kwargs.get('scatters', [[]]*len(s⃗ₗ))
-        # kwargs['scatters'] = [s⃗.point_sources+s for s⃗, s in zip(s⃗ₗ, s)]
-        return multiplot(*s⃗ₗ, **kwargs)
+        return multiplot(*skymapsₗ, **kwargs)
 
     def _vecs_for_repr_(self, maxlen, *vecs):
         if not vecs:
-            vecs = self.u⃗, self.s⃗
+            vecs = self.u, self.s
         return _vecs_for_repr_(maxlen, *vecs)
 
     def __str__(self):
@@ -934,11 +989,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         return self.to_table().__repr__()
 
     def _repr_html_(self):
-        [u⃗, s⃗], [_, unit] = self._vecs_for_repr_(20)
+        [u, s], [_, unit] = self._vecs_for_repr_(20)
         pts = self.point_sources
         unit = f'<thead><tr><th></th><th>{unit}</th></tr></thead>'
         rows = "\n".join(f'<tr><td>{u}</td><td>{s}</td></tr>'
-                         for u, s in zip(u⃗, s⃗))
+                         for u, s in zip(u, s))
         meta_chunks = [
             (
                 k,
@@ -961,19 +1016,19 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             import matplotlib.pyplot as plt
 
             img = BytesIO()
-            plotters = ['cartview']
+            projs = ['cartview']
             widths = [2]
             if len(pts) == 1 and len(pts[0][0]) == 1:
-                plotters.append('gnomview')
+                projs.append('gnomview')
                 widths.append(1)
             if 'IPython' in sys.modules:
                 from IPython.utils import io
 
                 with io.capture_output():
-                    fig = self.multiplot(plotters=plotters, dpi=50,
+                    fig = self.multiplot(plotters=projs, dpi=50,
                                          widths=widths, ncols=1, title=None)
             else:
-                fig = self.multiplot(plotters=plotters, dpi=50, widths=widths,
+                fig = self.multiplot(plotters=projs, dpi=50, widths=widths,
                                      ncols=1, title=None)
             fig.savefig(img, format='png')
             plt.close(fig)
@@ -1008,7 +1063,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         </style>
         <div class="partialuniq_flexbox">
                 <div style="vertical-align: top;">
-                    <h5>Skymap ({len(self.s⃗)} pixels)</h5>
+                    <h5>Skymap ({len(self.s)} pixels)</h5>
                     <table>
                         <thead><tr><th>UNIQ</th><th>{name}</th></tr></thead>
                         {unit}
@@ -1034,6 +1089,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
     @diadic_dunder(post=bool_to_uint8)
     def __eq__(self, other): pass  # pylint: disable=C0321
+
+    @diadic_dunder(post=bool_to_uint8)
+    def __ne__(self, other): pass  # pylint: disable=C0321
 
     @diadic_dunder(post=bool_to_uint8)
     def __le__(self, other): pass  # pylint: disable=C0321
@@ -1177,160 +1235,3 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     def __ior__(self, other): pass  # pylint: disable=C0321
 
 
-class IoStrategy:
-    """
-    Methods for reading and writing ``PartialUniqSkymap`` instances from/to
-    file.
-    """
-    read: Callable
-    write: Callable
-
-
-class BasicIo(IoStrategy):
-    """
-    Read/write files saved in the default format used by ``PartialUniqSkymap``.
-    """
-
-    #FIXME add mask
-    @staticmethod
-    def read(
-            _skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            *args,
-            name: Optional[str] = None,
-            uname: str = 'UNIQ',
-            empty = None,
-            **kwargs
-    ) -> PartialUniqSkymap:
-        """
-        Read a file saved in the default format used by ``PartialUniqSkymap``.
-
-        Parameters
-        ----------
-        mask : PartialUniqSkymap
-            Only read in pixels overlapping with ``mask``.
-        file : file or str
-            The file object or filename to read from.
-        name : str, optional
-            The column-name of the pixel data. If not specified and if reading
-            from a file with only one non-index column, that column will be
-            chosen automatically.
-        uname : str, optional
-            The column-name of the HEALPix NUNIQ pixel data, if different from
-            the default value.
-        empty : scalar, optional
-            ``empty`` argument to pass to ``PartialUniqSkymap`` initializer.
-            **Not used when writing.**
-        *args, **kwargs
-            Arguments to pass on to ``astropy.table.Table.read``.
-
-        Returns
-        -------
-        m : PartialUniqSkymap
-            A new ``PartialUniqSkymap`` instance with the specified data.
-        """
-        from astropy.table import Table
-
-        t = Table.read(file, **kwargs)
-        if not name:
-            c = [t for t in t.colnames if t != uname]
-            if len(c) != 1:
-                raise ValueError(f"Ambiguous colname; pick from {c}")
-            name = c[0]
-        #from IPython.core.debugger import set_trace; set_trace()
-        return PartialUniqSkymap(t[name], t[uname], name=name, empty=empty,
-                                 meta=t.meta,
-                                 point_sources=PointsTuple.meta_read(t.meta))
-
-    @staticmethod
-    def write(
-            skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            name: Optional[str] = None,
-            uname: Optional[str] = 'UNIQ',
-            *args,
-            **kwargs
-    ):
-        """
-        Read a file saved in the default format used by ``PartialUniqSkymap``.
-
-        Parameters
-        ----------
-        skymap : PartialUniqSkymap
-            The skymap to save.
-        file : file or str
-            The file object or filename to write to.
-        name : str, optional
-            The column-name of the pixel data in the saved file, if different
-            from that specified by the skymap.
-        uname : str, optional
-            The column-name of the HEALPix NUNIQ pixel data in the saved file,
-            if different from the default value.
-        *args, **kwargs
-            Arguments to pass on to ``astropy.table.Table.write``.
-        """
-        skymap.to_table(name=name, uname=uname).write(file, *args, **kwargs)
-
-
-class LigoIo(IoStrategy):
-    """
-    Read/write files in the format used by LIGO/Virgo for their skymaps.
-    """
-
-    @staticmethod
-    def read(
-            mask: Optional[Union[PartialUniqSkymap, NDArray]],
-            file: Union[IO, str],
-            *args,
-            name: str = 'PROBDENSITY',
-            memmap: bool = True,
-            coarsen: Optional[int] = None,
-            **kwargs
-    ):
-        """
-        Read a file saved in the format used by LIGO/Virgo for their skymaps.
-
-        Parameters
-        ----------
-        mask : PartialUniqSkymap or array, optional
-            Only read in pixels overlapping with ``mask``.
-        file : file or str
-            The file object or filename to read from. Can be a stream as no
-            seeking will be performed.
-        name : str, optional
-            The column-name of the pixel data.
-        coarsen : int, optional
-            If provided, coarsen the ``mask`` by up to this many HEALPix
-            orders (up to order 0) to speed up read times. This will select
-            a superset of the sky region defined in ``mask``.
-        *args, **kwargs
-            Arguments to pass on to ``hpmoc.fits.load_ligo``.
-        """
-        pt = mask.point_sources if isinstance(mask, PartialUniqSkymap) else []
-        if mask is not None:
-            mask = mask.u⃗ if isinstance(mask, PartialUniqSkymap) else mask
-            mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
-            mask = uniq_minimize(mask)
-        [[u, s, meta]] = load_ligo(file, mask=mask, **kwargs)
-        return PartialUniqSkymap(s, u, name=name, meta=meta, point_sources=pt)
-
-    def write(
-            skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            name: Optional[str] = None,
-            *args,
-            **kwargs
-    ):
-        """
-        Write a skymap to file in the format used by LIGO/Virgo for their
-        skymaps. A thin wrapper around ``BasicIo.write``.
-        """
-        BasicIo.write(skymap, file, name=name, *args, **kwargs)
-
-
-class IoRegistry:
-    """
-    Handle IO for ``PartialUniqSkymap`` instances.
-    """
-    basic = BasicIo
-    ligo = LigoIo

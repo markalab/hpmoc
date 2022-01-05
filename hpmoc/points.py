@@ -255,8 +255,8 @@ class PointsTuple(NamedTuple):
 
         See Also
         --------
-        hpmoc.PartialUniqSkymap.plot
-        hpmoc.PartialUniqSkymap.render
+        hpmoc.partial.PartialUniqSkymap.plot
+        hpmoc.partial.PartialUniqSkymap.render
         WCSAxes.scatter
         """
 

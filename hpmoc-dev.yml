@@ -28,6 +28,8 @@ dependencies:
   - flit
   - pip
   - black
+  - sphinx
+  - sphinx_rtd_theme
   # acceleration
   - icc_rt  # -c numba
   - intelpython3_full  # -c intel

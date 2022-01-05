@@ -66,7 +66,6 @@ HEADER_NON_META = re.compile(
             'TTYPE[0-9]*',
             'TFORM[0-9]*',
             'TUNIT[0-9]*',
-            'EXTNAME',
         )
     )
 )
@@ -232,6 +231,8 @@ def load_ligo(
                                  max_nside):
                 yield tab
         return
+    if mask is not None:
+        mask = uniq_minimize(mask)
     if maps is None:
         tables = -1
     elif isinstance(maps, int):
@@ -242,7 +243,7 @@ def load_ligo(
         tables = max(maps)
     # read the first HDU, which will be empty for a BINTABLE extension
     # fits file
-    hdu0 = next_hdu(infile)
+    next_hdu(infile)
     for i, [hdu, table] in enumerate(
             read_bintable_chunks(
                 infile,

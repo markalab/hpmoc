@@ -28,16 +28,16 @@ each projection's definition in
 `Representations of celestial coordinates in FITS`_.
 
 .. _`FITS Definition`: https://fits.gsfc.nasa.gov/fits_standard.html
-.. _`Representations of celestial coordinates in FITS`: https://ui.adsabs.harvard.edu/abs/2007MNRAS.381..865C
+.. _`Representations of celestial coordinates in FITS`: https://ui.adsabs.harvard.edu/abs/2002A&A...395.1077C
 
 The complete list of available projections can be found in the
 `FITS Definition`_, with concrete transformation definitions given in
 the `Representations of Celestial Coordinates in FITS`_. The table of
 available projections is reproduced below, with sections linking to the
-appropriate table in `FITSWorld`_. Note that not all valid WCS projections
-can be displayed by astropy at time of writing; in particular, the HEALPIX
-``HPX`` projection does not work out of the box, which is one of the
-(many) motivations for this plotting library.
+corresponding section in `Representations of Celestial Coordinates in FITS`_.
+Note that not all valid WCS projections can be displayed by astropy at time of
+writing; in particular, the HEALPIX ``HPX`` projection does not work out of the
+box, which is one of the (many) motivations for this plotting library.
 
 .. list-table:: Available Projections
    :widths: 25 25 25 50 75
@@ -93,18 +93,17 @@ can be displayed by astropy at time of writing; in particular, the HEALPIX
      - 90◦
      - Sect. 5.1.9
      - Airy
-   * - Cylindrical projections
-     - CYP
+   * - CYP
      - 0◦
      - 0◦
      - Sect. 5.2.1
-   * - Cylindrical perspective
-     - CEA
+     - Cylindrical perspective
+   * - CEA
      - 0◦
      - 0◦
      - Sect. 5.2.2
-   * - Cylindrical equal area
-     - CAR
+     - Cylindrical equal area
+   * - CAR
      - 0◦
      - 0◦
      - Sect. 5.2.3
@@ -187,8 +186,7 @@ can be displayed by astropy at time of writing; in particular, the HEALPIX
 
 See Also
 --------
-hpmoc.PartialUniqSkymap
-hpmoc.plotters
+hpmoc.partial.PartialUniqSkymap
 astropy.wcs.WCS
 astropy.visualization.wcsaxes
 matplotlib.axes.Axes
@@ -198,33 +196,56 @@ healpy
 """
 
 import math
+from copy import deepcopy
+from functools import partial
 from warnings import warn
-from typing import Optional, Union, Tuple, Iterable, Callable
+from typing import Optional, Union, Tuple, Iterable, Callable, Any, List
 from textwrap import indent, wrap
-from .utils import outline_effect, N_X_OFFSET, N_Y_OFFSET
+from nptyping import NDArray
+from .healpy import healpy as hp
+from .utils import (
+    outline_effect,
+    N_X_OFFSET,
+    N_Y_OFFSET,
+    wcs2ang,
+    wcs2mask_and_uniq,
+    render,
+    monochrome_opacity_colormap,
+)
 from .points import PointsTuple
 
-import hpmoc
 
 DEFAULT_CBAR_KWARGS = {
     'orientation': 'horizontal',
     'aspect': 40,
 }
+EDGE_EXCLUSION = 80
+EXCLUSIONS_INITIALIZED = [False]
 AIT_MOL_CDELT_BASE = math.sqrt(8) / math.pi
-GNOM_CDELT_BASE = 0.025
-ORTH_CDELT_BASE = 2 / math.pi
-AZEQ_CDELT_BASE = 2
+CEA_CDELT2_BASE = 2 / math.pi
+TAN_CDELT_BASE = 0.025
+SIN_CDELT_BASE = 2 / math.pi
+ARC_CDELT_BASE = 2
 ZEA_CDELT_BASE = 4 / math.pi
 DEFAULT_WIDTH = 360
 DEFAULT_HEIGHT = 180
 DEFAULT_ROT = (180, 0, 0)
 DEFAULT_FACING = True
+DEFAULT_DPI = 200
+DEFAULT_GRID_ROW_HEIGHT = 4
+DEFAULT_HSPACE = 0.2
+DEFAULT_WSPACE = 0.2
+DEFAULT_NCOLS = 2
 BASE_FONT_SIZE = 10
 DEFAULT_C_KWARGS = {}
 DEFAULT_CLABEL_KWARGS = {
     'inline': False,
     'fontsize': BASE_FONT_SIZE,
 }
+_DELTA_HIGHRES = tuple(v*.1**i for i in range(20) for v in (5, 2, 1))
+DELTA_PARALLELS = (15.,)+_DELTA_HIGHRES     # space btwn graticule parallels
+DELTA_MERIDIANS = (30., 10.)+_DELTA_HIGHRES #   and meridians [deg]
+MIN_GRAT = 3
 _WCS_HEADERS = dict()
 _WCS_FRAMES = dict()
 _SHARED = {
@@ -242,30 +263,33 @@ _ALL_SKY = _SHARED.copy()
 _ALL_SKY["NAXIS1"] = 360.0
 _ZENITHAL = _SHARED.copy()
 _ZENITHAL["NAXIS1"] = 180.0
+_ZENITHAL["LONPOLE"] = 180.0
 _docs = {
     "allsky": "\n",
     "zenithal": "\n",
 }
-PROJ_SETTINGS = {
+_PROJ_SETTINGS = {
     "allsky": (
         _ALL_SKY,
         {
             'MOL': (('Mollweide', 'mollview', 'Homolographic', 'Homalographic',
                      'Babinet', 'Elliptical'),
-                    {'CDELT1': -AIT_MOL_CDELT_BASE,
+                    {'CDELT1': AIT_MOL_CDELT_BASE,
                      'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
             'AIT': (('Hammer-Aitoff', 'Aitoff', 'Hammer', 'Aitov',
                      'Hammer equal-area'),
-                    {'CDELT1': -AIT_MOL_CDELT_BASE,
+                    {'CDELT1': AIT_MOL_CDELT_BASE,
                      'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
-            'CAR': (('Carée', 'Plate-carée', 'Caree', 'Plate-caree',
+            'CAR': (('Carée', 'Plate carée', 'Caree', 'Plate caree',
                      'Cartesian', 'Tyre', 'cartview',
                      'Equidistant cylindrical'),
-                    {'CDELT1': -1, 'CDELT2': 1}, 'r'),
+                    {'CDELT1': 1, 'CDELT2': 1}, 'r'),
+            'CEA': (('Cylindrical equal-area', 'Lambert equal area'),
+                    {'CDELT1': 1, 'CDELT2': CEA_CDELT2_BASE}, 'r'),
             'SFL': (('Sanson-Flamsteed',),
-                    {'CDELT1': -1, 'CDELT2': 1}, 'p'),
+                    {'CDELT1': 1, 'CDELT2': 1}, 'p'),
             'PAR': (('Parabolic', 'Craster'),
-                    {'CDELT1': -1, 'CDELT2': 1}, 'p'),
+                    {'CDELT1': 1, 'CDELT2': 1}, 'p'),
         },
     ),
     "zenithal": (
@@ -273,28 +297,24 @@ PROJ_SETTINGS = {
         {
             # NB: TAN is just AZP (zenithal perspective) with mu set to zero.
             'TAN': (('gnomonic', 'gnomview', 'Central', 'zoom'),
-                    {'CDELT1': -GNOM_CDELT_BASE, 'CDELT2': GNOM_CDELT_BASE},
-                    'r'),
+                    {'CDELT1': TAN_CDELT_BASE, 'CDELT2': TAN_CDELT_BASE}, 'r'),
             'SIN': (('Slant Orthographic', 'Orthographic', 'Globe',
                      'orthview'),
-                    {'CDELT1': -ORTH_CDELT_BASE, 'CDELT2': ORTH_CDELT_BASE},
-                    'e'),
+                    {'CDELT1': SIN_CDELT_BASE, 'CDELT2': SIN_CDELT_BASE}, 'e'),
             'ARC': (('Zenithal Equidistant', 'azimuthal equidistant',
                      'azeqview', 'Postel', 'Equidistant', 'Globular'),
-                    {'CDELT1': -AZEQ_CDELT_BASE, 'CDELT2': AZEQ_CDELT_BASE},
-                    'e'),
+                    {'CDELT1': ARC_CDELT_BASE, 'CDELT2': ARC_CDELT_BASE}, 'e'),
             'ZEA': (('Zenithal Equal-area', 'Azimuthal equivalent',
                      'polar azimuthal', 'Lambert azimuthal equivalent',
                      'Lambert azimuthal equal-area',
                      'Lambert polar azimuthal', 'Lambert'),
-                    {'CDELT1': -ZEA_CDELT_BASE, 'CDELT2': ZEA_CDELT_BASE},
-                    'e'),
+                    {'CDELT1': ZEA_CDELT_BASE, 'CDELT2': ZEA_CDELT_BASE}, 'e'),
         },
     ),
 }
 # Add all-sky projections; aliases drawn from common usage, healpy.visufunc,
 # WCS standard, and aliases as given in astro-ph/0207413
-for docname, (defaults, config) in PROJ_SETTINGS.items():
+for docname, (defaults, config) in _PROJ_SETTINGS.items():
     for proj, (aliases, projdefaults, frame) in config.items():
         _docs[docname] += '        - ' + indent('\n'.join(
             wrap(f"{proj}: *{', '.join(aliases)}*", 69)), ' '*10)[10:] + '\n'
@@ -310,15 +330,38 @@ for docname, (defaults, config) in PROJ_SETTINGS.items():
 
 
 def get_frame_class(
-        projection: str
+        projection: Union[
+            str,
+            'astropy.wcs.WCS',
+            'astropy.io.fits.Header',
+        ] = 'MOL',
+        frame_class: Optional[
+            Union[
+                str,
+                'astropy.visualization.wcsaxes.frame.BaseFrame',
+            ]
+        ] = None,
+        vdelta: Optional[float] = None,
+        hdelta: Optional[float] = None,
 ) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
     """
-    Get the frame class associated with a given projection.
+    Get the frame class associated with a given projection. If already given a
+    ``frame_class``, returns it immediately, making this function idempotent.
+    Will otherwise try to determine the best frame choice from the given
+    arguments.
 
     Parameters
     ----------
-    projection: str
-        The projection to use. See ``get_wcs`` for details.
+    projection : str, WCS, or Header, optional
+        The projection to use. See ``get_wcs`` for details. Only used if a
+        ``str``.
+    frame_class : str or BaseFrame
+        The frame class; optionally pass it to ensure that an argument is an
+        instance of ``BaseFrame``.
+    vdelta : float, optional
+        Manual vdelta override. Give up if set and return ``RectangularFrame``.
+    hdelta : float, optional
+        Manual hdelta override. Give up if set and return ``RectangularFrame``.
 
     Returns
     -------
@@ -332,6 +375,16 @@ def get_frame_class(
     """
     from astropy.visualization.wcsaxes import frame
 
+    if isinstance(frame_class, type) and \
+            issubclass(frame_class, frame.BaseFrame):
+        return frame_class
+    if isinstance(frame_class, str):
+        return {
+            'ELLIPTICAL': frame.EllipticalFrame,
+            'RECTANGULAR': frame.RectangularFrame,
+        }[frame_class.upper()]
+    if {vdelta, hdelta} != {None} or not isinstance(projection, str):
+        return frame.RectangularFrame
     f = _WCS_FRAMES[projection.upper()]
     if f == 'e':
         return frame.EllipticalFrame
@@ -342,6 +395,11 @@ def get_frame_class(
     return frame.RectangularFrame
 
 
+GET_FRAME_CLASS_KWARG_KEYS = ('frame_class', 'vdelta', 'hdelta')
+GET_WCS_KWARG_KEYS = ('width', 'height', 'hdelta', 'vdelta', 'rot',
+                      'facing_sky')
+
+
 # TODO allow ICRS override
 def get_wcs(
         projection: str,
@@ -349,7 +407,12 @@ def get_wcs(
         height: int = DEFAULT_HEIGHT,
         hdelta: Optional[float] = None,
         vdelta: Optional[float] = None,
-        rot: Tuple[float, float, float] = DEFAULT_ROT,
+        rot: Optional[
+            Union[
+                Tuple[float, float, float],
+                Tuple[float, float],
+            ]
+        ] = None,
         facing_sky: bool = DEFAULT_FACING,
 ) -> 'astropy.wcs.WCS':
     """
@@ -366,11 +429,11 @@ def get_wcs(
         skymaps over other astrophysical data. This function will return
         ``WCS`` instances for the following projection types:
 
-        All-sky
-        ======={allsky}
+        **Cylindrical/Pseudo-cylindrical** (For all-sky plots)
+        {allsky}
 
-        Zenithal
-        ========{zenithal}
+        **Zenithal**
+        {zenithal}
     width: int, optional
         Width of the image in pixels. If not provided, default to the height
         for zenithal projections and twice the height for azimuthal
@@ -385,13 +448,17 @@ def get_wcs(
         The CDELT2 value, if you wish to override the default. Note that the
         actual angular height of a pixel at the reference point depends on this
         value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
-    rot: Tuple[float, float, float]
+    rot: float, float, float) or (float, float), optional
         Euler angles for rotations about the Z, X, Z axes. These are
         immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
         ``WCS``; that is, the first two angles specify the angle of the center
         of the image, while the last specifies an additional rotation of the
         reference pole about the Z-axis. See ``hpmoc.plot`` documentation for
-        further references.
+        further references. Defaults to centering on RA = 180, dec = 0 (the
+        convention used in most plots produced by LIGO). If only two angles are
+        provided, ``LONPOLE`` will be determined automatically such that the
+        center of the skymap is given by the `(RA, dec)` given and the
+        orientation of the plot is otherwise unchanged.
     facing_sky: bool
         Whether the projection is outward- or inward-facing. Equivalent to
         reversing the direction of the longitude.
@@ -404,7 +471,8 @@ def get_wcs(
     Raises
     ------
     IndexError
-        If the specified projection could not be found.
+        If the specified projection could not be found or if an argument is
+        specified incorrectly.
     """
     from astropy.io.fits import Header
     from astropy.wcs import WCS
@@ -416,16 +484,28 @@ def get_wcs(
         header['CDELT1'] *= header['NAXIS1'] / width
         header['NAXIS1'] = width
     header['CRPIX1'] = header['NAXIS1'] / 2 + 0.5
-    header['CRVAL1'] = rot[0]
     header['CDELT2'] *= header['NAXIS2'] / height
     header['NAXIS2'] = height
     header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5
-    header['CRVAL2'] = rot[1]
-    header['LONPOLE'] = rot[2]
+    if rot:
+        header['CRVAL1'] = rot[0]
+        header['CRVAL2'] = rot[1]
+        if len(rot) == 3:
+            header['LONPOLE'] = rot[2]
+        elif len(rot) == 2:
+            if rot[1] < 0:
+                for name, (aliases, *_) in _PROJ_SETTINGS['allsky'][1].items():
+                    if projection.upper() in [n.upper()
+                                              for n in [name, *aliases]]:
+                        header['LONPOLE'] = 180
+                        break
+        else:
+            raise ValueError(f"rot must have len 2 or 3; got {rot}")
     if hdelta is not None:
         header['CDELT1'] = hdelta
     if vdelta is not None:
         header['CDELT2'] = vdelta
+    header['CDELT1'] *= dec_dir
     return WCS(header)
 
 
@@ -433,18 +513,65 @@ get_wcs.__doc__ = get_wcs.__doc__.format(allsky=_docs['allsky'],
                                          zenithal=_docs['zenithal'])
 
 
+def get_colormap(cmap, bad=None):
+    from matplotlib.cm import get_cmap
+    from matplotlib.colors import Colormap
+
+    if not isinstance(cmap, Colormap):
+        cmap = deepcopy(get_cmap(cmap))
+    if bad is not None:
+        cmap.set_bad(color=bad)
+    return cmap
+
+
+def get_projection(projection, *args, **kwargs):
+    """
+    If ``projection`` is already an ``astropy.wcs.WCS`` instance, return it; if
+    it is an ``astropy.io.fits.Header``, return ``WCS(projection)``. If it is a
+    string, try to create a new ``WCS`` using ``get_wcs`` with ``*args`` and
+    ``**kwargs`` passed to that function; failing that, try to interpret
+    ``projection`` as a raw FITS header and instantiate a ``WCS`` therefrom.
+    """
+    from astropy.wcs import WCS
+    from astropy.io.fits import Header
+
+    if isinstance(projection, WCS):
+        return projection
+    if isinstance(projection, Header):
+        return WCS(projection)
+    try:
+        return get_wcs(projection, *args, **kwargs)
+    except IndexError:
+        return WCS(Header.fromstring(projection))
+
+
 # TODO allow ICRS override
 def plot(
-        skymap: 'hpmoc.PartialUniqSkymap',
+        skymap: Union[
+            'hpmoc.PartialUniqSkymap',
+            NDArray[(Any,), Any],
+            Tuple[
+                NDArray[(Any,), Any],
+                Optional[
+                    Union[
+                        NDArray[(Any,), int],
+                        'astropy.wcs.WCS',
+                        str,
+                    ]
+                ],
+            ],
+        ],
         *scatter: PointsTuple,
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
         cmap: Optional[
             Union[str, 'matplotlib.colors.Colormap']
         ] = 'gist_heat_r',
+        missing_color: Optional[Union[str, Tuple[int, int, int]]] = None,
+        nan_color: Optional[Union[str, Tuple[int, int, int]]] = None,
         alpha: float = 1.,
         sigmas: Iterable[float] = (1,),
-        scatter_labels: bool = True,
+        scatter_labels: Union[bool, dict] = True,
         ax: Optional[Union[
             'astropy.visualization.wcsaxes.WCSAxes',
             'astropy.visualization.wcsaxes.WCSAxesSubplot'
@@ -455,26 +582,38 @@ def plot(
             'astropy.io.fits.Header',
         ] = 'Mollweide',
         frame_class: Optional[
-            'astropy.visualization.wcsaxes.frame.BaseFrame'
+            Union[
+                'astropy.visualization.wcsaxes.frame.BaseFrame',
+                str
+            ]
         ] = None,
         width: Optional[int] = None,
         height: int = DEFAULT_HEIGHT,
         hdelta: Optional[float] = None,
         vdelta: Optional[float] = None,
-        rot: Tuple[float, float, float] = DEFAULT_ROT,
+        rot: Optional[
+            Union[
+                Tuple[float, float, float],
+                Tuple[float, float],
+            ]
+        ] = None,
         facing_sky: bool = DEFAULT_FACING,
-        fig: Optional['matplotlib.figure.Figure'] = None,
-        subplot: Optional[Tuple[int, int, int]] = None,
+        fig: Optional[Union['matplotlib.figure.Figure', dict]] = None,
+        subplot: Optional[
+            Union[
+                Tuple[int, int, int],
+                'matplotlib.gridspec.SubplotSpec',
+            ]
+        ] = None,
         cr: Iterable[float] = tuple(),
         cr_format: Callable[[float, float], str] = None,
         cr_filled: bool = False,
         cr_kwargs: Optional[dict] = None,
         cr_label_kwargs: Optional[dict] = None,
-        pixels: bool = False,
+        pixels: Union[bool, dict] = False,
         pixels_format: Optional[
             Callable[['hpmoc.PartialUniqSkymap'], Iterable[str]]
         ] = None,
-        pixels_kwargs: Optional[dict] = None,
         cbar: Union[bool, dict] = False,
 ) -> Union[
     'astropy.visualization.wcsaxes.WCSAxes',
@@ -483,8 +622,11 @@ def plot(
     """
     Parameters
     ----------
-    skymap: hpmoc.PartialUniqSkymap
-        The skymap to plot.
+    skymap : 'hpmoc.PartialUniqSkymap', array, or (array, array)
+        The skymap to plot. Can be a ``PartialUniqSkymap``, a single-resolution
+        HEALPix skymap *in NEST ordering only*, or a tuple of (pixel values,
+        NUNIQ indices) accepted as the first two arguments to
+        ``PartialUniqSkymap``.
     scatter: PointsTuple
         Point-sources to plot as a scatter-map, with disks showing their error
         regions. Provide multiple (ideally with different colors) to plot many
@@ -501,6 +643,18 @@ def plot(
         ``PointsTuple`` and will not be affected by this value. If ``None``,
         the skymap itself will not be plotted; this can be useful if overlaying
         multiple skymaps.
+    missing_color : str or (int, int, int), optional
+        The color to use for missing parts of the skymap. If not provided, they
+        simply will not be shown.
+    nan_color : str or (int, int, int), optional
+        The color to use for parts of the map that are included but equal to
+        ``np.nan``. If not provided, will be the same as ``missing_color``
+        (meaning transparent if that argument is not provided), i.e. they will
+        be plotted as if the pixels were missing. **Will not use the**
+        ``alpha`` **argument (to allow for highlighting NaN values more
+        clearly;** to use the same ``alpha`` value, you can create an RGBA
+        tuple including the desired color and your shared alpha value, e.g.
+        ``nan_color=[*matplotlib.colors.to_rgb('pink'), alpha]``.
     alpha: float, optional
         The opacity of the plotted skymap image.
     sigmas: Iterable[float], optional
@@ -509,7 +663,9 @@ def plot(
     scatter_labels: bool, optional
         Whether to show labels for the scattered points. If ``True``, display
         either their labels (if defined) or their indices within the
-        ``PointsTuple.points`` list.
+        ``PointsTuple.points`` list. If given as a ``dict``, will be
+        interpreted as keyword arguments to pass to ``WCSAxes.text``, which can
+        be used to control the appearance of the point source labels.
     ax: WCSAxes or WCSAxesSubplot, optional
         Axes to plot to. If provided, all other arguments pertaining to
         creating a ``WCS`` and ``WCSAxes`` instance are ignored, and these axes
@@ -522,41 +678,52 @@ def plot(
         other parameters needed to fully define the world coordinate system.
         In the latter cases, you might need to customize ``frame``.
         *Ignored if* ``ax`` *is given.*
-    frame_class: BaseFrame, optional
+    frame_class: BaseFrame or str, optional
         The frame type to use for this plot, e.g. a ``RectangularFrame`` (for
-        a Plate-carée/Cartesian plot) or an ``EllipticalFrame`` for a
+        a plate carée/Cartesian plot) or an ``EllipticalFrame`` for a
         Mollweide plot. Selected automatically when ``projection`` is specified
-        by name, otherwise defaults to ``RectangularFrame``.
-        *Ignored if* ``ax`` *is given.*
+        by name, otherwise defaults to ``RectangularFrame``. You can also
+        specify `frame_class='rectangular'` or `frame_class='elliptical'` to
+        choose one of these two frames.
     width: int, optional
         Width of the image in pixels. If not provided, default to the height
         for zenithal projections and twice the height for azimuthal
-        projections. *Ignored if* ``ax`` *is given.*
+        projections. *Ignored if* ``ax`` *is given or if* ``projection`` *is a*
+        ``WCS`` *instance.*
     height: int, optional
-        The height of the plot in pixels. *Ignored if* ``ax`` *is given.*
+        The height of the plot in pixels. *Ignored if* ``ax`` *is given or if*
+        ``projection`` *is a* ``WCS`` *instance.*
     hdelta: float, optional
         The CDELT1 value, if you wish to override the default. Note that the
         actual angular width of a pixel at the reference point depends on this
-        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given
+        or if* ``projection`` *is a* ``WCS`` *instance.*
     vdelta: float, optional
         The CDELT2 value, if you wish to override the default. Note that the
         actual angular height of a pixel at the reference point depends on this
-        value *as well as* the projection used. *Ignored if* ``ax`` *is given.*
-    rot: Tuple[float, float, float], optional
+        value *as well as* the projection used. *Ignored if* ``ax`` *is given
+        or if* ``projection`` *is a* ``WCS`` *instance.*
+    rot: (float, float, float) or (float, float), optional
         Euler angles for rotations about the Z, X, Z axes. These are
         immediately translated to ``CRVAL1, CRVAL2, LONPOLE`` in the returned
         ``WCS``; that is, the first two angles specify the angle of the center
         of the image, while the last specifies an additional rotation of the
         reference pole about the Z-axis. See ``hpmoc.plot`` documentation for
-        further references. *Ignored if* ``ax`` *is given.*
+        further references. Defaults to centering on RA = 180, dec = 0 (the
+        convention used in most plots produced by LIGO). If only two angles are
+        provided, ``LONPOLE`` will be determined automatically such that the
+        center of the skymap is given by the `(RA, dec)` given and the
+        orientation of the plot is otherwise unchanged. *Ignored if* ``ax``
+        *is given or if* ``projection`` *is a* ``WCS`` *instance.*
     facing_sky: bool, optional
         Whether the projection is outward- or inward-facing. Equivalent to
-        reversing the direction of the longitude. *Ignored if* ``ax`` *is
-        given.*
-    fig: matplotlib.figure.Figure, optional
+        reversing the direction of the longitude. *Ignored if* ``ax`` *is given
+        or if* ``projection`` *is a* ``WCS`` *instance.*
+    fig: matplotlib.figure.Figure or dict, optional
         The figure to plot to. If not provided, a new figure will be created.
-        *Ignored if* ``ax`` *is given.*
-    subplot: Tuple[int, int, int], optional
+        If a dictonary is provided, it will be passed as keyword arguments to
+        create a new figure. *Ignored if* ``ax`` *is given.*
+    subplot: (int, int, int) or SubplotSpec, optional
         If provided, initialize the plot as a subplot using the standard
         ``Figure.subplot`` matplotlib interface, returning a ``WCSAxesSubplot``
         instance rather than a ``WCSAxes`` instance.
@@ -580,15 +747,17 @@ def plot(
     cr_label_kwargs: dict, optional
         Arguments to pass to ``clabel`` governing the display format of
         contour labels.
-    pixels: bool, optional
+    pixels: bool or dict, optional
         Whether to plot pixel borders. *You should probably keep this*
         ``False`` *if you are doing an all-sky plot, since border plotting is
         slow for a large number of pixels, and the boundaries will not be
         visible anyway unless each visible pixel's size is comparable to the
         overall size of the plot window.* If you just want to see information
         about e.g. the size of pixels across the whole sky, consider plotting
-        ``skymap.o⃗(as_skymap=True)`` to see a color map of pixel sizes
-        instead.
+        ``skymap.orders(as_skymap=True)`` to see a color map of pixel sizes
+        instead. If given as a ``dict``, will be interpreted as keyword
+        arguments to pass to ``WCSAxes.plot``, which can be used to control the
+        appearance of the pixel borders.
     pixels_format: Callable[[PartialUniqSkymap], Iterable[str]], optional
         A function that takes a skymap and returns a string for each pixel.
         Will be called on the selection of pixels overlapping with the visible
@@ -597,9 +766,6 @@ def plot(
         The returned string will be plotted over the center of each pixel,
         which again is only useful if the pixels are large with respect to the
         size of the plot window.
-    pixels_kwargs: dict, optional
-        Keyword arguments to pass to ``WCSAxes.plot``, which can be used to
-        control the appearance of the pixel borders.
     cbar: bool or dict, optional
         If ``True``, add a colorbar for the plotted skymap. If a ``dict`` is
         provided, pass it as the keyword arguments to
@@ -612,61 +778,89 @@ def plot(
 
     See Also
     --------
-    hpmoc.PartialUniqSkymap
+    hpmoc.partial.PartialUniqSkymap
     matplotlib.figure.Figure
     matplotlib.axes.Axes
+    matplotlib.pyplot.colorbar
+    matplotlib.gridspec.GridSpec
+    matplotlib.gridspec.SubplotSpec
     astropy.io.fits.Header
     astropy.wcs.WCS
     astropy.visualization.wcsaxes.WCSAxes
     """
     import numpy as np
     from matplotlib import pyplot as plt
+    from matplotlib.figure import Figure
     from matplotlib.transforms import ScaledTranslation
-    from astropy.wcs import WCS
+    from matplotlib.gridspec import SubplotSpec
+    from astropy.coordinates.sky_coordinate import SkyCoord
     from astropy.visualization.wcsaxes import WCSAxes
-    from astropy.visualization.wcsaxes.frame import RectangularFrame
-    from astropy.io.fits import Header
+    from astropy.visualization.wcsaxes.frame import (
+        RectangularFrame,
+        EllipticalFrame,
+    )
     from astropy.units import Quantity, deg
+    from .partial import PartialUniqSkymap
 
     # initialize arguments
     cr = np.unique([*cr, 1])
+    if not isinstance(skymap, PartialUniqSkymap):
+        if isinstance(skymap, np.ndarray):
+            skymap = (skymap, None)
+        skymap = PartialUniqSkymap(*skymap)
 
-    # initialize our axes
+    # initialize our axes if needed
     if ax is None:
-        if fig is None:
-            fig = plt.figure()
-        if frame_class is None:
-            if isinstance(projection, str) and {vdelta, hdelta} == {None}:
-                frame_class = get_frame_class(projection)
-            else:
-                frame_class = RectangularFrame
-        if not isinstance(projection, WCS):
-            if not isinstance(projection, Header):
-                try:
-                    projection = get_wcs(projection, width, height, hdelta,
-                                         vdelta, rot, facing_sky)
-                except IndexError:
-                    projection = WCS(Header.fromstring(projection))
-            else:
-                projection = WCS(projection)
+        # initialize figure (just to get our axes)
+        if not isinstance(fig, Figure):
+            fig = plt.figure(**(fig or {}))
+        # initialize frame class
+        frame_class = get_frame_class(projection, frame_class, vdelta, hdelta)
+        # initialize projection
+        projection = get_projection(projection, width=width, height=height,
+                                    hdelta=hdelta, vdelta=vdelta, rot=rot,
+                                    facing_sky=facing_sky)
+        # initialize axes
         if subplot is None:
             ax = WCSAxes(fig, rect=[0.1, 0.1, 0.9, 0.9], wcs=projection,
                          frame_class=frame_class)
             fig.add_axes(ax)
         else:
+            if isinstance(subplot, SubplotSpec):
+                subplot = (subplot,)
             ax = fig.add_subplot(*subplot, projection=projection,
                                  frame_class=frame_class)
+    else:
+        # initialize projection
+        projection = ax.wcs
+    # get the pixel coordinates
+    _, ra, dec = wcs2ang(ax.wcs)
 
     # set default coordinate ticks and style
     outline = [outline_effect()]
     co_ra, co_dec = ax.coords
+    ra_ticks = get_ticks(ra.value+3, ra_exclusions(ax)+3,
+                         np.arange(30, 390, 30), 3, lambda x, d: x+d%360)
     co_ra.set_major_formatter("dd")
-    co_dec.set_major_formatter("dd")
-    # TODO set ticks based on CDELT and visible window
-    co_ra.set_ticks(np.arange(30, 360, 30) * deg)
-    co_dec.set_ticks(np.arange(-75, 90, 15) * deg)
-    co_ra.set_ticks_visible(False)
-    co_dec.set_ticks_visible(False)
+    if len(ra_ticks) >= MIN_GRAT:
+        co_ra.set_ticks(ra_ticks * deg)
+        #co_ra.set_ticks(spacing=30 * deg)
+    else:
+        # use degree formatting by default
+        filled_arcmin = (np.histogram(ra, bins=360*120)[0] != 0).sum()
+        if filled_arcmin < 10:
+            co_ra.set_major_formatter("dd:mm:ss")
+        elif filled_arcmin < 60 * 10:
+            co_ra.set_major_formatter("dd:mm")
+    dec_ticks = get_ticks(dec.value, dec_exclusions(ax),
+                          np.arange(-75, 90, 15), 2, lambda x, _: x)
+    if len(dec_ticks) >= MIN_GRAT:
+        co_dec.set_major_formatter("dd")
+        co_dec.set_ticks(dec_ticks * deg)
+    # ticks can look bad on EllipticalFrame
+    if issubclass(ax.frame_class, EllipticalFrame):
+        co_ra.set_ticks_visible(False)
+        co_dec.set_ticks_visible(False)
     co_ra.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
     co_dec.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
     # TODO override if not ICRS
@@ -678,14 +872,22 @@ def plot(
 
     # plot skymap
     if (cmap is not None) or (cr.size > 1):
-        render = skymap.render(projection, pad=np.nan)
+        mask, u = wcs2mask_and_uniq(projection)
+        render = skymap.render(projection, pad=np.nan, mask_missing=True)
     if cmap is not None:
+        cmap = get_colormap(cmap, bad=missing_color)
         img = ax.imshow(render, vmin=vmin, vmax=vmax, cmap=cmap, alpha=alpha)
+        if nan_color is not None:
+            ncmap = monochrome_opacity_colormap("NanCMap", nan_color)
+            if missing_color is not None:
+                ncmap.set_bad(missing_color)
+            nans = np.isnan(render)
+            ax.imshow(nans, vmin=0, vmax=1, cmap=ncmap, alpha=alpha)
         if cbar is not False:
             kw = DEFAULT_CBAR_KWARGS.copy()
             label = skymap.name or ''
-            if isinstance(skymap.s⃗, Quantity):
-                label += (' [{}]' if label else '{}').format(skymap.s⃗.unit)
+            if skymap.unit is not None:
+                label += (' [{}]' if label else '{}').format(skymap.unit)
             if label:
                 kw['label'] = label
             if cbar is not True:
@@ -693,7 +895,6 @@ def plot(
             plt.colorbar(img, ax=ax, **kw)
 
     # plot scatterplots, layering sigma regions first
-    # TODO see if z level need be specified
     # TODO do not scatter plot or label points that are off of the plot axes
     transform = ax.get_transform('world')
     label_transform = transform + ScaledTranslation(N_X_OFFSET/2, N_Y_OFFSET/2,
@@ -703,20 +904,33 @@ def plot(
         for sigma in sigmas:
             ax.imshow(pts.render(projection, sigma), vmin=0, vmax=1, cmap=cm)
     for pts in scatter:
+        # only include points in the visible region
+        pts_x, pts_y = ax.wcs.world_to_pixel(SkyCoord(
+            *[*zip(*((r, d) for r, d, *_ in pts.points))]*deg, frame='icrs'
+        ))
+        include = (pts_x < ax.wcs.pixel_shape[0]+.5) & (pts_x > .5)
+        include &= (pts_y < ax.wcs.pixel_shape[1]+.5) & (pts_y > .5)
         col = pts.rgba.to_hex(False)
-        ax.scatter(*np.array([(r, d) for (r, d, *_) in pts.points]).T,
-                   c=col, marker=pts.marker, transform=transform,
+        ax.scatter(pts_x[include], pts_y[include], c=col, marker=pts.marker,
                    s=BASE_FONT_SIZE*2, label=pts.label)
         if scatter_labels:
             for i, (r, d, *sl) in enumerate(pts.points):
+                if not include[i]:
+                    continue
                 if len(sl) == 2:
                     pt_label = sl[1]
                 else:
-                    pt_label = str(i)
-                ax.text(r, d, pt_label, va='bottom', ha='left',
-                        path_effects=outline, color=col,
-                        fontsize=BASE_FONT_SIZE,
-                        transform=label_transform)
+                    pt_label = str(i+1)
+                kw = {
+                    'fontsize': BASE_FONT_SIZE,
+                    'path_effects': outline,
+                    'color': col,
+                    'va': 'bottom',
+                    'ha': 'left',
+                }
+                if not isinstance(scatter_labels, bool):
+                    kw.update(scatter_labels)
+                ax.text(r, d, pt_label, transform=label_transform, **kw)
 
     # plot contours
     if cr.size > 1:
@@ -726,7 +940,7 @@ def plot(
         cr_lut = dict(
             zip(
                 levels.value if isinstance(levels, Quantity) else levels,
-                cr[:-1]
+                cr[-2::-1]
             )
         )
         ptrans = ax.get_transform(projection)
@@ -745,3 +959,365 @@ def plot(
                       fmt=lambda v: cr_format(cr_lut[v], v))
 
     return ax
+
+
+def gridplot(
+        *skymaps: Union[
+            'hpmoc.PartialUniqSkymap',
+            NDArray[(Any,), Any],
+            Tuple[
+                NDArray[(Any,), Any],
+                Optional[
+                    Union[
+                        NDArray[(Any,), int],
+                        'astropy.wcs.WCS',
+                        str,
+                    ]
+                ],
+            ],
+        ],
+        fig: Optional[
+            Union[
+                'matplotlib.figure.Figure',
+                'matplotlib.gridspec.GridSpec',
+                dict,
+            ]
+        ] = None,
+        projections: List[
+            Union[
+                str,
+                'astropy.wcs.WCS',
+                'astropy.io.fits.Header',
+                List[
+                    Union[
+                        str,
+                        'astropy.wcs.WCS',
+                        'astropy.io.fits.Header',
+                        'astropy.visualization.wcsaxes.WCSAxes',
+                    ]
+                ],
+            ]
+        ]= ('MOL',),
+        scatters: Optional[List[Optional[List[PointsTuple]]]] = None,
+        # fig args
+        subplot_height: float = DEFAULT_GRID_ROW_HEIGHT,
+        # fig.add_gridspec args
+        ncols: int = DEFAULT_NCOLS,
+        hspace: float = DEFAULT_HSPACE,
+        wspace: float = DEFAULT_WSPACE,
+        wshrink: Union[float, List[float]] = 1.,
+        # plotter args
+        subplot_kwargs: Optional[List[Optional[List[dict]]]] = None,
+        left=0.,
+        right=1.,
+        bottom=0.,
+        top=1.,
+        **kwargs
+) -> Tuple[
+        'matplotlib.gridspec.GridSpec',
+        List[List['astropy.visualization.wcsaxes.WCSAxes']]
+]:
+    """
+    Make a grid plot of multiple skymaps (optionally with scatterplots for
+    each).
+
+    Parameters
+    ----------
+    *skymaps : 'hpmoc.PartialUniqSkymap', array, or (array, array)
+        The skymaps to plot. Can be a ``PartialUniqSkymap``, a
+        single-resolution HEALPix skymap *in NEST ordering only*, or a tuple of
+        (pixel values, NUNIQ indices) accepted as the first two arguments to
+        ``PartialUniqSkymap``.
+    fig: matplotlib.figure.Figure or dict, optional
+        The figure to plot to. If not provided, a new figure will be created.
+        If a dictonary is provided, it will be passed as keyword arguments to
+        create a new figure. If a ``GridSpec`` is provided, then the figure
+        to which it is attached will be used, and that ``GridSpec`` will be used
+        to define the layout.
+    projections : List[Union[str, WCS, fits.Header, List[Union[str, WCS, fits.Header, WCSAxes]]]], optional
+        A list of projections (see the ``projection`` argument of ``plot``) to
+        use for each skymap in ``skymaps``. If multiple projections are
+        specified, they will be plotted alongside each other; if this makes the
+        figure too wide, change the number of columns in the grid with
+        ``ncols``. You can also pass 
+    scatters : List[Optional[List[PointsTuple]]], optional
+        Scatterplots to use, one list for each skymap containing the sets of
+        points to plot for that skymap. For any of the skymaps which are
+        ``PartialUniqSkymap`` instances, you can default to plotting that
+        instance's ``point_sources`` by passing ``None`` instead of a list of
+        point sources; this is also the default behavior if ``scatters=None``.
+    subplot_height : float, optional
+        The height of each subplot (in inches). Width is automatically
+        determined. Overall figure height will be this times ``ncols``.
+        *Ignored if* ``fig`` *is a pre-existing figure, or if* ``figsize`` *is
+        specified as a keyword argument in* ``fig`` (though this is not
+        recommended usage and should be avoided unless you know what you're
+        doing).
+    ncols : int, optional
+        How many columns of *skymaps* to include in the grid. **NB: All
+        subplots for a single skymap are counted as a single column** (in
+        contrast to ``matplotlib.gridspec.GridSpec``, which counts each subplot
+        in a single column). The number of rows is determined automatically
+        from the number of skymaps provided combined with ``ncols``.
+    hspace : float, optional
+        How much vertical space (height) to reserve between subplots.
+    wspace : float, optional
+        How much horizontal space (width) to reserve between subplots.
+    wshrink : float or list of floats, optional
+        Scale the plot widths by this much. Useful if you are adding color
+        bars to preserve spacing. If a list, each element corresponds to a
+        projection.
+    subplot_kwargs : List[Optional[List[dict]]], optional
+        Lists of keyword argument dictionaries that will be used for each
+        subplot. The first index specifies the plotter, and the second index
+        specifies the skymap from ``skymaps``. This behavior allows you to
+        easily specify lists of keyword arguments for specific projections
+        (since often) only one of the ``projections`` requires skymap-specific
+        parameters).  **NB: These subplot-specific keyword arguments take
+        precedence over** ``**kwargs`` **for their respective subplots.
+        Projection-related keyword arguments are ignored if** ``projections``
+        **is a list of lists of axes; see the** ``plot`` **documentation
+        for further details.**
+    left, right, bottom, top : float
+        Bounds for the GridSpec within the plot. Move ``top`` down, for
+        example, if you want more space for a super-title with
+        ``plt.suptitle``.
+    **kwargs
+        Keyword arguments applied to all projections; **again, see** ``plot``
+        **for usages and caveats.**
+
+    Returns
+    -------
+    fig : matplotlib.figure.Figure
+        A new ``matplotlib`` figure containing the specified subplots.
+
+    Raises
+    ------
+    ValueError
+        If ``scatters`` is provided and is ill-formatted or not of the same
+        length as ``skymaps``; if ``subplot_kwargs`` is included and is not of
+        the same length as ``projections``, or if its elements are neither
+        ``None`` nor lists of the same length as ``skymaps``; if ``fig`` is
+        passed as a ``GridSpec`` which is not compatible with the rest of the
+        arguments given; or if one of the
+        ``projections`` is specified as a string but cannot be found in this
+        module.
+
+    See Also
+    --------
+    plot
+    """
+
+    from math import ceil
+    from matplotlib.pyplot import figure
+    from matplotlib.figure import Figure
+    from matplotlib.gridspec import GridSpec
+    from astropy.io.fits import Header
+    from astropy.wcs import WCS
+
+    gs = fig if isinstance(fig, GridSpec) else None
+    fig = fig if gs is None else gs.figure
+    projections = list(projections)
+    nᵖ = len(projections)  # number of projections per skymap
+    nᶜ = len(skymaps)       # number of cells, i.e. skymaps
+    nˢ = nᶜ*nᵖ          # number of true subplots in fig
+    if gs is None:
+        nʳ = nᵖ*ncols       # number of true subplots per row
+        nrows = int(ceil(nᶜ/ncols))
+    else:
+        nʳ = gs.ncols
+        if nʳ % nᵖ != 0:
+            raise ValueError(f"Cannot evenly fit {nᵖ} projections in "
+                             f"{nʳ} columns.")
+        ncols = int(nʳ / nᵖ)
+        nrows = gs.nrows
+        if nrows * nʳ < nˢ:
+            raise ValueError(f"Not enough rows {nrows} for {nˢ} subplots.")
+    scatters = scatters or [[]]*nᶜ
+    subplot_kwargs = subplot_kwargs or [None]*nᵖ
+    try:
+        if len(wshrink) != nᵖ:
+            raise ValueError(f"Must provide one wshrink {wshrink} for "
+                             f"each projection {projections}")
+    except TypeError:
+        wshrink = [wshrink]*nᵖ
+
+    if len(scatters) != nᶜ:
+        raise ValueError(f"scatters {scatters} must have same len as skymaps "
+                         f"{skymaps}")
+    if len(subplot_kwargs) != nᵖ:
+        raise ValueError(f"subplot_kwargs {subplot_kwargs} must have same "
+                         f"len as projections {projections}")
+
+    # initialize kwargs
+    for i in range(len(subplot_kwargs)):
+        kw = subplot_kwargs[i]
+        if kw is None:
+            subplot_kwargs[i] = [kwargs]*nᶜ
+        elif len(kw) != nᶜ:
+            raise ValueError(f"{i}-th element of subplot_kwargs {kw} must "
+                             f"have same len as skymaps {skymaps} or else be "
+                             "omitted.")
+        else:
+            for j in range(len(kw)):
+                kkw = kw[j]
+                kw[j] = kwargs.copy()
+                kw[j].update(kkw)
+
+    # initialize frame classes and projections
+    frame_kwargs = {k: v for k, v in kwargs.items()
+                    if k in GET_FRAME_CLASS_KWARG_KEYS}
+    proj_kwargs = {k: v for k, v in kwargs.items() if k in GET_WCS_KWARG_KEYS}
+    frames = []
+    for iᵖ in range(len(projections)):
+        p = projections[iᵖ]
+        fa = []
+        pa = []
+        if isinstance(p, (str, WCS, Header)):
+            p = [p]*nᶜ
+        for iᶜ, pp in enumerate(p):
+            kw = kwargs.copy()
+            kw.update(subplot_kwargs[iᵖ][iᶜ])
+            if isinstance(pp, (str, WCS, Header)):
+                fa.append(get_frame_class(
+                    pp,
+                    **{k: v for k, v in kw.items()
+                       if k in GET_FRAME_CLASS_KWARG_KEYS}
+                ))
+                pa.append(get_projection(
+                    pp,
+                    **{k: v for k, v in kw.items()
+                       if k in GET_WCS_KWARG_KEYS}
+                ))
+            else:
+                fa.append(pp.frame_class)
+                pa.append(pp.wcs)
+        projections[iᵖ] = pa
+        frames.append(fa)
+
+    # from https://matplotlib.org/tutorials/intermediate/gridspec.html
+    widths = [w * p[0].pixel_shape[0] / p[0].pixel_shape[1]
+              for w, p in zip(wshrink, projections)]
+    width_ratios = widths*ncols
+    nat_width, nat_height = (subplot_height*sum(width_ratios),
+                             subplot_height*nrows)
+    if not isinstance(fig, Figure):
+        fkw = {
+            'figsize': (nat_width, nat_height),
+            'facecolor': 'w',
+            'edgecolor': 'k',
+        }
+        fkw.update(**(fig or {}))
+        fig = figure(**fkw)
+    if gs is None:
+        gs = fig.add_gridspec(
+            nrows=nrows,
+            ncols=nᵖ*ncols,
+            width_ratios=width_ratios,
+            hspace=hspace,
+            wspace=wspace,
+            left=left,
+            right=right,
+            bottom=bottom,
+            top=top,
+        )
+
+    axs = []
+    for iᵖ, (p, f, k) in enumerate(zip(projections, frames, subplot_kwargs)):
+        axr = []
+        for iᶜ, s in enumerate(skymaps):
+            row, col = divmod(iᶜ*nᵖ+iᵖ, nʳ)
+            ax = plot(s, *scatters[iᶜ], projection=p[iᶜ], fig=fig,
+                      subplot=gs[row, col], frame_class=f[iᶜ], **k[iᶜ])
+            # hide axis labels
+            co_ra, co_dec = ax.coords
+            co_ra.set_axislabel_visibility_rule('labels')
+            co_dec.set_axislabel_visibility_rule('labels')
+            #co_ra.set_ticklabel_visible(row + 1 == nrows)
+            #co_dec.set_ticklabel_visible(False)
+            axr.append(ax)
+        axs.append(axr)
+
+    return gs, axs
+
+
+def _parametric_ra_exclusion(ra_height, w):
+    import numpy as np
+
+    return w.pixel_to_world(
+        *np.meshgrid(*map(np.arange, w.pixel_shape), sparse=True)
+    ).icrs.ra.value[
+        ra_height(w),
+        np.concatenate((
+            np.arange(int(w.pixel_shape[0])//EDGE_EXCLUSION),
+            -np.arange(1, int(w.pixel_shape[0])//EDGE_EXCLUSION),
+        ))
+    ]
+
+
+def _dec_exclusion(w):
+    import numpy as np
+
+    dec = w.pixel_to_world(
+            *np.meshgrid(*map(np.arange, w.pixel_shape), sparse=True)
+        ).icrs.dec.value[
+        np.concatenate((
+            np.arange(int(w.pixel_shape[1])//EDGE_EXCLUSION),
+            np.arange(1, int(w.pixel_shape[1])//EDGE_EXCLUSION),
+        ))
+    ]
+    return dec[~np.isnan(dec)]
+
+
+def _exclusions(registry, ax):
+    _init_exclusions()
+    w = ax.wcs
+    frame_class = ax.coords.frame.__class__
+    for c in frame_class.mro():
+        if c in registry:
+            return registry[c](w)
+
+
+def register_ra_exclusion(cls, func):
+    _init_exclusions()
+    _RA_EXCLUSIONS[cls] = func
+
+
+def register_dec_exclusion(cls, func):
+    _init_exclusions()
+    _DEC_EXCLUSIONS[cls] = func
+
+
+# to allow lazy-loading
+def _init_exclusions():
+    from astropy.visualization.wcsaxes.frame import EllipticalFrame
+
+    if not EXCLUSIONS_INITIALIZED[0]:
+        _RA_EXCLUSIONS[EllipticalFrame] = \
+            partial(_parametric_ra_exclusion,
+                    lambda w: int(w.pixel_shape[1])//2)
+        EXCLUSIONS_INITIALIZED[0] = True
+
+
+_RA_EXCLUSIONS = {
+    object: partial(_parametric_ra_exclusion, lambda _: -1,),
+}
+_DEC_EXCLUSIONS = {
+    object: _dec_exclusion,
+}
+ra_exclusions = partial(_exclusions, _RA_EXCLUSIONS)
+ra_exclusions.__doc__ = "Get RA values to exclude from ticks."
+dec_exclusions = partial(_exclusions, _DEC_EXCLUSIONS)
+dec_exclusions.__doc__ = "Get declination values to exclude from ticks."
+
+
+def get_ticks(include, exclude, ticks, delta, transform):
+    import numpy as np
+
+    bins = np.repeat(ticks, 2).reshape((-1, 2))
+    bins += np.array([-1, 1]) * delta
+    bins = bins.ravel()
+    ihist, _ = np.histogram(transform(include, delta), bins=bins)
+    ehist, _ = np.histogram(transform(exclude, delta), bins=bins)
+    matches = (ihist != 0) & (ehist == 0)
+    return ticks[matches[::2]]

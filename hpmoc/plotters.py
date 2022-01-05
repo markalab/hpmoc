@@ -355,11 +355,11 @@ def label_graticule(ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=Non
         return
     else:
         raise ValueError(f"Unrecognized axes type: {type(ax)}")
-    
+
     _proj_grat_label(ax, ra4dec, dec4dec, decs, dectrans, δd, **dec_kwargs)
     _proj_grat_label(ax, ra4ra, dec4ra, ras, ratrans, δr, **ra_kwargs)
-    
-    
+
+
 def graticule(ax, **kwargs):
     """
     Add labels and a graticule to the given axes ``ax`` (with placement
@@ -669,10 +669,10 @@ def multiplot(
         specifies the skymap from ``s⃗ₗ``. This behavior allows you to easily
         specify lists of keyword arguments for specific plotters (since often)
         only one of the ``plotters`` requires skymap-specific parameters).
-        **NB: These subplot-specific keyword arguments take precedence over
-        ``**kwargs`` for their respective subplots.
+        **NB: These subplot-specific keyword arguments take precedence over**
+        ``**kwargs`` **for their respective subplots.**
     **kwargs
-        Keyword arguments applied to all plotters. **NB: ``hold=True`` is
+        Keyword arguments applied to all plotters. **NB:** ``hold=True`` **is
         set for all subplots by default since a new figure is always created.**
 
     Returns
@@ -882,7 +882,7 @@ def visufunc_defaults(s⃗, default_kwargs, *scatter, sigmas=1,
 
     if 'min' not in kwargs or 'max' not in kwargs:
         if isinstance(s⃗, AbstractPartialUniqSkymap):
-            val = s⃗.value.s⃗
+            val = s⃗.value.s
         elif isinstance(s⃗, Qty):
             val = s⃗.value
         else:

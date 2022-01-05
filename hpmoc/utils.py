@@ -205,6 +205,7 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     --------
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
+
     >>> import numpy as np
     >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = nest2dangle(range(12), 1, 32, 90).to('deg')
@@ -220,6 +221,7 @@ def nest2dangle(n⃗, nˢ, ra, dec, degrees=True, in_place=False):
     precision drops for very nearby pixels due to the O(x²) behavior of cos()
     for small angles and the fact that a dot-product and arccos are used to
     compute the result):
+
     >>> nside = 2**10
     >>> nest = np.arange(12*nside**2)
     >>> np.around(
@@ -264,6 +266,7 @@ def uniq2dangle(u⃗, ra, dec, degrees=True):
     --------
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
+
     >>> import numpy as np
     >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = uniq2dangle(range(4, 16), 32, 90).to('deg')
@@ -319,6 +322,7 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
     Examples
     --------
     Simple examples of distances to north pole:
+
     >>> from math import pi
     >>> import numpy as np
     >>> dangle_rad(0, pi/2, np.array([0, 0, 0, 2, 3]),
@@ -391,12 +395,14 @@ def check_valid_nside(nside):
     --------
     Does nothing if you provide a valid NSIDE value (floats are accepted as
     long as their exact values are valid):
+
     >>> check_valid_nside([16, 4])
     >>> check_valid_nside(4)
     >>> check_valid_nside(1024)
     >>> check_valid_nside([1024., 4096])
 
     A descriptive value error is raised if invalid values are provided:
+
     >>> try:
     ...     check_valid_nside([4.1, 4])
     ... except ValueError as err:
@@ -446,12 +452,14 @@ def nside2pixarea(nside, degrees=False):
     Examples
     --------
     At NSIDE = 1, we should get 1/12 of the sky, or about 1/steradian:
+
     >>> from math import pi
     >>> allsky = 4*pi
     >>> nside2pixarea(1) == allsky / 12
     True
 
     This should work for a list of NSIDES as well.
+
     >>> import numpy as np
     >>> nsides = np.array([1, 1, 2, 4])
     >>> areas = np.array([allsky/12, allsky/12, allsky/48, allsky/192])
@@ -545,6 +553,7 @@ def uniq2nest_and_nside(indices, in_place=False):
      array([8, 8, 8, 8, 8, 8, 8, 8, 8])]
 
     Confirm that this is the inverse of nest2uniq:
+
     >>> all(nest2uniq(*uniq2nest_and_nside(nuniq)) == nuniq)
     True
     """
@@ -631,6 +640,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
     --------
     Get the pixel indices for pixels between the 0.1 (10%) and 0.9 (90%)
     quantiles on a fixed-resolution full skymap:
+
     >>> import numpy as np
     >>> skymap = np.array([ 9, 10, 11,  0,  1,  2,  3,  4,  5,  6,  7,  8])
     >>> i, levels, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
@@ -638,36 +648,43 @@ def nside_quantile_indices(nside, skymap, quantiles):
     [array([ 7,  8,  9, 10, 11,  0,  1])]
 
     The levels will be the values of the array at the 0.1 and 0.9 quantiles
+
     >>> print(levels)
     [ 4 11]
 
     The norm in this case is just the average pixel value times the total solid
     angle of the sky:
+
     >>> np.abs(4*np.pi*skymap.mean() - norm) < 1e-13
     True
 
     Get the pixel indices for the same interval on a mixed resolution partial
     skymap (where the last six pixels contribute far less area despite having
     high density):
+
     >>> nside = np.array(6*[1]+6*[64])
     >>> [*nside_quantile_indices(nside, skymap, [0.1, 0.9])[0]
     ...  ][0].astype(np.int)
     array([0, 1])
 
     Equal lower and upper bounds give empty quantiles:
+
     >>> [*nside_quantile_indices(nside, skymap, [0.5, 0.5])[0]
     ...  ][0].astype(np.int64)
     array([], dtype=int64)
 
     Recover all indices (sorted by density):
+
     >>> [*nside_quantile_indices(nside, skymap, [0, 1])[0]][0].astype(np.int)
     array([ 3,  4,  5,  6,  7,  8,  9, 10, 11,  0,  1,  2])
 
     Pick the 90% CR:
+
     >>> [*nside_quantile_indices(nside, skymap, [0.1, 1])[0]][0].astype(np.int)
     array([0, 1, 2])
 
     Get the four top 20% quantiles:
+
     >>> for q in nside_quantile_indices(nside, skymap,
     ...                                 np.arange(0.2, 1.1, 0.2))[0]:
     ...     print(q)
@@ -745,17 +762,20 @@ def uniq_intersection(u⃗1, u⃗2):
     Examples
     --------
     Some pixels with NSIDE of 16, 32, and 64, respectively:
+
     >>> from pprint import pprint
     >>> import numpy as np
     >>> u⃗1 = np.array([1024, 4100, 1027, 1026, 44096])
 
     Pixels at NSIDE = 32 that overlap with only the first and last pixels of
     ``u⃗1``:
+
     >>> u⃗2 = np.array([4096, 4097, 1025, 1026, 11024])
 
     We should see correspondence between index 0 of ``u⃗1`` and indices 0,
     1 of ``u⃗1``; and correspondence between index 2 of ``u⃗1`` and
     index 2 of ``u⃗2``:
+
     >>> pprint(tuple(a.astype(np.int) for a in uniq_intersection(u⃗1, u⃗2)),
     ...        width=60)
     (array([4, 3, 0, 0, 1]),
@@ -904,6 +924,7 @@ def uniq2nest(u⃗, nˢ, nest=True):
     will split the first, third, and fourth pixels, which are coarser--and
     select the pixel containing the last pixel, which is smaller than--than the
     target pixel size):
+
     >>> import numpy as np
     >>> u⃗ = np.array([1024, 4100, 1027, 1026, 44096])
     >>> uniq2nest(u⃗, 32).astype(np.int)
@@ -911,17 +932,20 @@ def uniq2nest(u⃗, nˢ, nest=True):
              14,   15, 6928])
 
     Same pixel indices, but keep them in NUNIQ format:
+
     >>> uniq2nest(u⃗, 32, nest=False).astype(np.int)
     array([ 4096,  4097,  4098,  4099,  4100,  4104,  4105,  4106,  4107,
             4108,  4109,  4110,  4111, 11024])
 
     Coarsen the pixels to NSIDE=16:
+
     >>> uniq2nest(u⃗, 16).astype(np.int)
     array([   0,    1,    2,    3, 1732])
     >>> uniq2nest(u⃗, 16, False).astype(np.int)
     array([1024, 1025, 1026, 1027, 2756])
 
     Increase resolution of all pixels to NSIDE=64:
+
     >>> uniq2nest(u⃗, 64).astype(np.int)
     array([    0,     1,     2,     3,     4,     5,     6,     7,     8,
                9,    10,    11,    12,    13,    14,    15,    16,    17,
@@ -974,6 +998,13 @@ def fill(u⃗, x⃗, nˢ, pad=None):
         provided, use ``healpy.UNSEEN``, which will render as blank space in
         ``healpy.visufunc`` plots.
 
+    See Also
+    --------
+    reraster : Similar, but for outputs that are also UNIQ-indexed.
+    render : Similar, but for outputs with repreating UNIQ indices.
+    nest_reres :
+        For changing the resolution of NEST indices.
+
     Returns
     -------
     x⃗ⁿᵉˢᵗ : np.ndarray
@@ -986,6 +1017,120 @@ def fill(u⃗, x⃗, nˢ, pad=None):
     u⃗ᵒ = np.arange(u⃗ᵒ0, 4*u⃗ᵒ0)                  # output NUNIQ indices
     pad = hp.UNSEEN if pad is None else pad        # default pad value
     return reraster(u⃗, x⃗, u⃗ᵒ, pad=pad)
+
+
+def nest_reres(nest, nside_in, nside_out):
+    """
+    Change the NSIDE of nest indices. If decreasing resolution,
+    partially-filled pixels will be included but marked in ``full``.
+
+    Parameters
+    ----------
+    nest : array-like
+        HEALPix NEST indices.
+    nside_in : int
+        The NSIDE of the provided HEALPix indices.
+    nside_out : int
+        The NSIDE of the output indices.
+
+    Returns
+    -------
+    reres_nest : array-like
+        The smallest set of HEALPix NEST indices at NSIDE = ``nside_out``
+        fully covering ``nest``.
+    full : bool or array
+        If resolution is not decreased, equals ``True``. If resolution is
+        decreased, a boolean array that is ``True`` for all indices in
+        ``reres_nest`` whose subpixels are all included in ``nest``.
+
+    See Also
+    --------
+    fill :
+        For converting skymap *values* (not indices) from *UNIQ* (not NEST)
+        skymaps.
+
+    Examples
+    --------
+    Double the resolution:
+
+    >>> n, full = nest_reres([0, 1], 2, 4)
+    >>> full
+    True
+    >>> print(n)
+    [0 1 2 3 4 5 6 7]
+
+    No effect:
+
+    >>> n, full = nest_reres([0, 1], 2, 2)
+    >>> full
+    True
+    >>> print(n)
+    [0 1]
+
+    Halve the resolution:
+    >>> n, full = nest_reres([0, 1], 2, 1)
+    >>> print(full)
+    [False]
+    >>> print(n)
+    [0]
+    """
+    import numpy as np
+
+    nest = np.array(nest, copy=True)
+    d = hp.nside2order(nside_out) - hp.nside2order(nside_in)
+    if d == 0:
+        return nest, True
+    if d > 0:
+        return (4**d*nest.reshape((-1, 1))+np.arange(4**d)).ravel(), True
+    i, ct = np.unique(nest//4**(-d), return_counts=True)
+    return i, ct == 4
+
+
+def wcs2nest(wcs, nside=None, order_delta=None):
+    """
+    Get NEST pixels at ``nside`` resolution covering an ``astropy.wcs.WCS``
+    instance's pixels as well as their ``x`` and ``y`` pixel coordinates.
+    All returned pixels and coordinates will be within the image boundaries
+    and the indices will be non-repeating. If ``order_delta`` is provided, then
+    the NEST resolution is doubled the number of times specified thereby. Can
+    only pass one of ``nside`` or ``order_delta`` or else a ``ValueError`` is
+    raised.
+
+    Returns
+    -------
+    nside : int
+        The NSIDE of the output indices.
+    nest : NDArray[(Any,), int]
+        The HEALPix NEST indices.
+    x : NDArray[(Any,), float]
+        The pixel-space x-coordinates of the points in ``nest``.
+    y : NDArray[(Any,), float]
+        The pixel-space y-coordinates of the points in ``nest``.
+    """
+    import numpy as np
+    from astropy.coordinates.sky_coordinate import SkyCoord
+    from astropy.units import deg
+
+    if nside is not None and order_delta is not None:
+        raise ValueError("Can only specify one of nside or order_delta.")
+    valid, ra, dec = wcs2ang(wcs)
+    # coarse search to not miss pixels
+    ns = resol2nside(wcs2resol(wcs).to('rad').value,
+                     degrees=False, coarse=True) >> 1
+    nest = np.unique(hp.ang2pix(ns, ra.to('deg').value, dec.to('deg').value,
+                                lonlat=True, nest=True))
+    del ra, dec
+    nside = nside or ns
+    if order_delta is not None:
+        d = order_delta  # undo search coarsening
+        nside = nside << d if d > 0 else nside >> -d
+    nest = nest_reres(nest, ns, nside)[0]
+    co = SkyCoord(*(a*deg for a in hp.pix2ang(nside, nest, nest=True,
+                                              lonlat=True)), frame='icrs')
+    x, y = wcs.world_to_pixel(co)
+    xm, ym = wcs.pixel_shape
+    include = (~np.isnan(x)) & ((x<xm-.5) & (x>-.5) & (y<ym-.5) & (y>-.5))
+    return nside, nest[include], x[include], y[include]
 
 
 def wcs2resol(wcs):
@@ -1067,20 +1212,21 @@ def outline_effect():
     )
 
 
-def monochrome_opacity_colormap(name, rgb):
+def monochrome_opacity_colormap(name, color):
     """
     Get a monochrome ``matplotlib.colors.LinearSegmentedColormap`` with color
     defined by ``rgba`` (values between zero and one). Opacity will range from
     full transparency for the minimum value to the alpha value set in ``rgba``.
     """
-    from matplotlib.colors import LinearSegmentedColormap
+    from matplotlib.colors import to_rgba, LinearSegmentedColormap
 
-    m = LinearSegmentedColormap.from_list(name, [[*rgb, 0], [*rgb, 1]])
+    *rgb, a = to_rgba(color)
+    m = LinearSegmentedColormap.from_list(name, [[*rgb, 0], [*rgb, a]])
     m.set_under((0, 0, 0, 0))  # transparent background (-np.inf imgshow)
     return m
 
 
-def render(u⃗, x⃗, u⃗ᵒ, pad=None, mask=None, Iᵢ⃗ⁱ⃗ᵒ=None):
+def render(u⃗, x⃗, u⃗ᵒ, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗ᵒ=None):
     """
     Like ``reraster``, but allows you to map to a partially-covered ``u⃗ᵒ``
     skymap, e.g. for rendering a plot, thanks to a call to
@@ -1102,47 +1248,67 @@ def render(u⃗, x⃗, u⃗ᵒ, pad=None, mask=None, Iᵢ⃗ⁱ⃗ᵒ=None):
         Pad value for missing pixels. If not provided, will raise an error if
         missing parts of the skymap fall in ``u⃗ᵒ``. To render a ``healpy``
         plot with missing pixels, pass ``pad=healpy.UNSEEN``.
-    mask: array, optional
+    valid: array, optional
         If provided, results will be scattered into an array of the same shape
-        as ``mask``, filling the indices where ``mask==True``. The number of
-        ``True`` values in ``mask`` must therefore equal the length of ``u⃗ᵒ``.
+        as ``valid``, filling the indices where ``valid==True``. The number of
+        ``True`` values in ``valid`` must therefore equal the length of ``u⃗ᵒ``.
         This argument only makes sense if ``u⃗ᵒ`` is an array of NUNIQ indices;
-        if it is a ``WCS`` instance and ``mask`` is provided, an error is
-        raised. Use ``mask`` to produce plots or to reuse indices produced by
-        ``wcs2mask_and_uniq`` in several ``render`` invocations.
+        if it is a ``WCS`` instance and ``valid`` is provided, an error is
+        raised. Use ``valid`` to produce plots or to reuse indices produced by
+        ``wcs2mask_and_uniq`` in several ``render`` invocations. See note on
+        how ``mask_missing`` affects the result.
+    mask_missing : bool
+        If ``mask_missing=True``, return a ``np.ma.core.MaskedArray``. Missing
+        values are tolerated and are marked as ``True`` in the
+        ``mask_missing``. They will be set to ``pad or 0`` in the ``data``
+        field. If ``valid`` is also provided, then the output will still be a
+        ``np.ma.core.MaskedArray``, but will be set to ``True`` wherever
+        ``valid == False`` in addition to wherever pixels are missing (and will
+        still take on masked values of ``np.nan`` in the invalid regions).
     Iᵢ⃗ⁱ⃗ᵒ : Tuple[array, array, array]
         Return tuple of ``uniq_intersection``. Use this to save time in
         repeated invocations.
 
+    Returns
+    -------
+    s⃗ₒ : array-like
+        The pixel values at locations specified by u⃗ᵒ. If
+        ``mask_missing=True``, will be a ``np.ma.core.MaskedArray`` set to
+        ``True`` at the missing values in the ``valid`` field with missing
+        ``data`` field values set to ``pad or None``.
+
     Raises
     ------
     ValueError
-        If ``u⃗ᵒ`` is a ``WCS`` instance and ``mask`` is not ``None``.
+        If ``u⃗ᵒ`` is a ``WCS`` instance and ``valid`` is not ``None``.
 
     See Also
     --------
     reraster
-    hpmoc.PartialUniqSkymap.render
+    hpmoc.partial.PartialUniqSkymap.render
     hpmoc.points.PointsTuple.render
+    np.ma.core.MaskedArray
     """
     import numpy as np
     from astropy.wcs import WCS
 
     if isinstance(u⃗ᵒ, WCS):
-        if mask != None:
-            raise ValueError("mask must be None if u⃗ᵒ is WCS.")
-        mask, u⃗ᵒ = wcs2mask_and_uniq(u⃗ᵒ)
+        if valid != None:
+            raise ValueError("valid must be None if u⃗ᵒ is WCS.")
+        valid, u⃗ᵒ = wcs2mask_and_uniq(u⃗ᵒ)
     u⃗ᵘ, u⃗̇ᵘ = np.unique(u⃗ᵒ, return_inverse=True)
-    s⃗ = reraster(u⃗, x⃗, u⃗ᵘ, pad=pad, Iᵢ⃗ⁱ⃗ᵒ=Iᵢ⃗ⁱ⃗ᵒ)[u⃗̇ᵘ]
-    if mask is None:
+    s⃗ = reraster(u⃗, x⃗, u⃗ᵘ, pad=pad, mask_missing=mask_missing, Iᵢ⃗ⁱ⃗ᵒ=Iᵢ⃗ⁱ⃗ᵒ)[u⃗̇ᵘ]
+    if valid is None:  # for both mask_missing True and False
         return s⃗
-    s⃗ₒ = np.full(mask.shape, np.nan)
-    s⃗ₒ[mask] = s⃗
+    s⃗ₒ = np.full(valid.shape, np.nan)
+    if mask_missing:
+        s⃗ₒ = np.ma.MaskedArray(s⃗ₒ, True)
+    s⃗ₒ[valid] = s⃗
     return s⃗ₒ
 
 
 # pylint: disable=unsupported-assignment-operation,invalid-unary-operand-type
-def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
+def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, mask_missing=False, Iᵢ⃗ⁱ⃗ᵒ=None):
     """
     Rasterize skymap pixel values ``x⃗`` with NUNIQ indices ``u⃗`` to match
     pixels ``u⃗ᵒ``, discarding sky areas excluded by ``u⃗ᵒ`` and (optionally)
@@ -1160,6 +1326,11 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
         A pad value to use for pixels missing from the input skymap. Only used
         if ``u⃗`` does not fully cover ``u⃗ᵒ``. Use ``healpy.UNSEEN`` for this
         value if you want to mark pixels as not-observed for HEALPy plots etc.
+    mask_missing : bool
+        If ``mask_missing=True``, return a ``np.ma.core.MaskedArray``. Missing
+        values are tolerated and are marked as ``True`` in the
+        ``mask_missing``. They will be set to ``pad or 0`` in the ``data``
+        field.
     Iᵢ⃗ⁱ⃗ᵒ : Tuple[np.ndarray, np.ndarray, np.ndarray], optional
         If you've already computed ``uniq_intersection(u⃗, u⃗ᵒ)``, you can pass
         it as this argument to avoid recomputing it. No checks will be made for
@@ -1173,7 +1344,8 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
         input pixel values, even if some pixels in ``u⃗ᵒ`` are not fully covered
         by pixels from ``u⃗``. Any parts of the sky defined in ``u⃗`` that are
         not covered by ``u⃗ᵒ`` are omitted, so this function can also be used to
-        mask a skymap in a single step.
+        mask a skymap in a single step. If ``mask_missing=True``, is a
+        ``np.ma.core.MaskedArray``.
 
     Raises
     ------
@@ -1181,14 +1353,22 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
         If ``pad`` is not provided but ``u⃗`` does not cover all pixels in
         ``u⃗ᵒ``.
 
+    See Also
+    --------
+    render
+    hpmoc.partial.PartialUniqSkymap.reraster
+    np.ma.core.MaskedArray
+
     Examples
     --------
     Create a small partial skymap with example pixel values:
+
     >>> import numpy as np
     >>> u⃗ = np.array([1024, 4100, 1027, 1026, 44096])
     >>> x⃗ = np.array([1.,   2.,   3.,   4.,   5.])
 
     We will rerasterize this skymap to these sky areas:
+
     >>> u⃗ᵒ = np.array([4096, 4097, 1025, 1026, 11024])
     >>> reraster(u⃗, x⃗, u⃗ᵒ)
     array([1., 1., 2., 4., 5.])
@@ -1198,8 +1378,20 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     Note that the first pixel of the result is the average of the first and
     second pixels in the input map, since both of these have equal area and
     overlap with the first pixel:
+
     >>> reraster(u⃗ᵒ, x⃗, u⃗, pad=0.)
     array([1.5, 3. , 0. , 4. , 5. ])
+
+    We can also simply mask that value by passing ``mask_missing=True``, in
+    which case the result will be a ``np.ma.core.MaskedArray`` which is ``True`` for
+    values which were missing (the missing/masked values themselves will be set
+    to zero or ``pad`` if provided):
+
+    >>> m = reraster(u⃗ᵒ, x⃗, u⃗, mask_missing=True)
+    >>> print(m.data)
+    [1.5 3.  0.  4.  5. ]
+    >>> print(m.mask)
+    [False False  True False False]
 
     Note that the values are averages of input pixels; in cases where only one
     input pixel is sampled from, the value remains unchanged. This makes
@@ -1211,6 +1403,7 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     previous calculation, you can avoid recomputing it during rasterization by
     passing it as the ``Iᵢ⃗ⁱ⃗ᵒ`` argument, though beware it will not be checked
     for correctness:
+
     >>> reraster(u⃗, x⃗, u⃗ᵒ, Iᵢ⃗ⁱ⃗ᵒ=uniq_intersection(u⃗, u⃗ᵒ))
     array([1., 1., 2., 4., 5.])
     """
@@ -1219,8 +1412,14 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
 
     u⃗̇, u⃗̇ᵒ, δo⃗ = Iᵢ⃗ⁱ⃗ᵒ or uniq_intersection(u⃗, u⃗ᵒ)    # indices into u⃗, u⃗ᵒ
     u⃗̇ₘᵒ = np.setdiff1d(np.arange(len(u⃗ᵒ)), u⃗̇ᵒ)      # u⃗ᵒ pixels missing from u⃗
-    if pad is None and len(u⃗̇ₘᵒ) != 0:  # pylint: disable=len-as-condition
-        raise ValueError(f"u⃗ ({u⃗}) missing pixels in u⃗ᵒ ({u⃗ᵒ}): {u⃗̇ₘᵒ}")
+    if u⃗̇ₘᵒ.size != 0:
+        if mask_missing:
+            m = np.zeros(u⃗ᵒ.shape, dtype=bool)
+            m[u⃗̇ₘᵒ] = True
+        elif pad is None:
+            raise ValueError(f"u⃗ ({u⃗}) missing pixels in u⃗ᵒ ({u⃗ᵒ}): {u⃗̇ₘᵒ}")
+    else:
+        m = False
 
     δ⃗ = 4.**-δo⃗                                     # NUNIQ slice offset tmp
     N⃗ᵒ = np.zeros(u⃗ᵒ.shape, dtype=float)            # normalization for pix avg
@@ -1236,6 +1435,8 @@ def reraster(u⃗, x⃗, u⃗ᵒ, pad=None, Iᵢ⃗ⁱ⃗ᵒ=None):
     np.add.at(x⃗ᵒ, u⃗̇ₘᵒ, pad or 0.)                   # pad missing if u⃗̇ₘᵒ
 
     x⃗ᵒ /= N⃗ᵒ                                        # normalize pixel values
+    if mask_missing:
+        return np.ma.MaskedArray(x⃗ᵒ, m)
     return x⃗ᵒ
 
 
@@ -1270,17 +1471,21 @@ def uniq_coarsen(u, orders):
     --------
     Pixels 353, 354, and 355 lie within pixels 88, 22, and 5; pixels 80 and
     81 lie within pixels 20 and 5; pixel 21 lies within pixel 5.
+
     >>> u = [4, 21, 80, 81, 353, 354, 355]
 
     Coarsening by zero will have no effect:
+
     >>> print(uniq_coarsen(u, 0))
     [  4  21  80  81 353 354 355]
 
     Coarsening by one will only combine the very smallest pixels:
+
     >>> print(uniq_coarsen(u, 1))
     [ 4 21 80 81 88]
 
     Coarsening by larger numbers will combine so many higher orders:
+
     >>> print(uniq_coarsen(u, 2))
     [ 4 20 21 22]
     >>> print(uniq_coarsen(u, 3))
@@ -1288,6 +1493,7 @@ def uniq_coarsen(u, orders):
 
     Coarsening by a value greater than the largest order will have no
     further effect, since the 12 base pixels cannot be combined:
+
     >>> print(uniq_coarsen([4, 21, 80, 81, 353, 354, 355], 4))
     [4 5]
     """
@@ -1344,6 +1550,7 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
     --------
     Make a set of pixels corresponding to the first four base pixels as well as
     the first pixel at NSIDE = 2 lying in the fifth base pixel:
+
     >>> import numpy as np
     >>> u = np.concatenate([nest2uniq(np.arange(2), 1),
     ...                     nest2uniq(np.arange(8, 17), 2)])
@@ -1352,12 +1559,14 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
 
     UNIQ indices 24-31 cover the same area as 6-7; ``uniq_minimize`` will
     detect this:
+
     >>> um, = uniq_minimize(u)
     >>> print(um)
     [ 4  5  6  7 32]
 
     This makes no difference against a constant skymap, with, e.g., values of
     ``1`` everywhere:
+
     >>> um, xm = uniq_minimize(u, np.full_like(u, 1))
     >>> print(um)
     [ 4  5  6  7 32]
@@ -1366,11 +1575,37 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
 
     If, however, the 4 pixels in the range 28-31 do *not* have equal values,
     they will not be combined with the default choice of ``test``:
+
     >>> um, xm = uniq_minimize(u, np.array([1, 2, 3, 3, 3, 3, 4, 5, 6, 7, 8]))
     >>> print(um)
     [ 4  5  6 28 29 30 31 32]
     >>> print(xm)
     [1 2 3 4 5 6 7 8]
+
+    This can be very effective for combining pixels in skymaps made by
+    algorithms like CWB,
+    which often produce adjacent pixels with zero probability, or BAYESTAR,
+    which is natively MOC but is often distributed at fixed resolution. For
+    example, an NSIDE=128 pixel in a BAYESTAR skymap whose smallest pixel
+    has NSIDE=1024 will be split into 64 NSIDE=1024 subpixels to bring the
+    entire skymap to a single resolution without loss of precision; we can
+    represent such a single pixel using its NUNIQ indices ``u2`` and a
+    constant skymap value ``x2``:
+
+    >>> u2 = np.arange(4194304, 4194368)
+    >>> x2 = np.ones_like(u2)
+    >>> um2, xm2 = uniq_minimize(u2, x2)
+
+    The pixel indices will be combined to give the NUNIQ index of the
+    original pixel at NSIDE=128:
+
+    >>> print(um2)
+    [65536]
+
+    The pixel values will remain the same:
+
+    >>> print(xm2)
+    [1]
     """
     import numpy as np
 
@@ -1387,7 +1622,11 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
             raise ValueError("Indices and values must have same length.")
     for i in range(len(bounds)-2):
         last, first = bounds[i:i+2]
+        # there can be no redundancy with fewer than 4 pixels
         if last - first < 4:
+            us.append(u[first:last])
+            for xxs, xx in zip(xs, x):
+                xxs.append(xx[first:last])
             continue
         uu = u[first:last-3].copy()
         # find 0th pixels from matching quartets
@@ -1424,7 +1663,6 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
         u[next_first:next_last] = u[next_first:next_last][isort]
         for xx in x:
             xx[next_first:next_last] = xx[next_first:next_last][isort]
-    #breakpoint()
     return [np.concatenate([y[:bounds[-2]], *ys[::-1]])
             for y, ys in zip([u, *x], [us, *xs])]
 
@@ -1444,7 +1682,7 @@ def uniq_diadic(Ω, u⃗ⁱ, x⃗ⁱ, pad=None, coarse=True):
         corresponding elementwise to the same sky locations. **Must be a
         skymap-resolution independent operation for the results to make
         sense.**
-    u⃗ⁱ : List[np.ndarray, np.ndarray]
+    u⃗ⁱ : Tuple[np.ndarray, np.ndarray]
         NUNIQ indices of the two skymaps to be passed to ``Ω``.
     x⃗ⁱ : List[np.ndarray, np.ndarray]
         Pixel values (corresponding to the locations specified by ``u⃗ⁱ``) of
@@ -1478,6 +1716,7 @@ def uniq_diadic(Ω, u⃗ⁱ, x⃗ⁱ, pad=None, coarse=True):
     Examples
     --------
     Take the product of two heterogeneous multi-order skymaps:
+
     >>> from pprint import pprint
     >>> from operator import mul
     >>> import numpy as np
@@ -1491,11 +1730,13 @@ def uniq_diadic(Ω, u⃗ⁱ, x⃗ⁱ, pad=None, coarse=True):
 
     Provide a default pad value for indices non-overlapping parts of the input
     skymaps:
+
     >>> pprint(uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), pad=0.), width=60)
     (array([ 1024,  1025,  1026,  1027, 11024]),
      array([5.e+00, 2.e+00, 4.e+02, 0.e+00, 5.e+03]))
 
     Increase resolution as necessary (do not combine pixels):
+
     >>> pprint(uniq_diadic(mul, (u⃗1, u⃗2), (x⃗1, x⃗2), coarse=False), width=60)
     (array([ 1026,  4096,  4097,  4100, 44096]),
      array([4.e+02, 0.e+00, 1.e+01, 2.e+00, 5.e+03]))
@@ -1733,8 +1974,8 @@ def read_partial_skymap(infile: Union[IO, str], u⃗, memmap=True):
 
     See Also
     --------
+    uniq_minimize
     TmpGunzipFits
-    hpmoc.utils.uniq_minimize
     """
     from astropy.table import Table
     import numpy as np

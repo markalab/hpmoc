@@ -66,7 +66,7 @@ class Atlas:
         only be directly along coordinate axes (since these are well-defined
         for connected sides); use `translate` for diagonal movements.
 
-        .. code-block:: ascii
+        .. code-block:: text
 
                    1 ◄── DIRECTION
                    ▲
@@ -224,7 +224,7 @@ def healpix_side_subpixel_luts():
 
     Viewed from earth (inside the HEALPix sphere, XY axes swapped):
 
-    .. code-block:: ascii
+    .. code-block:: text
 
        1    2◄───3
        │┌───┬───┐
