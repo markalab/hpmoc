@@ -16,6 +16,10 @@ dependencies:
   # jup
   - jupyter
   - ipython
+  # astroquery
+  - astroquery
+  # gracedb
+  - ligo-gracedb
   # test
   - pytest
   - pytest-cov
@@ -30,6 +34,7 @@ dependencies:
   - black
   - sphinx
   - sphinx_rtd_theme
+  - nbsphinx
   # acceleration
   - icc_rt  # -c numba
   - intelpython3_full  # -c intel

@@ -13,6 +13,10 @@ dependencies:
   # jup
   - jupyter
   - ipython
+  # astroquery
+  - astroquery
+  # gracedb
+  - ligo-gracedb
   # test
   - pytest
   - pytest-cov
@@ -20,6 +24,9 @@ dependencies:
   - pyyaml
   # dev
   - pillow
+  - sphinx
+  - sphinx_rtd_theme
+  - nbsphinx
   #- numba
   - flit
   - pip

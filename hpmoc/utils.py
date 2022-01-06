@@ -12,7 +12,7 @@ Utility functions used across healpix_skymap classes.
 import os
 from operator import eq
 from numbers import Integral
-from typing import Union, IO  # possible removal for older pythons
+from typing import Union, IO, Any, Optional, Tuple, Callable
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
@@ -22,6 +22,7 @@ import logging
 import gzip
 from tempfile import NamedTemporaryFile
 import binascii
+from nptyping import NDArray
 from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
 
@@ -1199,6 +1200,122 @@ def wcs2mask_and_uniq(wcs):
         nˢ,
         in_place=True
     )
+
+
+def interp_wcs_nn(
+        wcs: 'astropy.wcs.WCS',
+        data: NDArray[(Any,), Any],
+) -> Tuple[NDArray[(Any,), int], NDArray[(Any,), float]]:
+    """
+    Do a nearest-neighbor interpolation of ``data`` with coordinates
+    specified by ``wcs`` FITS world coordinate system.
+
+    Parameters
+    ----------
+    wcs : astropy.wcs.WCS
+        The world coordinate system defining pixel locations. If loading
+        a FITS file as an HDU called ``hdu``, you can get this argument
+        as ``astropy.wcs.WCS(hdu.header)``. *Note that you will need to
+        manually include units for dimensionful quantities.*
+    data : array-like
+        The data corresponding to ``WCS``. Available from an HDU as
+        ``hdu.data``.
+
+    Returns
+    -------
+    u : array
+        The corresponding NUNIQ HEALPix indices of the input skymap.
+    s : array-like
+        The pixel-values of the input skymap interpolated at the locations of
+        the pixels in ``u``.
+
+    See Also
+    --------
+    interp_wcs
+    hpmoc.partial.PartialUniqSkymap
+    astropy.wcs.WCS
+    """
+    import numpy as np
+
+    nside, nest, x, y = wcs2nest(wcs, order_delta=2)
+    interp = data[np.round(x).astype(int), np.round(y).astype(int)]
+    return nest2uniq(nest, nside), interp
+
+
+def interp_wcs(
+        wcs: 'astropy.wcs.WCS',
+        data: NDArray[(Any,), Any],
+        interp: Optional[
+            Union[
+                str,
+                Tuple[
+                    int,
+                    Callable[
+                        [
+                            NDArray[(Any,), float],
+                            NDArray[(Any,), float],
+                            NDArray[(Any,), Any]
+                        ],
+                    NDArray[(Any,), Any]
+                    ]
+                ],
+            ]
+        ] = 'nearest'
+) -> Tuple[NDArray[(Any,), int], NDArray[(Any,), float]]:
+    """
+    Interpolate ``data`` with coordinates specified by ``wcs`` FITS
+    world coordinate system into a HEALPix NUNIQ skymap.
+
+    Parameters
+    ----------
+    wcs : astropy.wcs.WCS
+        The world coordinate system defining pixel locations. If loading
+        a FITS file as an HDU called ``hdu``, you can get this argument
+        as ``astropy.wcs.WCS(hdu.header)``. *Note that you will need to
+        manually include units for dimensionful quantities.*
+    data : array-like
+        The data corresponding to ``WCS``. Available from an HDU as
+        ``hdu.data``.
+    interp : str or (int, func), optional
+        The interpolation strategy to use. Can be a string specifying one
+        of the following pre-defined strategies:
+
+        - "nearest" for nearest-neighbor
+        - "bilinear" for bicubic
+
+        or else a tuple whose first element is the number of orders by
+        which the pixels covering the ``WCS`` should have their resolution
+        increased ("nearest" uses a value of 2, "bilinear" a value of 1;
+        heuristically, a more sophisticated interpolation scheme can probably
+        get away with 1), while the second element is a function taking the
+        x, y coordinates of the pixels followed by the pixel values in ``data``
+        and returning the interpolated pixel values (which will form the return
+        value ``s`` of this function).
+
+    Returns
+    -------
+    u : array
+        The corresponding NUNIQ HEALPix indices of the input skymap.
+    s : array-like
+        The pixel-values of the input skymap interpolated at the locations of
+        the pixels in ``u``.
+
+    See Also
+    --------
+    interp_wcs_nn
+    hpmoc.partial.PartialUniqSkymap
+    astropy.wcs.WCS
+    """
+    import numpy as np
+
+    if interp == 'nearest':
+        return interp_wcs_nn(wcs, data)
+    if interp == 'bilinear':
+        raise NotImplementedError()
+    if isinstance(interp, str):
+        raise ValueError(f"Unrecognized interpolation strategy: {interp}")
+    nside, nest, x, y = wcs2nest(wcs, order_delta=interp[0])
+    return nest2uniq(nest, nside), interp(x, y, data)
 
 
 def outline_effect():

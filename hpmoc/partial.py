@@ -49,6 +49,7 @@ from .utils import (
     nest2uniq,
     read_partial_skymap,
     uniq_minimize,
+    interp_wcs,
 )
 from .abstract import AbstractPartialUniqSkymap
 from .plot import plot, gridplot
@@ -170,7 +171,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     point_sources: List['hpmoc.points.PointsTuple']
 
     def __init__(self, s, u, copy=False, name=None, point_sources=None,
-                 meta=None, empty=None, compress=False, interp_order=0):
+                 meta=None, empty=None, compress=False, interp="nearest"):
         """
         Initialize a skymap with the pixel values and NUNIQ indices used.
 
@@ -209,17 +210,18 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             implies ``copy=True``. For example, set this to ``healpy.UNSEEN``
             to automatically discard pixels not included in a standard full-sky
             ``healpy`` skymap.
-        interp_order : int, optional
-            The interpolation order to use. Pass ``0`` for nearest-neighbor or
-            ``1`` for bilinear. *Ignored if* ``u`` *is not a* ``WCS``
-            *instance.*
+        interp : int, optional
+            The interpolation strategy to use. Pass ``"nearest"`` for
+            nearest-neighbor or ``"bilinear"`` for bilinear. See
+            ``hpmoc.utils.interp_wcs`` for a full list of valid interpolation
+            strategies. *Ignored if* ``u`` *is not a* ``WCS`` *instance.*
 
         Raises
         ------
         ValueError
             If ``s`` is not a numeric data type; if ``u`` is not provided and
             ``s`` cannot be interpreted as an all-sky fixed-resolution NEST
-            HEALPix skymap; or if ``interp_order`` is not a valid value.
+            HEALPix skymap; or if ``interp`` is not a valid value.
         """
         import numpy as np
         from astropy.wcs import WCS
@@ -234,7 +236,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             u = nest2uniq(idx, ns, in_place=True)
             del idx, ns
         elif isinstance(u, WCS):
-            raise NotImplementedError("WCS interpolation not yet supported.")
+            u, s = interp_wcs(u, s, interp=interp)
         if len(s) != len(u):
             raise ValueError(f"Must have same lengths: s={s}, u={u}")
         self.name = name
@@ -1025,11 +1027,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                 from IPython.utils import io
 
                 with io.capture_output():
-                    fig = self.multiplot(plotters=projs, dpi=50,
-                                         widths=widths, ncols=1, title=None)
+                    gs, _ = self.gridplot(projections=projs, bottom=0.1,
+                                          left=0.04)
             else:
-                fig = self.multiplot(plotters=projs, dpi=50, widths=widths,
-                                     ncols=1, title=None)
+                gs, _ = self.gridplot(projections=projs, bottom=0.1, left=0.04)
+            fig = gs.figure
             fig.savefig(img, format='png')
             plt.close(fig)
             img.seek(0)
@@ -1039,7 +1041,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                 <div style="vertical-align: top;">
                     <h5>Plot</h5>
                     <img src="data:image/png;base64,{b64}" alt="Preview plot"
-                         style="min-width: 200px; max-width: 400px;"/>
+                         style="min-width: 200px; max-width: 800px;"/>
                 </div>
             '''
         else:
@@ -1062,6 +1064,10 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             }}
         </style>
         <div class="partialuniq_flexbox">
+                <div class="partialuniq_flexbox partialuniq_flexbox_vert">
+                    {pd}
+                    {pt_srcs}
+                </div>
                 <div style="vertical-align: top;">
                     <h5>Skymap ({len(self.s)} pixels)</h5>
                     <table>
@@ -1076,10 +1082,6 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                     <table>
                         {meta}
                     </table>
-                </div>
-                <div class="partialuniq_flexbox partialuniq_flexbox_vert">
-                    {pd}
-                    {pt_srcs}
                 </div>
         </div>
         '''

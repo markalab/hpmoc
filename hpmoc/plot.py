@@ -1039,7 +1039,10 @@ def gridplot(
         use for each skymap in ``skymaps``. If multiple projections are
         specified, they will be plotted alongside each other; if this makes the
         figure too wide, change the number of columns in the grid with
-        ``ncols``. You can also pass 
+        ``ncols``. You can also pass a list of lists of axes of the type
+        returned by this function (which you should do while also passing a
+        ``GridSpec`` as ``fig``), allowing you to plot multiple layers of data
+        to the same grid plot.
     scatters : List[Optional[List[PointsTuple]]], optional
         Scatterplots to use, one list for each skymap containing the sets of
         points to plot for that skymap. For any of the skymaps which are
