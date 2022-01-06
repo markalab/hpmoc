@@ -13,6 +13,6 @@ def test_uniq_minimize():
     mo = PartialUniqSkymap.read(DATA/"S191216ap.multiorder.fits",
                                 strategy="ligo")
     m = PartialUniqSkymap.read(DATA/"S191216ap.fits.gz", strategy="ligo")
-    u, s = uniq_minimize(m.u⃗, m.s⃗)
-    assert (mo.u⃗ == u).all()
-    assert ((mo.s⃗ - s)/s).max() < 1e-15
+    u, s = uniq_minimize(m.u, m.s)
+    assert (mo.u == u).all()
+    assert ((mo.s - s)/s).max() < 1e-15
