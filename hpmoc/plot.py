@@ -1215,11 +1215,9 @@ def gridplot(
             raise ValueError(f"{i}-th element of subplot_kwargs {kw} must "
                              f"have same len as skymaps {skymaps} or else be "
                              "omitted.")
-        else:
-            for j in range(len(kw)):
-                kkw = kw[j]
-                kw[j] = kwargs.copy()
-                kw[j].update(kkw)
+        del kw
+        for j in range(nᶜ):
+            subplot_kwargs[i][j].update(kwargs)
 
     # initialize frame classes and projections
     frames = []
@@ -1230,8 +1228,7 @@ def gridplot(
         if isinstance(p, (str, WCS, Header)):
             p = [p]*nᶜ
         for iᶜ, pp in enumerate(p):
-            kw = kwargs.copy()
-            kw.update(subplot_kwargs[iᵖ][iᶜ])
+            kw = subplot_kwargs[iᵖ][iᶜ]
             if isinstance(pp, (str, WCS, Header)):
                 fa.append(get_frame_class(
                     pp, scatter=scatters[iᶜ],

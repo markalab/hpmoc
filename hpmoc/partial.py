@@ -1024,8 +1024,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             if one_pt:
                 projs.append('ARC')
                 widths.append(1)
-            kwargs = dict(projections=projs, bottom=0.1, left=0.04,
-                          missing_color='gray')
+            kwargs = {'projections': projs, 'bottom': 0.1, 'left': 0.04,
+                      'missing_color': 'gray'}
             if 'IPython' in sys.modules:
                 from IPython.utils import io
 
