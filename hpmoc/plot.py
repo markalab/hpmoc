@@ -329,6 +329,16 @@ for docname, (defaults, config) in _PROJ_SETTINGS.items():
     _docs[docname] = _docs[docname].rstrip('\n')
 
 
+def _one_pt(scatter, rot):
+    return len(scatter) == 1 and len(scatter[0].points) == 1 and rot is None
+
+
+def _set_delts(projection, hdelta, vdelta, scatter, sigmas):
+    return (projection in ['ARC', *_PROJ_SETTINGS['zenithal'][1]['ARC'][0]]
+            and hdelta is None and vdelta is None and sigmas
+            and len(scatter[0].points[0]) > 2)
+
+
 def get_frame_class(
         projection: Union[
             str,
@@ -343,6 +353,14 @@ def get_frame_class(
         ] = None,
         vdelta: Optional[float] = None,
         hdelta: Optional[float] = None,
+        rot: Optional[
+            Union[
+                Tuple[float, float, float],
+                Tuple[float, float],
+            ]
+        ] = None,
+        scatter: List[PointsTuple] = tuple(),
+        sigmas: List[float] = (1,),
 ) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
     """
     Get the frame class associated with a given projection. If already given a
@@ -362,6 +380,10 @@ def get_frame_class(
         Manual vdelta override. Give up if set and return ``RectangularFrame``.
     hdelta : float, optional
         Manual hdelta override. Give up if set and return ``RectangularFrame``.
+    rot, scatter, sigmas
+        See the note in ``get_wcs`` on these arguments. If both rotation and
+        window are set for ARC (zenithal equidistant), switch to
+        ``RectangularFrame``.
 
     Returns
     -------
@@ -385,6 +407,9 @@ def get_frame_class(
         }[frame_class.upper()]
     if {vdelta, hdelta} != {None} or not isinstance(projection, str):
         return frame.RectangularFrame
+    if _one_pt(scatter, rot) and _set_delts(projection, hdelta, vdelta,
+                                            scatter, sigmas):
+        return frame.RectangularFrame
     f = _WCS_FRAMES[projection.upper()]
     if f == 'e':
         return frame.EllipticalFrame
@@ -395,9 +420,10 @@ def get_frame_class(
     return frame.RectangularFrame
 
 
-GET_FRAME_CLASS_KWARG_KEYS = ('frame_class', 'vdelta', 'hdelta')
+GET_FRAME_CLASS_KWARG_KEYS = ('frame_class', 'vdelta', 'hdelta', 'rot',
+                              'scatter', 'sigmas')
 GET_WCS_KWARG_KEYS = ('width', 'height', 'hdelta', 'vdelta', 'rot',
-                      'facing_sky')
+                      'facing_sky', 'scatter', 'sigmas')
 
 
 # TODO allow ICRS override
@@ -414,6 +440,8 @@ def get_wcs(
             ]
         ] = None,
         facing_sky: bool = DEFAULT_FACING,
+        scatter: List[PointsTuple] = tuple(),
+        sigmas: List[float] = (1,),
 ) -> 'astropy.wcs.WCS':
     """
     Get a ``WCS`` instance by name to match the given parameters.
@@ -462,6 +490,19 @@ def get_wcs(
     facing_sky: bool
         Whether the projection is outward- or inward-facing. Equivalent to
         reversing the direction of the longitude.
+    scatter : List[PointsTuple]
+        A list of collections of point sources that will be plotted. If only
+        one collection containing one point source is provided and ``rot=None``
+        (the default), then ``rot`` will be set to the location of that single
+        point source.
+    sigmas : List[float]
+        See ``plot`` for meaning. If ``sigmas`` is non-empty; ``rot`` is set by
+        a single point source in ``scatter`` as described above; ``hdelta``
+        and ``vdelta`` are both ``None``; and the ``projection`` is an alias
+        for ARC (zenithal equidistant), then ``hdelta`` and ``vdelta`` will be
+        set so that the returned frame is 1.5x the size of the largest error
+        region plotted in the smallest axis. This provides an easy way to
+        visually emphasize singular points of interest.
 
     Returns
     -------
@@ -487,6 +528,14 @@ def get_wcs(
     header['CDELT2'] *= header['NAXIS2'] / height
     header['NAXIS2'] = height
     header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5
+    # rot set to point location if only one point present
+    if _one_pt(scatter, rot):
+        pt = scatter[0].points[0]
+        rot = tuple(pt[:2])
+        if _set_delts(projection, hdelta, vdelta, scatter, sigmas):
+            sig = 1.5 * max(sigmas) * pt[2]
+            header['CDELT1'] *= sig / 180
+            header['CDELT2'] *= sig / 180
     if rot:
         header['CRVAL1'] = rot[0]
         header['CRVAL2'] = rot[1]
@@ -808,6 +857,9 @@ def plot(
         if isinstance(skymap, np.ndarray):
             skymap = (skymap, None)
         skymap = PartialUniqSkymap(*skymap)
+    ## rot set to point location if only one point present
+    #if len(scatter) == 1 and len(scatter[0].points) == 1 and rot is None:
+    #    rot = tuple(scatter[0].points[0][:2])
 
     # initialize our axes if needed
     if ax is None:
@@ -815,11 +867,13 @@ def plot(
         if not isinstance(fig, Figure):
             fig = plt.figure(**(fig or {}))
         # initialize frame class
-        frame_class = get_frame_class(projection, frame_class, vdelta, hdelta)
+        frame_class = get_frame_class(projection, frame_class, vdelta, hdelta,
+                                      rot, scatter, sigmas)
         # initialize projection
         projection = get_projection(projection, width=width, height=height,
                                     hdelta=hdelta, vdelta=vdelta, rot=rot,
-                                    facing_sky=facing_sky)
+                                    facing_sky=facing_sky, scatter=scatter,
+                                    sigmas=sigmas)
         # initialize axes
         if subplot is None:
             ax = WCSAxes(fig, rect=[0.1, 0.1, 0.9, 0.9], wcs=projection,
@@ -998,7 +1052,7 @@ def gridplot(
                 ],
             ]
         ]= ('MOL',),
-        scatters: Optional[List[Optional[List[PointsTuple]]]] = None,
+        scatters: Optional[List[List[PointsTuple]]] = None,
         # fig args
         subplot_height: float = DEFAULT_GRID_ROW_HEIGHT,
         # fig.add_gridspec args
@@ -1043,7 +1097,7 @@ def gridplot(
         returned by this function (which you should do while also passing a
         ``GridSpec`` as ``fig``), allowing you to plot multiple layers of data
         to the same grid plot.
-    scatters : List[Optional[List[PointsTuple]]], optional
+    scatters : List[List[PointsTuple]], optional
         Scatterplots to use, one list for each skymap containing the sets of
         points to plot for that skymap. For any of the skymaps which are
         ``PartialUniqSkymap`` instances, you can default to plotting that
@@ -1136,7 +1190,7 @@ def gridplot(
         nrows = gs.nrows
         if nrows * nʳ < nˢ:
             raise ValueError(f"Not enough rows {nrows} for {nˢ} subplots.")
-    scatters = scatters or [[]]*nᶜ
+    scatters = scatters or [s.point_sources for s in skymaps]
     subplot_kwargs = subplot_kwargs or [None]*nᵖ
     try:
         if len(wshrink) != nᵖ:
@@ -1156,7 +1210,7 @@ def gridplot(
     for i in range(len(subplot_kwargs)):
         kw = subplot_kwargs[i]
         if kw is None:
-            subplot_kwargs[i] = [kwargs]*nᶜ
+            subplot_kwargs[i] = [{}]*nᶜ
         elif len(kw) != nᶜ:
             raise ValueError(f"{i}-th element of subplot_kwargs {kw} must "
                              f"have same len as skymaps {skymaps} or else be "
@@ -1168,9 +1222,6 @@ def gridplot(
                 kw[j].update(kkw)
 
     # initialize frame classes and projections
-    frame_kwargs = {k: v for k, v in kwargs.items()
-                    if k in GET_FRAME_CLASS_KWARG_KEYS}
-    proj_kwargs = {k: v for k, v in kwargs.items() if k in GET_WCS_KWARG_KEYS}
     frames = []
     for iᵖ in range(len(projections)):
         p = projections[iᵖ]
@@ -1183,12 +1234,12 @@ def gridplot(
             kw.update(subplot_kwargs[iᵖ][iᶜ])
             if isinstance(pp, (str, WCS, Header)):
                 fa.append(get_frame_class(
-                    pp,
+                    pp, scatter=scatters[iᶜ],
                     **{k: v for k, v in kw.items()
                        if k in GET_FRAME_CLASS_KWARG_KEYS}
                 ))
                 pa.append(get_projection(
-                    pp,
+                    pp, scatter=scatters[iᶜ],
                     **{k: v for k, v in kw.items()
                        if k in GET_WCS_KWARG_KEYS}
                 ))

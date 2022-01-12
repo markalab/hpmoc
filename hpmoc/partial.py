@@ -52,7 +52,7 @@ from .utils import (
     interp_wcs,
 )
 from .abstract import AbstractPartialUniqSkymap
-from .plot import plot, gridplot
+from .plot import plot, gridplot, _one_pt
 from .plotters import (
     multiplot,
 )
@@ -1018,19 +1018,24 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             import matplotlib.pyplot as plt
 
             img = BytesIO()
-            projs = ['cartview']
+            projs = ['CEA']
             widths = [2]
-            if len(pts) == 1 and len(pts[0][0]) == 1:
-                projs.append('gnomview')
+            one_pt = _one_pt(pts, None)
+            if one_pt:
+                projs.append('ARC')
                 widths.append(1)
+            kwargs = dict(projections=projs, bottom=0.1, left=0.04,
+                          missing_color='gray')
             if 'IPython' in sys.modules:
                 from IPython.utils import io
 
                 with io.capture_output():
-                    gs, _ = self.gridplot(projections=projs, bottom=0.1,
-                                          left=0.04)
+                    gs, [[ax], *_] = self.gridplot(**kwargs)
             else:
-                gs, _ = self.gridplot(projections=projs, bottom=0.1, left=0.04)
+                gs, [[ax], *_] = self.gridplot(**kwargs)
+            if one_pt:
+                for co in ax.coords:
+                    co.set_ticklabel_visible(False)
             fig = gs.figure
             fig.savefig(img, format='png')
             plt.close(fig)
@@ -1045,7 +1050,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                 </div>
             '''
         else:
-            pd = ''
+            pd = '''
+                <div>
+                    <em>Import matplotlib to display plot preview.</em>
+                </div>
+            '''
 
         tab = f'''
         <style>

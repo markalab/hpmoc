@@ -8,6 +8,7 @@ from .abstract import IoStrategy
 from .astroquery import AstroqueryIo
 from .gracedb import GracedbIo
 from .ligo import LigoIo
+from ..points import PointsTuple
 from ..partial import PartialUniqSkymap
 from ..utils import uniq2order, read_partial_skymap
 
