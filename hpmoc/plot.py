@@ -956,7 +956,8 @@ def plot(
     for pts in scatter:
         cm = pts.cmap()
         for sigma in sigmas:
-            ax.imshow(pts.render(projection, sigma), vmin=0, vmax=1, cmap=cm)
+            ax.imshow(pts.render(projection, extent=sigma), vmin=0, vmax=1,
+                      cmap=cm)
     for pts in scatter:
         # only include points in the visible region
         pts_x, pts_y = ax.wcs.world_to_pixel(SkyCoord(
@@ -1145,8 +1146,15 @@ def gridplot(
 
     Returns
     -------
-    fig : matplotlib.figure.Figure
-        A new ``matplotlib`` figure containing the specified subplots.
+    gs : matplotlib.gridspec.GridSpec
+        The ``GridSpec`` defining the shape of the subplots. Access the plotted
+        figure as ``gs.figure``. Reuse this layout by passing ``gs`` to another
+        invocation of ``gridplot``.
+    axs : List[List['astropy.visualization.wcsaxes.WCSAxes']]
+        The axes which were plotted. The first index (outer list) corresponds
+        to the projection used, and the second index (inner lists) correspond
+        to the skymap. Reuse the axes and projections by passing
+        ``projections=axs`` to another invocation of ``gridplot``.
 
     Raises
     ------
