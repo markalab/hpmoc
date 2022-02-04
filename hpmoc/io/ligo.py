@@ -48,7 +48,7 @@ class LigoIo(IoStrategy):
         if mask is not None:
             mask = mask.u if isinstance(mask, PartialUniqSkymap) else mask
             mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
-            mask = uniq_minimize(mask)
+            mask, = uniq_minimize(mask)
         [[u, s, meta]] = load_ligo(file, mask=mask, **kwargs)
         return PartialUniqSkymap(s, u, name=name, meta=meta, point_sources=pt)
 

@@ -232,14 +232,18 @@ def load_ligo(
                 yield tab
         return
     if mask is not None:
-        mask = uniq_minimize(mask)
+        mask, = uniq_minimize(mask)
     if maps is None:
         tables = -1
     elif isinstance(maps, int):
         maps = None
         tables = maps
     else:
-        maps = [*maps]
+        maps = np.array([*maps])
+        umaps = np.unique(maps)
+        if len(umaps) != len(maps) or (umaps != maps).any():
+            raise ValueError("Must provide a unique sorted list of `maps`.")
+        del umaps
         tables = max(maps)
     # read the first HDU, which will be empty for a BINTABLE extension
     # fits file
@@ -259,7 +263,7 @@ def load_ligo(
             if maps is None or i in maps:
                 u, s = chunk_processor(u, s)
                 if mask is not None:
-                    ui = uniq_intersection(u, mask)[0]
+                    ui = np.unique(uniq_intersection(u, mask)[0])
                 # TODO apply max_nside here
                 us.append(u[ui] if mask is not None else u)
                 ss.append(s[ui] if mask is not None else s)

@@ -210,12 +210,12 @@ class PointsTuple(NamedTuple):
         """
         unique = []
         for p, r, m, l in pts:
-            pt = cls(p, Rgba(*r), m, l)
+            pt = cls([*p], Rgba(*r), m, l)
             if pt not in unique:
                 unique.append(pt)
         return unique
 
-    def render(self, u⃗ᵒ, pad=0., extent=1.):
+    def render(self, u⃗ᵒ, extent=1.):
         """
         Similar to ``hpmoc.PartialUniqSkymap.render``, but for support disks
         specified by the input points' sigma parameters. Will raise
