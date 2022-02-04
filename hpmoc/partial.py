@@ -303,6 +303,14 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                                      **kwargs)
         return o
 
+    def copy(self):
+        """
+        Return a copy of this instance with separate copies of its data. The
+        copy can be edited without affecting the original.
+        """
+        return self.__class__(self.s, self.u, copy=True, name=self.name,
+                              point_sources=self.point_sources, meta=self.meta)
+
     def astype(self, dtype, copy=True, **kwargs):
         """
         Return a new ``PartialUniqSkymap`` with the data-type of ``s`` set to
@@ -351,7 +359,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             If provided, store ``s`` as this type. Defaults to ``s.dtype``.
         utype : type, optional
             If provided, store ``u`` as this type. Defaults to the smallest
-            ``np.int`` type required to store all values of ``u``.
+            ``int`` type required to store all values of ``u``.
         kwargs
             Keyword arguments to pass to ``hpmoc.utils.uniq_minimize``.
 
@@ -399,6 +407,38 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         s = self.s.value if isinstance(self.s, Quantity) else self.s
         return PartialUniqSkymap(s, self.u, copy=False, name=self.name,
                                  meta=self.meta,
+                                 point_sources=self.point_sources)
+
+    def apply(
+            self,
+            func: Callable,
+            copy: bool = True,
+            quantity: bool = True
+    ) -> '__class__':
+        """
+        Map a function to this skymap's pixels and return a new skymap whose
+        values are the returned values of ``func``. Note that ``func(self.s)``
+        must therefore return values corresponding to the same pixels as the
+        input skymap. Use this to, for example, get the logarithm of this
+        skymap as ``self.apply(np.log)``. If ``copy == True``, make a copy of
+        the NUNIQ indices ``self.u``; otherwise, share them with the new
+        skymap. To operate directly on the skymap value (even if it is stored
+        as an ``astropy.units.Quantity``), use ``quantity = True``. Note that
+        this will strip units from the result.
+        """
+        from astropy.units import Quantity as Q
+
+        m = self.meta.copy()
+        mod = getattr(func, '__module__',
+                      getattr(type(func), '__module__',
+                              sys._getframe(-1).f_locals.get('__name__')))
+        mod = '' if mod is None else mod + '.'
+        m['HISTORY'] = (m.get('HISTORY', []) +
+                        [f'Applied {mod}{func.__name__}'])
+        n = f"{func.__name__}({self.name})"
+        s = self.s.value if isinstance(self.s, Q) and not quantity else self.s
+        return PartialUniqSkymap(func(s), self.u.copy() if copy else self.u,
+                                 copy=False, name=n, meta=m,
                                  point_sources=self.point_sources)
 
     def to_table(self, name=None, uname='UNIQ'):
