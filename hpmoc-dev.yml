@@ -4,7 +4,7 @@ channels:
   - numba
   - intel
 dependencies:
-  - python=3.7
+  - python=3.10
   # base
   - deprecated
   - numpy
@@ -12,7 +12,7 @@ dependencies:
   - healpy
   - astropy
   - astropy-healpix
-  - reproject
+    #- reproject
   # jup
   - jupyter
   - ipython
@@ -27,17 +27,17 @@ dependencies:
   - h5py
   - pyyaml
   # dev
-  - pillow
-  - numba
+  #- pillow
+  #- numba
   - flit
   - pip
-  - black
+  #- black
   - sphinx
   - sphinx_rtd_theme
   - nbsphinx
   # acceleration
-  - icc_rt  # -c numba
-  - intelpython3_full  # -c intel
+  #- icc_rt  # -c numba
+  #- intelpython3_full  # -c intel
   # pip
   - pip:
     - nptyping
