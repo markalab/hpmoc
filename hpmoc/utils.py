@@ -568,6 +568,57 @@ def uniq2nest_and_nside(indices, in_place=False):
     return indices, nside
 
 
+def uniq_sample(uniq, skymap, quantiles):
+    """
+    Do a probability-weighted random sample of locations in a skymap based on
+    quantile. Follows *ascending* density order, just like
+    ``nside_quantile_indices``.
+
+    Parameters
+    ----------
+    uniq : array-like
+        NUNIQ indices of the skymap to be sampled.
+    skymap : array-like
+        Probability density at each of the pixels in ``uniq``.
+    quantiles : array-like
+        Values in the interval ``[0, 1]`` specifying which quantile to select
+        from the skymap. For example, ``[0.5, 0.9]`` will select locations from
+        within the pixels for which the integral of all
+        higher-probability-density regions are 0.5 and 0.1, respectively.
+
+    Returns
+    -------
+    locations : array
+        Max-resolution (order = 30) NUNIQ indices drawn from the PDF defined by
+        ``uniq`` and ``skymap`` at the specified ``quantiles`` assuming that
+        each pixel in ``skymap`` has a uniform PDF within its borders. The
+        difference between successive values in the density-ordered CDF of
+        ``skymap`` will be used to select subpixels in NEST ordering from the
+        pixel in ``uniq`` with the greatest CDF value lower than the
+        corresponding quantile, allowing for reproducible results. The returned
+        values have the same order as the input ``quantiles``. You can use
+        ``healpy.pix2ang(*uniq2nest_and_nside(locations)[::-1], nest=True)`` to
+        recover the angles corresponding to the recovered locations.
+
+    See Also
+    --------
+    nside_quantile_indices
+    uniq2nest_and_nside
+    healpy.pix2ang
+    """
+    import numpy as np
+
+    orders = uniq2order(uniq)
+    nside = hp.order2nside(orders)
+    [inds], levels, norm = nside_quantile_indices(nside, skymap, [0, 1])
+    cdf = hp.nside2pixarea(nside[inds])
+    cdf *= skymap[inds]
+    np.cumsum(cdf, out=cdf)
+    rough_loc = cdf.searchsorted(quantiles)
+    i_loc = rough_loc.argsort()
+    # TODO finish
+
+
 def nside_quantile_indices(nside, skymap, quantiles):
     """
     Get the indices and cumulative values of pixels falling between the given
@@ -718,7 +769,8 @@ def nside_quantile_indices(nside, skymap, quantiles):
     j = r.searchsorted(q)
     l = j.copy()
     l[l >= len(i)] = len(i) - 1
-    return (i[l:u] for l, u in zip(j[:-1], j[1:])), skymap[i[l]], norm*np.pi/3
+    return ((i[ll:u] for ll, u in zip(j[:-1], j[1:])), skymap[i[l]],
+            norm*np.pi/3)
 
 
 def uniq_intersection(u⃗1, u⃗2):
