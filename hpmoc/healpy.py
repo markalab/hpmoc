@@ -8,6 +8,7 @@ from .healpy_utils import alt_compress, alt_expand
 
 
 _ANG2VEC_TRANSPOSED = [None]
+_BOUNDARIES_SCALARIZED = [None]
 EXCEPTIONS = {}
 
 
@@ -106,15 +107,41 @@ def ang2vec(theta, phi, lonlat=False):
     from astropy_healpix.healpy import ang2vec
 
     # test behavior and set default in case they fix this in the future
-    if _ANG2VEC_TRANSPOSED[0] == None:
+    if _ANG2VEC_TRANSPOSED[0] is None:
         transposed = ang2vec([1, 2], [3, 4], lonlat=False).shape == (3, 2)
         _ANG2VEC_TRANSPOSED[0] = transposed
     ans = ang2vec(theta, phi, lonlat=lonlat)
     return ans.T if _ANG2VEC_TRANSPOSED[0] else ans
 
 
+def boundaries(nside, pix, step=1, nest=False):
+    """
+    A drop-in replacement for ``healpy.boundaries`` that preserves the shape of
+    the returned result. ``astropy_healpix.healpy.boundaries`` will return a
+    shape of ``(3, 4)`` when given a length-1 vector of pixel indices, whereas
+    the original will return a shape of ``(n, 3, 4)`` where ``n`` is the length
+    of the input list, even in the case when ``n=1``. This function conforms to
+    the ``healpy.boundaries`` behavior.
+
+    See Also
+    --------
+    healpy.boundaries
+    astropy_healpix.healpy.boundaries
+    """
+    from astropy_healpix.healpy import boundaries
+
+    # test behavior and set default in case they fix this in the future
+    if _BOUNDARIES_SCALARIZED[0] is None:
+        shape = boundaries(1, [0]).shape
+        _BOUNDARIES_SCALARIZED[0] = shape != (1, 3, 4)
+        assert shape in ((1, 3, 4), (3, 4)), "Unexpected shape"
+    ans = boundaries(nside, pix, step=step, nest=nest)
+    return ans.reshape((-1, 3, 4)) if _BOUNDARIES_SCALARIZED[0] else ans
+
+
 if ACTUAL_HP == 'astropy_healpix.healpy':
     EXCEPTIONS['ang2vec'] = ang2vec
+    EXCEPTIONS['boundaries'] = boundaries
 
 
 HP_DEFAULTS = {

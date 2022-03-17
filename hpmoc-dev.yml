@@ -12,6 +12,7 @@ dependencies:
   - healpy
   - astropy
   - astropy-healpix
+  - pandas
     #- reproject
   # jup
   - jupyter

@@ -549,7 +549,7 @@ def uniq2nest_and_nside(indices, in_place=False):
     >>> import numpy as np
     >>> from pprint import pprint
     >>> nuniq = np.array([540, 542, 543, 266, 264, 258, 535, 534, 541])
-    >>> pprint([u.astype(np.int) for u in uniq2nest_and_nside(nuniq)])
+    >>> pprint([u.astype(int) for u in uniq2nest_and_nside(nuniq)])
     [array([284, 286, 287,  10,   8,   2, 279, 278, 285]),
      array([8, 8, 8, 8, 8, 8, 8, 8, 8])]
 
@@ -696,7 +696,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
     >>> import numpy as np
     >>> skymap = np.array([ 9, 10, 11,  0,  1,  2,  3,  4,  5,  6,  7,  8])
     >>> i, levels, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
-    >>> [ii.astype(np.int) for ii in i]
+    >>> [ii.astype(int) for ii in i]
     [array([ 7,  8,  9, 10, 11,  0,  1])]
 
     The levels will be the values of the array at the 0.1 and 0.9 quantiles
@@ -716,7 +716,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
 
     >>> nside = np.array(6*[1]+6*[64])
     >>> [*nside_quantile_indices(nside, skymap, [0.1, 0.9])[0]
-    ...  ][0].astype(np.int)
+    ...  ][0].astype(int)
     array([0, 1])
 
     Equal lower and upper bounds give empty quantiles:
@@ -727,12 +727,12 @@ def nside_quantile_indices(nside, skymap, quantiles):
 
     Recover all indices (sorted by density):
 
-    >>> [*nside_quantile_indices(nside, skymap, [0, 1])[0]][0].astype(np.int)
+    >>> [*nside_quantile_indices(nside, skymap, [0, 1])[0]][0].astype(int)
     array([ 3,  4,  5,  6,  7,  8,  9, 10, 11,  0,  1,  2])
 
     Pick the 90% CR:
 
-    >>> [*nside_quantile_indices(nside, skymap, [0.1, 1])[0]][0].astype(np.int)
+    >>> [*nside_quantile_indices(nside, skymap, [0.1, 1])[0]][0].astype(int)
     array([0, 1, 2])
 
     Get the four top 20% quantiles:
@@ -829,7 +829,7 @@ def uniq_intersection(u⃗1, u⃗2):
     1 of ``u⃗1``; and correspondence between index 2 of ``u⃗1`` and
     index 2 of ``u⃗2``:
 
-    >>> pprint(tuple(a.astype(np.int) for a in uniq_intersection(u⃗1, u⃗2)),
+    >>> pprint(tuple(a.astype(int) for a in uniq_intersection(u⃗1, u⃗2)),
     ...        width=60)
     (array([4, 3, 0, 0, 1]),
      array([4, 3, 0, 1, 2]),
@@ -980,26 +980,26 @@ def uniq2nest(u⃗, nˢ, nest=True):
 
     >>> import numpy as np
     >>> u⃗ = np.array([1024, 4100, 1027, 1026, 44096])
-    >>> uniq2nest(u⃗, 32).astype(np.int)
+    >>> uniq2nest(u⃗, 32).astype(int)
     array([   0,    1,    2,    3,    4,    8,    9,   10,   11,   12,   13,
              14,   15, 6928])
 
     Same pixel indices, but keep them in NUNIQ format:
 
-    >>> uniq2nest(u⃗, 32, nest=False).astype(np.int)
+    >>> uniq2nest(u⃗, 32, nest=False).astype(int)
     array([ 4096,  4097,  4098,  4099,  4100,  4104,  4105,  4106,  4107,
             4108,  4109,  4110,  4111, 11024])
 
     Coarsen the pixels to NSIDE=16:
 
-    >>> uniq2nest(u⃗, 16).astype(np.int)
+    >>> uniq2nest(u⃗, 16).astype(int)
     array([   0,    1,    2,    3, 1732])
-    >>> uniq2nest(u⃗, 16, False).astype(np.int)
+    >>> uniq2nest(u⃗, 16, False).astype(int)
     array([1024, 1025, 1026, 1027, 2756])
 
     Increase resolution of all pixels to NSIDE=64:
 
-    >>> uniq2nest(u⃗, 64).astype(np.int)
+    >>> uniq2nest(u⃗, 64).astype(int)
     array([    0,     1,     2,     3,     4,     5,     6,     7,     8,
                9,    10,    11,    12,    13,    14,    15,    16,    17,
               18,    19,    32,    33,    34,    35,    36,    37,    38,
@@ -2233,7 +2233,7 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
     >>> u⃗1 = np.array([1024, 4100, 1027, 263168, 263169, 1026, 44096])
     >>> u⃗2 = np.array([4096, 4097, 1025, 16842752, 1026, 11024])
     >>> us, s, o, l, v, ius = nside_slices(u⃗1, u⃗2, return_index=True)
-    >>> pprint([uu.astype(np.int) for uu in us])
+    >>> pprint([uu.astype(int) for uu in us])
     [array([  1024,   1026,   1027,   4100,  44096, 263168, 263169]),
      array([    1025,     1026,     4096,     4097,    11024, 16842752])]
     >>> pprint(s)
@@ -2247,9 +2247,9 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
       slice(5, 5, None),
       slice(5, 5, None),
       slice(5, 6, None)]]
-    >>> o.astype(np.int)
+    >>> o.astype(int)
     array([ 4,  5,  6,  8, 11])
-    >>> [ll.astype(np.int) for ll in l]
+    >>> [ll.astype(int) for ll in l]
     [array([3, 1, 1, 2, 0]), array([2, 3, 0, 0, 1])]
     >>> for vv in v[0]:
     ...     print(vv)
@@ -2265,7 +2265,7 @@ def nside_slices(*u⃗, include_empty=False, return_index=False,
     []
     []
     [16842752]
-    >>> [ii.astype(np.int) for ii in ius]
+    >>> [ii.astype(int) for ii in ius]
     [array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])]
     """
     return group_slices(*u⃗, f=uniq2order,

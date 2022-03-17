@@ -9,21 +9,22 @@ dependencies:
   - matplotlib
   - astropy
   - astropy-healpix
-  - reproject
+  - pandas
+  # - reproject
   # jup
   - jupyter
   - ipython
   # astroquery
   - astroquery
   # gracedb
-  - ligo-gracedb
+  # - ligo-gracedb
   # test
   - pytest
   - pytest-cov
   - h5py
   - pyyaml
   # dev
-  - pillow
+  # - pillow
   - sphinx
   - sphinx_rtd_theme
   - nbsphinx

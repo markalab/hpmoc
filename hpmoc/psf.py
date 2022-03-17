@@ -12,7 +12,8 @@ from .points import PointsTuple
 from .healpy import healpy as hp
 
 
-def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None, **kwargs):
+def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None,
+                 nside_factor=1, **kwargs):
     """
     Create a new Gaussian point-spread-function (PSF) ``PartialUniqSkymap``
     from the right-ascension ``ra``, declination ``dec``, and standard
@@ -34,7 +35,12 @@ def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None, **kwargs):
     pt_label : str, optional
         A string label for this point when plotting (e.g. the event ID).
     nside : int, optional
-        NSIDE to use. If not specified, calculated automatically.
+        NSIDE to use. If not specified, calculated automatically using
+        ``nside_factor``.
+    nside_factor : float, optional
+        If ``nside`` is not provided, calculate the NSIDE value giving pixel
+        widths smaller than ``σ * nside_factor``. In other words, set the
+        resolution in units of ``σ``.
     **kwargs
         Keyword arguments to pass to ``PointsTuple``.
     """
@@ -45,7 +51,7 @@ def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None, **kwargs):
     Ω = [θ.to(deg) if isinstance(θ, Qnt) else θ*deg for θ in (ra, dec, σ)]
     ra, dec, σ = Ω                              # store with dimensions
 
-    nˢ = nside or resol2nside(σ/5)              # target NSIDE resolution
+    nˢ = nside or resol2nside(σ * nside_factor) # target NSIDE resolution
     n⃗ = hp.query_disc(nˢ, hp.ang2vec(ra.value, dec.value, True),
                       cutoff*σ.to('rad').value, nest=True)
     inv2σsq = σ.to('rad')**-2/2                 # 1/2σ² factor
