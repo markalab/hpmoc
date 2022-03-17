@@ -870,7 +870,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         equal to 90 plus the declination:
 
         >>> not np.around(skymap.ang_dist(359, -90)-dec-90*deg,
-        ...               15).value.any()
+        ...               14).value.any()
         True
         """
         return uniq2dangle(self.u, ra, dec, degrees=degrees)
