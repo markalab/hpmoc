@@ -37,4 +37,4 @@ dependencies:
   #- intelpython3_full  # -c intel
   # pip
   - pip:
-    - nptyping=0.1.*
+    - nptyping=1.4.4
