@@ -57,7 +57,7 @@ ghup:
 	cp -R docs/build/html "$(TMP)"
 	touch "$(TMP)"/html/.nojekyll
 	echo hpmoc.stc.sh >"$(TMP)"/html/CNAME
-	git -C "$(TMP)"/html/ init
+	git -C "$(TMP)"/html/ init -b master
 	git -C "$(TMP)"/html/ add .
 	git -C "$(TMP)"/html/ commit -m 'docs'
 	git -C "$(TMP)"/html/ remote add origin git@github.com:stefco/hpmoc.stc.sh.git
