@@ -7,7 +7,14 @@ module = "hpmoc"
 author = "Stefan Trklja Countryman"
 author-email = "stefan.countryman@gmail.com"
 home-page = "https://bitbucket.org/stefancountryman/hpmoc"
-requires = ["deprecated", "numpy", "matplotlib", "astropy", "astropy-healpix"]
+requires = [
+    "deprecated",
+    "numpy",
+    "matplotlib",
+    "astropy",
+    "nptyping ==1.4.4",
+    "astropy-healpix"
+]
 requires-python = ">=3.6"
 
 [tool.flit.metadata.requires-extra]
@@ -15,7 +22,6 @@ jup = ["jupyter", "ipython"]
 test = ["pytest", "pytest-cov", "h5py", "PyYAML"]
 dev = [
     "flit",
-    "nptyping ==1.4.4",
     "sphinx",
     "sphinx_rtd_theme",
     "nbsphinx",

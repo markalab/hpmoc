@@ -50,9 +50,7 @@ With pip
 ~~~~~~~~
 
 If you just want to use ``hpmoc`` and don't need to modify the source code, you
-can install the `last released version`_ using pip:
-
-.. _`last released version`: https://bitbucket.org/stefancountryman/hpmoc/downloads/hpmoc-latest-py3-none-any.whl
+can install the last released version (link in source repo README) using pip:
 
 .. code:: bash
 
