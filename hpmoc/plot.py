@@ -611,6 +611,8 @@ def plot(
             ],
         ],
         *scatter: PointsTuple,
+        scatter_marker_size: float = BASE_FONT_SIZE*4,
+        scatter_label_size: float = BASE_FONT_SIZE,
         vmin: Optional[float] = None,
         vmax: Optional[float] = None,
         cmap: Optional[
@@ -680,6 +682,10 @@ def plot(
         Point-sources to plot as a scatter-map, with disks showing their error
         regions. Provide multiple (ideally with different colors) to plot many
         populations at once.
+    scatter_marker_size: float, optional
+        Point-source marker font size.
+    scatter_label_size: float, optional
+        Point-source label font size.
     vmin: float, optional
         The smallest value in the color map used to plot ``skymap``. Set
         ``None`` to have it calculated automatically.
@@ -967,7 +973,7 @@ def plot(
         include &= (pts_y < ax.wcs.pixel_shape[1]+.5) & (pts_y > .5)
         col = pts.rgba.to_hex(False)
         ax.scatter(pts_x[include], pts_y[include], c=col, marker=pts.marker,
-                   s=BASE_FONT_SIZE*2, label=pts.label)
+                   s=scatter_marker_size, label=pts.label, path_effects=outline)
         if scatter_labels:
             for i, (r, d, *sl) in enumerate(pts.points):
                 if not include[i]:
@@ -977,7 +983,7 @@ def plot(
                 else:
                     pt_label = str(i+1)
                 kw = {
-                    'fontsize': BASE_FONT_SIZE,
+                    'fontsize': scatter_label_size,
                     'path_effects': outline,
                     'color': col,
                     'va': 'bottom',

@@ -78,7 +78,7 @@ class PointsTuple(NamedTuple):
     A collection of points for scatterplots.
     """
     points: List[Tuple[float, float, Optional[float], Optional[str]]]
-    rgba: Rgba = Rgba(0, 1, 0, 0.2)
+    rgba: Rgba = Rgba.from_hex('#0F7F12')
     marker: str = 'x'
     label: str = None
 
