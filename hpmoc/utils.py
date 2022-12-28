@@ -22,7 +22,7 @@ import logging
 import gzip
 from tempfile import NamedTemporaryFile
 import binascii
-from nptyping import NDArray
+from nptyping import NDArray, Int, Float
 from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
 
@@ -1153,11 +1153,11 @@ def wcs2nest(wcs, nside=None, order_delta=None):
     -------
     nside : int
         The NSIDE of the output indices.
-    nest : NDArray[(Any,), int]
+    nest : NDArray[Any, Int]
         The HEALPix NEST indices.
-    x : NDArray[(Any,), float]
+    x : NDArray[Any, Float]
         The pixel-space x-coordinates of the points in ``nest``.
-    y : NDArray[(Any,), float]
+    y : NDArray[Any, Float]
         The pixel-space y-coordinates of the points in ``nest``.
     """
     import numpy as np
@@ -1256,8 +1256,8 @@ def wcs2mask_and_uniq(wcs):
 
 def interp_wcs_nn(
         wcs: 'astropy.wcs.WCS',
-        data: NDArray[(Any,), Any],
-) -> Tuple[NDArray[(Any,), int], NDArray[(Any,), float]]:
+        data: NDArray[Any, Any],
+) -> Tuple[NDArray[Any, Int], NDArray[Any, Float]]:
     """
     Do a nearest-neighbor interpolation of ``data`` with coordinates
     specified by ``wcs`` FITS world coordinate system.
@@ -1296,7 +1296,7 @@ def interp_wcs_nn(
 
 def interp_wcs(
         wcs: 'astropy.wcs.WCS',
-        data: NDArray[(Any,), Any],
+        data: NDArray[Any, Any],
         interp: Optional[
             Union[
                 str,
@@ -1304,16 +1304,16 @@ def interp_wcs(
                     int,
                     Callable[
                         [
-                            NDArray[(Any,), float],
-                            NDArray[(Any,), float],
-                            NDArray[(Any,), Any]
+                            NDArray[Any, Float],
+                            NDArray[Any, Float],
+                            NDArray[Any, Any]
                         ],
-                    NDArray[(Any,), Any]
+                    NDArray[Any, Any]
                     ]
                 ],
             ]
         ] = 'nearest'
-) -> Tuple[NDArray[(Any,), int], NDArray[(Any,), float]]:
+) -> Tuple[NDArray[Any, Int], NDArray[Any, Float]]:
     """
     Interpolate ``data`` with coordinates specified by ``wcs`` FITS
     world coordinate system into a HEALPix NUNIQ skymap.

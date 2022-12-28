@@ -27,7 +27,7 @@ from typing import (
     Any,
 )
 from deprecated import deprecated
-from nptyping import NDArray
+from nptyping import NDArray, Int
 from .utils import (
     uniq_coarsen,
     max_uint_type,
@@ -166,8 +166,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     missing values with a second index argument). You can also use index
     notation to set pixel values at the specified NUNIQ index locations.
     """
-    s: Union[NDArray[(Any,), Any], 'astropy.units.Quantity']
-    u: NDArray[(Any,), int]
+    s: Union[NDArray[Any, Any], 'astropy.units.Quantity']
+    u: NDArray[Any, Int]
     point_sources: List['hpmoc.points.PointsTuple']
 
     def __init__(self, s, u, copy=False, name=None, point_sources=None,
@@ -956,12 +956,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             self,
             *skymaps: Union[
                 'hpmoc.PartialUniqSkymap',
-                NDArray[(Any,), Any],
+                NDArray[Any, Any],
                 Tuple[
-                    NDArray[(Any,), Any],
+                    NDArray[Any, Any],
                     Optional[
                         Union[
-                            NDArray[(Any,), int],
+                            NDArray[Any, Int],
                             'astropy.wcs.WCS',
                             str,
                         ]

@@ -12,7 +12,7 @@ requires = [
     "numpy",
     "matplotlib",
     "astropy",
-    "nptyping ==1.4.4",
+    "nptyping~=2.4.1",
     "astropy-healpix"
 ]
 requires-python = ">=3.6"

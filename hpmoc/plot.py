@@ -201,7 +201,7 @@ from functools import partial
 from warnings import warn
 from typing import Optional, Union, Tuple, Iterable, Callable, Any, List
 from textwrap import indent, wrap
-from nptyping import NDArray
+from nptyping import NDArray, Int
 from .healpy import healpy as hp
 from .utils import (
     outline_effect,
@@ -598,12 +598,12 @@ def get_projection(projection, *args, **kwargs):
 def plot(
         skymap: Union[
             'hpmoc.PartialUniqSkymap',
-            NDArray[(Any,), Any],
+            NDArray[Any, Any],
             Tuple[
-                NDArray[(Any,), Any],
+                NDArray[Any, Any],
                 Optional[
                     Union[
-                        NDArray[(Any,), int],
+                        NDArray[Any, Int],
                         'astropy.wcs.WCS',
                         str,
                     ]
@@ -1025,12 +1025,12 @@ def plot(
 def gridplot(
         *skymaps: Union[
             'hpmoc.PartialUniqSkymap',
-            NDArray[(Any,), Any],
+            NDArray[Any, Any],
             Tuple[
-                NDArray[(Any,), Any],
+                NDArray[Any, Any],
                 Optional[
                     Union[
-                        NDArray[(Any,), int],
+                        NDArray[Any, Int],
                         'astropy.wcs.WCS',
                         str,
                     ]

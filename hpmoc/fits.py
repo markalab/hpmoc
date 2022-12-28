@@ -21,7 +21,7 @@ from typing import (
     Optional,
     Iterable,
 )
-from nptyping import NDArray
+from nptyping import NDArray, Int
 from .healpy import healpy as hp
 from .utils import (
     set_partial_skymap_metadata,
@@ -136,9 +136,9 @@ def read_bintable_chunks(
         tables: int = -1,
         buf_rows: int = BUFFER_ROWS,
         extractor: Callable[
-            ['astropy.io.fits.BinTableHDU', NDArray[(Any,), Any], int],
+            ['astropy.io.fits.BinTableHDU', NDArray[Any, Any], int],
             Tuple[
-                NDArray[(Any,), int],
+                NDArray[Any, Int],
                 List['astropy.units.Quantity'],
             ]
         ] = extract_probdensity,
@@ -155,7 +155,7 @@ def read_bintable_chunks(
             'astropy.io.fits.BinTableHDU',
             Iterator[
                 Tuple[
-                    NDArray[(Any,), Any],
+                    NDArray[Any, Any],
                     List['astropy.units.Quantity'],
                 ]
             ],
@@ -194,12 +194,12 @@ def read_bintable_chunks(
 
 def load_ligo(
         infile: Union[IO, str, Path],
-        mask: Optional[NDArray[(Any,), int]] = None,
+        mask: Optional[NDArray[Any, Int]] = None,
         maps: Optional[Union[int, Iterable[int]]] = None,
         extractor: Callable[
-            ['astropy.io.fits.BinTableHDU', NDArray[(Any,), Any], int],
+            ['astropy.io.fits.BinTableHDU', NDArray[Any, Any], int],
             Tuple[
-                NDArray[(Any,), int],
+                NDArray[Any, Int],
                 List['astropy.units.Quantity'],
             ]
         ] = extract_probdensity,
@@ -212,16 +212,16 @@ def load_ligo(
             int
         ] = calculate_max_rows_read,
         chunk_processor: Callable[
-            [NDArray[(Any,), int], NDArray[(Any,), Any]],
-            Tuple[NDArray[(Any,), int], NDArray[(Any,), Any]]
+            [NDArray[Any, Int], NDArray[Any, Any]],
+            Tuple[NDArray[Any, Int], NDArray[Any, Any]]
         ] = uniq_minimize,
         post_processor: Callable[
-            [NDArray[(Any,), int], NDArray[(Any,), Any]],
-            Tuple[NDArray[(Any,), int], NDArray[(Any,), Any]]
+            [NDArray[Any, Int], NDArray[Any, Any]],
+            Tuple[NDArray[Any, Int], NDArray[Any, Any]]
         ] = uniq_minimize,
         buf_rows: int = BUFFER_ROWS,
         max_nside: Optional[int] = None
-) -> Iterator[Tuple[NDArray[(Any,), int], 'astropy.units.Quantity', OrderedDict]]:
+) -> Iterator[Tuple[NDArray[Any, Int], 'astropy.units.Quantity', OrderedDict]]:
     import numpy as np
 
     if isinstance(infile, (str, Path)):

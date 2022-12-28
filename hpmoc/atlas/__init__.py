@@ -1,13 +1,13 @@
 "Work with manifolds."
 
-from nptyping import NDArray, Int, Bool, Int64
+from nptyping import NDArray, Shape, Int, Bool, Int64
 from typing import Tuple, Callable, List, Union, Optional, Any
 
 Connector = Callable[
     [NDArray[Int], NDArray[Int], NDArray[Int]],
     Tuple[NDArray[Bool], NDArray[Int], NDArray[Int], NDArray[Int]]
 ]
-Limits = NDArray[(2, ...), Int]
+Limits = NDArray[Shape["2, ..."], Int]
 
 
 # TODO account for LHS/RHS heterogeneous atlases
@@ -274,10 +274,10 @@ def healpix_grid_limits(nside):
 
 
 def idx_in_chart(
-        x: NDArray[int],
-        y: NDArray[int],
-        x_limits: NDArray[(2, ...), Int],
-        y_limits: NDArray[(2, ...), Int],
+        x: NDArray[Int],
+        y: NDArray[Int],
+        x_limits: NDArray[Shape["2, ..."], Int],
+        y_limits: NDArray[Shape["2, ..."], Int],
 ) -> NDArray[Bool]:
     """
     See which indices are contained in a chart. This notion can be used to
@@ -452,13 +452,13 @@ def _empty_translate():
     )
 
 
-def square_matrix_connectors() -> NDArray[(4, 4, 2, 3), Int64]:
+def square_matrix_connectors() -> NDArray[Shape["4, 4, 2, 3"], Int64]:
     """
     Matrices for connecting identically-sized square charts to each other.
 
     Returns
     -------
-    connectors : NDArray[(4, 4, 2, 3), Int64]
+    connectors : NDArray[Shape["4, 4, 2, 3"], Int64]
         Coordinate connection matrices. First 2 indices correspond to input
         side followed by output side (relative to output chart). Last 2 indices
         define augmented transformation matrices, with
