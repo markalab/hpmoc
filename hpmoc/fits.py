@@ -4,6 +4,8 @@
 Load skymaps from fits files.
 """
 
+from __future__ import annotations
+
 import re
 import gzip
 import logging
@@ -20,8 +22,8 @@ from typing import (
     Any,
     Optional,
     Iterable,
+    TYPE_CHECKING
 )
-from nptyping import NDArray, Int
 from .healpy import healpy as hp
 from .utils import (
     set_partial_skymap_metadata,
@@ -33,6 +35,9 @@ from .utils import (
     uniq_intersection,
     is_gz,
 )
+
+if TYPE_CHECKING:
+    from nptyping import NDArray, Int
 
 LOGGER = logging.getLogger(__name__)
 FITS_BLOCKSIZE = 2880

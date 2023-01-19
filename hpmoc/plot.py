@@ -195,13 +195,14 @@ ligo.skymap
 healpy
 """
 
+from __future__ import annotations
+
 import math
 from copy import deepcopy
 from functools import partial
 from warnings import warn
-from typing import Optional, Union, Tuple, Iterable, Callable, Any, List
+from typing import Optional, Union, Tuple, Iterable, Callable, Any, List, TYPE_CHECKING
 from textwrap import indent, wrap
-from nptyping import NDArray, Int
 from .healpy import healpy as hp
 from .utils import (
     outline_effect,
@@ -214,6 +215,8 @@ from .utils import (
 )
 from .points import PointsTuple
 
+if TYPE_CHECKING:
+    from nptyping import NDArray, Int
 
 DEFAULT_CBAR_KWARGS = {
     'orientation': 'horizontal',

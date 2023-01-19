@@ -9,10 +9,12 @@
 Utility functions used across healpix_skymap classes.
 """
 
+from __future__ import annotations
+
 import os
 from operator import eq
 from numbers import Integral
-from typing import Union, IO, Any, Optional, Tuple, Callable
+from typing import Union, IO, Any, Optional, Tuple, Callable, TYPE_CHECKING
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
@@ -22,9 +24,11 @@ import logging
 import gzip
 from tempfile import NamedTemporaryFile
 import binascii
-from nptyping import NDArray, Int, Float
 from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
+
+if TYPE_CHECKING:
+    from nptyping import NDArray, Int, Float
 
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5

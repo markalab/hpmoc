@@ -7,6 +7,8 @@ A partial HEALPix skymap class supporting multi-resolution HEALPix skymaps in
 NUNIQ ordering.
 """
 
+from __future__ import annotations
+
 import re
 import sys
 import functools
@@ -25,9 +27,9 @@ from typing import (
     IO,
     Tuple,
     Any,
+    TYPE_CHECKING
 )
 from deprecated import deprecated
-from nptyping import NDArray, Int
 from .utils import (
     uniq_coarsen,
     max_uint_type,
@@ -58,6 +60,9 @@ from .plotters import (
 )
 from .healpy import healpy as hp
 from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
+
+if TYPE_CHECKING:
+    from nptyping import NDArray, Int
 
 DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
                      'divmod': divmod}
