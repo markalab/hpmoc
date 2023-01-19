@@ -2,4 +2,4 @@
 
 __version__ = '0.3.7'
 
-from .partial import PartialUniqSkymap
+from .partial import PartialUniqSkymap as PartialUniqSkymap
