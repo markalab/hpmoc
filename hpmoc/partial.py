@@ -29,7 +29,6 @@ from typing import (
     Any,
     TYPE_CHECKING
 )
-from deprecated import deprecated
 from .utils import (
     uniq_coarsen,
     max_uint_type,
@@ -68,18 +67,19 @@ DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
                      'divmod': divmod}
 
 
-_depr_visufunc = deprecated(
-    reason=dedent("""
-        healpy visufunc plotting methods have been replaced with more powerful,
-        cross-platform WCSAxes-based plotters.  Use ``hpmoc.plot.plot`` and
-        ``PartialUniqSkymap.plot`` instead, for which this method is now a thin
-        wrapper. This method is retained for convenience, but its interface
-        has changed somewhat, and it may be removed or further modified without
-        warning in the future.
-    """.rstrip().strip('\n')).replace('\n', ' '),
-    version = "0.3.0"
-)
+# _depr_visufunc = deprecated(
+#     reason=dedent("""
+#         healpy visufunc plotting methods have been replaced with more powerful,
+#         cross-platform WCSAxes-based plotters.  Use ``hpmoc.plot.plot`` and
+#         ``PartialUniqSkymap.plot`` instead, for which this method is now a thin
+#         wrapper. This method is retained for convenience, but its interface
+#         has changed somewhat, and it may be removed or further modified without
+#         warning in the future.
+#     """.rstrip().strip('\n')).replace('\n', ' '),
+#     version = "0.3.0"
+# )
 
+_depr_visufunc = lambda x: x
 
 def _get_op(name):
     if name in DIADIC_EXCEPTIONS:
