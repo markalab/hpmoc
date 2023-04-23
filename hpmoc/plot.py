@@ -968,6 +968,10 @@ def plot(
             ax.imshow(pts.render(projection, extent=sigma), vmin=0, vmax=1,
                       cmap=cm)
     for pts in scatter:
+        # Skip pts if it is empty, since you cannot have empty SkyCoords
+        if not pts.points:
+            continue
+
         # only include points in the visible region
         pts_x, pts_y = ax.wcs.world_to_pixel(SkyCoord(
             *[*zip(*((r, d) for r, d, *_ in pts.points))]*deg, frame='icrs'
