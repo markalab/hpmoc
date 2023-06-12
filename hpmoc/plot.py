@@ -624,7 +624,8 @@ def plot(
         missing_color: Optional[Union[str, Tuple[int, int, int]]] = None,
         nan_color: Optional[Union[str, Tuple[int, int, int]]] = None,
         alpha: float = 1.,
-        sigmas: Iterable[float] = (1,),
+        sigmas: Iterable[float] = [],
+        outline_sigmas: Iterable[float] = [],
         scatter_labels: Union[bool, dict] = True,
         ax: Optional[Union[
             'astropy.visualization.wcsaxes.WCSAxes',
@@ -718,6 +719,9 @@ def plot(
     sigmas: Iterable[float], optional
         The size of the error region about each point source to plot in units
         of its error parameter sigma.
+    outline_sigmas: Iterable[float], optional
+        The size of the error region about each point source to plot as an
+        unfilled circle in units of its error parameter sigma.
     scatter_labels: bool, optional
         Whether to show labels for the scattered points. If ``True``, display
         either their labels (if defined) or their indices within the
@@ -852,7 +856,7 @@ def plot(
     from matplotlib.transforms import ScaledTranslation
     from matplotlib.gridspec import SubplotSpec
     from astropy.coordinates.sky_coordinate import SkyCoord
-    from astropy.visualization.wcsaxes import WCSAxes
+    from astropy.visualization.wcsaxes import WCSAxes, SphericalCircle
     from astropy.visualization.wcsaxes.frame import (
         RectangularFrame,
         EllipticalFrame,
@@ -963,11 +967,6 @@ def plot(
     label_transform = transform + ScaledTranslation(N_X_OFFSET/2, N_Y_OFFSET/2,
                                                     ax.figure.dpi_scale_trans)
     for pts in scatter:
-        cm = pts.cmap()
-        for sigma in sigmas:
-            ax.imshow(pts.render(projection, extent=sigma), vmin=0, vmax=1,
-                      cmap=cm)
-    for pts in scatter:
         # Skip pts if it is empty, since you cannot have empty SkyCoords
         if not pts.points:
             continue
@@ -980,7 +979,25 @@ def plot(
         include &= (pts_y < ax.wcs.pixel_shape[1]+.5) & (pts_y > .5)
         col = pts.rgba.to_hex(False)
         ax.scatter(pts_x[include], pts_y[include], c=col, marker=pts.marker,
-                   s=scatter_marker_size, label=pts.label, path_effects=outline)
+                   s=scatter_marker_size, label=pts.label, path_effects=outline,
+                   zorder=10)
+
+        # plot the shaded error circles, if needed
+        cm = pts.cmap()
+        for sigma in sigmas:
+            ax.imshow(pts.render(projection, extent=sigma), vmin=0, vmax=1,
+                      cmap=cm, zorder=5)
+
+        # plot the error circle outlines, if needed
+        for outline_sigma in outline_sigmas:
+            for ra, dec, sigma, _ in pts.points:
+                coord = SkyCoord(ra * deg, dec * deg)
+                s = SphericalCircle(coord, sigma * outline_sigma * deg,
+                    edgecolor=col, facecolor='none',
+                    transform=ax.get_transform('icrs'), zorder=5)
+                ax.add_patch(s)
+
+        # plot the scatter labels, if needed
         if scatter_labels:
             for i, (r, d, *sl) in enumerate(pts.points):
                 if not include[i]:
@@ -995,6 +1012,7 @@ def plot(
                     'color': col,
                     'va': 'bottom',
                     'ha': 'left',
+                    'zorder': 15
                 }
                 if not isinstance(scatter_labels, bool):
                     kw.update(scatter_labels)
