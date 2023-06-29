@@ -22,6 +22,7 @@ from typing import (
     Any,
     Optional,
     Iterable,
+    cast,
     TYPE_CHECKING
 )
 from .healpy import healpy as hp
@@ -38,6 +39,13 @@ from .utils import (
 
 if TYPE_CHECKING:
     from nptyping import NDArray, Int
+    from astropy.io.fits import (
+        Header,
+        BinTableHDU,
+        ColDefs
+    )
+    from astropy.io.fits.hdu.base import ExtensionHDU
+    from astropy.units.quantity import Quantity
 
 LOGGER = logging.getLogger(__name__)
 FITS_BLOCKSIZE = 2880
@@ -94,14 +102,20 @@ def extract_probdensity(hdu, chunk, offset):
     import numpy as np
     from astropy.units import Quantity
 
+    # define up here for typing purposes
+    nside = -1
+
     ordering = hdu.header['ORDERING']
     if ordering == 'NUNIQ':
         u = chunk['UNIQ']
     else:
         for probname in ('PROBDENSITY', 'PROBABILITY', 'PROB'):
             if probname in hdu.columns.names:
-                fmt = TFORM.match(hdu.columns[probname].format)[1]
-                repeat = int(fmt) if fmt else 1
+                fmt = cast(str, hdu.columns[probname].format)
+                m = TFORM.match(fmt)
+                if m is None:
+                    raise ValueError(f"Could not parse column format {fmt}")
+                repeat = int(m[1]) if m[1] else 1
                 break
         else:
             raise ValueError("Could not find a probability column in "
@@ -141,15 +155,15 @@ def read_bintable_chunks(
         tables: int = -1,
         buf_rows: int = BUFFER_ROWS,
         extractor: Callable[
-            ['astropy.io.fits.BinTableHDU', NDArray[Any, Any], int],
+            ['BinTableHDU', NDArray[Any, Any], int],
             Tuple[
                 NDArray[Any, Int],
-                List['astropy.units.Quantity'],
+                List['Quantity'],
             ]
         ] = extract_probdensity,
         row_calculator: Callable[
             [
-                'astropy.io.fits.BinTableHDU',
+                'BinTableHDU',
                 List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
                 int,
             ],
@@ -157,16 +171,17 @@ def read_bintable_chunks(
         ] = calculate_max_rows_read,
 ) -> Iterator[
         Tuple[
-            'astropy.io.fits.BinTableHDU',
+            'BinTableHDU',
             Iterator[
                 Tuple[
                     NDArray[Any, Any],
-                    List['astropy.units.Quantity'],
+                    List['Quantity'],
                 ]
             ],
         ]
 ]:
     import numpy as np
+    from astropy.io import fits
 
     # assume first HDU has been skipped already
     while tables != 0:
@@ -174,10 +189,14 @@ def read_bintable_chunks(
             hdu = next_hdu(stream)
         except EmptyStream:
             break
+
+        # make sure the HDUs are bintables
+        assert isinstance(hdu, fits.BinTableHDU)
+
         dtype = bintable_dtype(hdu)
         max_rows = row_calculator(hdu, dtype, buf_rows)
-        total_rows = hdu.header['NAXIS2']
-        width = hdu.header['NAXIS1']
+        total_rows = cast(int, hdu.header['NAXIS2'])
+        width = cast(int, hdu.header['NAXIS1'])
         assert total_rows * width == hdu.size
 
         # create a generator for each HDU
@@ -186,7 +205,7 @@ def read_bintable_chunks(
             while offset < total_rows:
                 rows = min(max_rows, total_rows - offset)
                 chunk = np.frombuffer(stream.read(width*rows), dtype=dtype)
-                yield extractor(hdu, chunk, offset)
+                yield extractor(cast('BinTableHDU', hdu), chunk, offset)
                 offset += rows
             assert offset == total_rows
             position_in_block = hdu.size % FITS_BLOCKSIZE
@@ -202,38 +221,36 @@ def load_ligo(
         mask: Optional[NDArray[Any, Int]] = None,
         maps: Optional[Union[int, Iterable[int]]] = None,
         extractor: Callable[
-            ['astropy.io.fits.BinTableHDU', NDArray[Any, Any], int],
+            ['BinTableHDU', NDArray[Any, Any], int],
             Tuple[
                 NDArray[Any, Int],
-                List['astropy.units.Quantity'],
+                List['Quantity'],
             ]
         ] = extract_probdensity,
         row_calculator: Callable[
             [
-                'astropy.io.fits.BinTableHDU',
+                'BinTableHDU',
                 List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
                 int,
             ],
             int
         ] = calculate_max_rows_read,
-        chunk_processor: Callable[
+        chunk_processor: Optional[Callable[
             [NDArray[Any, Int], NDArray[Any, Any]],
             Tuple[NDArray[Any, Int], NDArray[Any, Any]]
-        ] = uniq_minimize,
-        post_processor: Callable[
+        ]] = uniq_minimize,
+        post_processor: Optional[Callable[
             [NDArray[Any, Int], NDArray[Any, Any]],
             Tuple[NDArray[Any, Int], NDArray[Any, Any]]
-        ] = uniq_minimize,
+        ]] = uniq_minimize,
         buf_rows: int = BUFFER_ROWS,
-        max_nside: Optional[int] = None
-) -> Iterator[Tuple[NDArray[Any, Int], 'astropy.units.Quantity', OrderedDict]]:
+) -> Iterator[Tuple[NDArray[Any, Int], 'Quantity', OrderedDict]]:
     import numpy as np
 
     if isinstance(infile, (str, Path)):
         with (gzip.open if is_gz(infile) else open)(infile, 'rb') as stream:
             for tab in load_ligo(stream, mask, maps, extractor, row_calculator,
-                                 chunk_processor, post_processor, buf_rows,
-                                 max_nside):
+                                 chunk_processor, post_processor, buf_rows):
                 yield tab
         return
     if mask is not None:
@@ -241,10 +258,10 @@ def load_ligo(
     if maps is None:
         tables = -1
     elif isinstance(maps, int):
-        maps = None
         tables = maps
+        maps = None
     else:
-        maps = np.array([*maps])
+        maps = np.array(list(maps))
         umaps = np.unique(maps)
         if len(umaps) != len(maps) or (umaps != maps).any():
             raise ValueError("Must provide a unique sorted list of `maps`.")
@@ -266,12 +283,15 @@ def load_ligo(
         ss = []
         for u, [s] in table:
             if maps is None or i in maps:
-                u, s = chunk_processor(u, s)
+                if chunk_processor is not None:
+                    u, s = chunk_processor(u, s)
                 if mask is not None:
                     ui = np.unique(uniq_intersection(u, mask)[0])
-                # TODO apply max_nside here
-                us.append(u[ui] if mask is not None else u)
-                ss.append(s[ui] if mask is not None else s)
+                    us.append(u[ui])
+                    ss.append(s[ui])
+                else:
+                    us.append(u)
+                    ss.append(s)
         u = np.concatenate(us)
         s = np.concatenate(ss)
         del us, ss
@@ -287,23 +307,27 @@ def load_ligo(
             elif k not in meta:
                 meta[k] = v
         set_partial_skymap_metadata(meta, mask, load_ligo.__name__)
-        yield (*post_processor(u, s), meta)
+        if post_processor is not None:
+            u, s = post_processor(u, s)
+        yield u, s, meta
 
 
 def bintable_dtype(
-        hdu: 'astropy.io.fits.BinTableHDU',
+        hdu: 'BinTableHDU',
 ) -> List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]]:
     """
     Get list that can be passed to ``numpy.dtype`` to define a structured
     datatype corresponding to the data in the table ``hdu``.
     """
     types = []
-    for col in hdu.columns:
-        m = TFORM.match(col.format)
-        dt = BINTABLE_TO_NUMPY_TYPES[m[2]]
+    for col in cast('ColDefs', hdu.columns):
+        m = TFORM.match(cast(str, col.format))
+        assert m is not None
+        g = m.groups()
+        dt = BINTABLE_TO_NUMPY_TYPES[g[2]]
         tup = (col.name or '', dt)
-        if m[1]:
-            tup += (int(m[1]),)
+        if g[1]:
+            tup += (int(g[1]),)
         types.append(tup)
     return types
 
@@ -319,7 +343,7 @@ def _next_header_blocks(stream: IO):
     return block + _next_header_blocks(stream)
 
 
-def next_header(stream: IO):
+def next_header(stream: IO) -> 'Header':
     "Read the next ``astropy.fits.Header`` from a fits file stream (bytes)."
     from astropy.io import fits
 
@@ -329,11 +353,11 @@ def next_header(stream: IO):
     return fits.Header.fromstring(header)
 
 
-def next_hdu(stream: IO):
+def next_hdu(stream: IO) -> 'ExtensionHDU':
     "Read the next FITS HDU from a fits file stream (bytes)."
     from astropy.io import fits
 
     header = _next_header_blocks(stream)
     if not header:
         raise EmptyStream("Stream ended.")
-    return fits.HDUList.fromstring(header)[0]
+    return cast('ExtensionHDU', fits.HDUList.fromstring(header)[0])
