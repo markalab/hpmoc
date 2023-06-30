@@ -3,7 +3,6 @@
 """
 
 import importlib
-from math import log2, floor
 from .healpy_utils import alt_compress, alt_expand
 
 

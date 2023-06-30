@@ -14,11 +14,10 @@ from __future__ import annotations
 import os
 from operator import eq
 from numbers import Integral
-from typing import Union, IO, Any, Optional, Tuple, Callable, TYPE_CHECKING, cast
+from typing import Union, IO, Any, Tuple, Callable, TYPE_CHECKING
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
-from datetime import datetime
 from textwrap import wrap, dedent
 import logging
 import gzip
@@ -2038,7 +2037,9 @@ def density_from_table(table, indices, nside, degrees=False):
     raise ValueError(f"No PROBDENSITY or PROB column in skymap {infile}")
 
 
-def is_gz(infile: Union[IO, str]):
+StrOrPath = Union[str, os.PathLike]
+
+def is_gz(infile: Union[IO, StrOrPath]):
     """
     Check whether ``infile`` is a GZip file, in which case it should be
     unzipped.
@@ -2046,7 +2047,7 @@ def is_gz(infile: Union[IO, str]):
     if isinstance(infile, gzip.GzipFile):
         return True
     # from https://stackoverflow.com/a/47080739/3601493
-    if isinstance(infile, str):
+    if isinstance(infile, str) or isinstance(infile, os.PathLike):
         with open(infile, 'rb') as test_f:
             magic_number = binascii.hexlify(test_f.read(2))
     elif hasattr(infile, "read") and hasattr(infile, "seek"):

@@ -9,7 +9,6 @@ NUNIQ ordering.
 
 from __future__ import annotations
 
-import re
 import sys
 import functools
 import operator
@@ -27,10 +26,10 @@ from typing import (
     IO,
     Tuple,
     Any,
+    TypeVar,
     TYPE_CHECKING
 )
 from .utils import (
-    uniq_coarsen,
     max_uint_type,
     uniq2nest,
     uniq2dangle,
@@ -48,7 +47,6 @@ from .utils import (
     nside_quantile_indices,
     nside_slices,
     nest2uniq,
-    read_partial_skymap,
     uniq_minimize,
     interp_wcs,
 )
@@ -62,6 +60,9 @@ from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_
 
 if TYPE_CHECKING:
     from nptyping import NDArray, Int
+    from astropy.visualization import wcsaxes
+    from astropy.wcs.wcs import WCS
+    import matplotlib.gridspec
 
 DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
                      'divmod': divmod}
@@ -163,6 +164,7 @@ def bool_to_uint8(s):
     return np.array(s, dtype=np.uint8)
 
 
+TPartial = TypeVar('TPartial', bound='PartialUniqSkymap')
 class PartialUniqSkymap(AbstractPartialUniqSkymap):
     """
     A HEALPix skymap object residing in memory with NUNIQ ordering. Only
@@ -171,9 +173,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     missing values with a second index argument). You can also use index
     notation to set pixel values at the specified NUNIQ index locations.
     """
-    s: Union[NDArray[Any, Any], 'astropy.units.Quantity']
-    u: NDArray[Any, Int]
-    point_sources: List['hpmoc.points.PointsTuple']
+    point_sources: List[PointsTuple]
 
     def __init__(self, s, u, copy=False, name=None, point_sources=None,
                  meta=None, empty=None, compress=False, interp="nearest"):
@@ -415,11 +415,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                                  point_sources=self.point_sources)
 
     def apply(
-            self,
+            self: TPartial,
             func: Callable,
             copy: bool = True,
             quantity: bool = True
-    ) -> '__class__':
+    ) -> TPartial:
         """
         Map a function to this skymap's pixels and return a new skymap whose
         values are the returned values of ``func``. Note that ``func(self.s)``
@@ -442,9 +442,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                         [f'Applied {mod}{func.__name__}'])
         n = f"{func.__name__}({self.name})"
         s = self.s.value if isinstance(self.s, Q) and not quantity else self.s
-        return PartialUniqSkymap(func(s), self.u.copy() if copy else self.u,
-                                 copy=False, name=n, meta=m,
-                                 point_sources=self.point_sources)
+        return type(self)(func(s), self.u.copy() if copy else self.u,
+                          copy=False, name=n, meta=m,
+                          point_sources=self.point_sources)
 
     def to_table(self, name=None, uname='UNIQ'):
         """
@@ -685,7 +685,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         s.meta['HISTORY'][-1] += f' (fixed NSIDE={nside})'
         return s
 
-    def __getitem__(self, idx) -> '__class__':
+    def __getitem__(self: TPartial, idx) -> TPartial:
         """
         Get a view into this skymap with the given index applied to ``u`` and
         ``s``. Uses their provided ``__getitem__`` semantics, so you'll get
@@ -709,8 +709,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         m['HISTORY'] = m.get('HISTORY', []) + [f'Got view: {msg}']
         args = [a if np.iterable(a) else np.array(a).reshape((1,))
                 for a in (self.s[idx], self.u[idx])]
-        return PartialUniqSkymap(*args, copy=False, meta=m,
-                                 point_sources=self.point_sources)
+        return type(self)(*args, copy=False, meta=m,
+                          point_sources=self.point_sources)
 
     def __setitem__(self, idx, value):
         """
@@ -930,8 +930,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         return self.plot(*scatter, projection='MOL', **kwargs)
 
     def plot(self, *scatter: PointsTuple, **kwargs) -> Union[
-            'astropy.visualization.wcsaxes.WCSAxes',
-            'astropy.visualization.wcsaxes.WCSAxesSubplot'
+            'wcsaxes.WCSAxes',
+            'wcsaxes.WCSAxesSubplot'
     ]:
         """
         Plot this skymap. A thin wrapper around ``hpmoc.plot.plot`` that
@@ -960,14 +960,14 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     def gridplot(
             self,
             *skymaps: Union[
-                'hpmoc.PartialUniqSkymap',
+                'PartialUniqSkymap',
                 NDArray[Any, Any],
                 Tuple[
                     NDArray[Any, Any],
                     Optional[
                         Union[
                             NDArray[Any, Int],
-                            'astropy.wcs.WCS',
+                            'WCS',
                             str,
                         ]
                     ],
@@ -976,7 +976,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             **kwargs
     ) -> Tuple[
             'matplotlib.gridspec.GridSpec',
-            List[List['astropy.visualization.wcsaxes.WCSAxes']]
+            List[List['wcsaxes.WCSAxes']]
     ]:
         """
         Plot this skymap and any others in ``skymaps``. A thin wrapper around
@@ -998,7 +998,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         return gridplot(self, *skymaps, **kwargs)
 
     @_depr_visufunc
-    def multiplot(*skymapsₗ: List['__class__'], nest: bool = True, **kwargs):
+    def multiplot(self, *skymapsₗ: List['PartialUniqSkymap'], nest: bool = True, **kwargs):
         """
         Call ``plotters.multiplot`` with the default ``transform``
         suitable for a ``PartialUniqSkymap``.
