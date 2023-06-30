@@ -14,7 +14,7 @@ from __future__ import annotations
 import os
 from operator import eq
 from numbers import Integral
-from typing import Union, IO, Any, Tuple, Callable, TYPE_CHECKING
+from typing import TypeVar, Union, IO, Any, Tuple, Callable, Protocol, TYPE_CHECKING, overload
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
@@ -27,7 +27,9 @@ from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
 
 if TYPE_CHECKING:
-    from nptyping import NDArray, Int, Float, Bool
+    import numpy as np
+    from numpy.typing import NDArray
+
     from astropy.wcs import wcs
     from astropy.units import Quantity
 
@@ -527,7 +529,6 @@ def uniq2nside(indices):
         If ``indices`` are not valid NUNIQ indices, i.e. they are not integers
         greater than 3.
     """
-    import numpy as np
     return 1 << uniq2order(indices)
 
 
@@ -1203,7 +1204,7 @@ def wcs2resol(wcs: 'wcs.WCS'):
 
 
 def wcs2ang(wcs: 'wcs.WCS', lonlat=True) -> tuple[
-    NDArray[Any, Bool],
+    'NDArray[np.bool_]',
     'Quantity',
     'Quantity'
 ]:
@@ -1262,11 +1263,11 @@ def wcs2mask_and_uniq(wcs: 'wcs.WCS'):
         in_place=True
     )
 
-
+_DType = TypeVar('_DType', covariant=True, bound='np.generic')
 def interp_wcs_nn(
         wcs: 'wcs.WCS',
-        data: NDArray[Any, Any],
-) -> Tuple[NDArray[Any, Int], NDArray[Any, Float]]:
+        data: 'NDArray[_DType]',
+) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']:
     """
     Do a nearest-neighbor interpolation of ``data`` with coordinates
     specified by ``wcs`` FITS world coordinate system.
@@ -1305,22 +1306,22 @@ def interp_wcs_nn(
 
 def interp_wcs(
         wcs: 'wcs.WCS',
-        data: NDArray[Any, Any],
+        data: 'NDArray[_DType]',
         interp: Union[
             str,
             Tuple[
                 int,
                 Callable[
                     [
-                        NDArray[Any, Float],
-                        NDArray[Any, Float],
-                        NDArray[Any, Any]
+                        'NDArray[np.floating]',
+                        'NDArray[np.floating]',
+                        'NDArray[_DType]'
                     ],
-                    NDArray[Any, Any]
+                    'NDArray[_DType]'
                 ]
             ],
         ] = 'nearest'
-) -> Tuple[NDArray[Any, Int], NDArray[Any, Float]]:
+) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']:
     """
     Interpolate ``data`` with coordinates specified by ``wcs`` FITS
     world coordinate system into a HEALPix NUNIQ skymap.
@@ -1683,8 +1684,38 @@ def uniq_coarsen(u, orders):
     u[i] >>= 2 * (o[i] - oout)
     return np.unique(u)
 
+class _Test(Protocol):
+    def __call__(self, x: Any, y: Any, /) -> Any: ...
 
-def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
+class _Combine(Protocol):
+    def __call__(self, x: 'NDArray[_DType]', i: 'NDArray[np.bool_]') -> 'NDArray[_DType]': ...
+
+# TODO: Consider changing return signature to return
+# Tuple[NDArray[np.integer[Any]], Tuple[NDArray[Any], ...]]
+# instead
+
+@overload
+def uniq_minimize(
+    u: 'NDArray[np.integer[Any]]',
+    x: 'NDArray[_DType]', /, *,
+    test: _Test = eq,
+    combine: _Combine = lambda x, i: x[i]
+) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']: ...
+
+@overload
+def uniq_minimize(
+    u: 'NDArray[np.integer[Any]]',
+    *x: 'NDArray[Any]',
+    test: _Test = eq,
+    combine: _Combine = lambda x, i: x[i]
+) -> Tuple['NDArray[Any]', ...]: ...
+    
+def uniq_minimize(
+    u: 'NDArray[np.integer[Any]]',
+    *x: 'NDArray[Any]',
+    test: _Test = eq,
+    combine: _Combine = lambda x, i: x[i]
+) -> Tuple['NDArray[Any]', ...]:
     """
     Take a set of HEALPix NUNIQ indices ``u`` (and, optionally, pixel values
     ``x``) and find the shortest equivalent multi-order pixelation by combining
@@ -1785,7 +1816,7 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
 
     isort = np.argsort(u)
     u = u[isort]
-    x = [xx[isort] for xx in x]
+    x = tuple(xx[isort] for xx in x)
     us = []
     xs = [[] for _ in x]
     orders = np.arange(uniq2order(u[-1])+1, -1, -1)
@@ -1807,7 +1838,7 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
         m = np.zeros((last-first,), dtype=bool)
         m[:-3] = uu % 4 == 0
         for j in range(3):
-            uu += 1
+            uu += 1 # type: ignore causes issues with numpy number precision handling
             m[:-3] &= uu == u[first+1+j:last-2+j]
             for xx in x:
                 m[:-3] &= test(xx[first:last-3], xx[first+1+j:last-2+j])
@@ -1837,8 +1868,8 @@ def uniq_minimize(u, *x, test=eq, combine=lambda x, i: x[i]):
         u[next_first:next_last] = u[next_first:next_last][isort]
         for xx in x:
             xx[next_first:next_last] = xx[next_first:next_last][isort]
-    return [np.concatenate([y[:bounds[-2]], *ys[::-1]])
-            for y, ys in zip([u, *x], [us, *xs])]
+    return tuple(np.concatenate([y[:bounds[-2]], *ys[::-1]])
+            for y, ys in zip([u, *x], [us, *xs]))
 
 
 def uniq_diadic(f, us, xs, pad=None, coarse=False):

@@ -38,7 +38,11 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from nptyping import NDArray, Int
+    import numpy as np
+    from numpy.typing import NDArray
+
+    UniqArray = NDArray[np.integer[Any]]
+
     from astropy.io.fits import (
         Header,
         BinTableHDU,
@@ -155,9 +159,9 @@ def read_bintable_chunks(
         tables: int = -1,
         buf_rows: int = BUFFER_ROWS,
         extractor: Callable[
-            ['BinTableHDU', NDArray[Any, Any], int],
+            ['BinTableHDU', 'NDArray[Any]', int],
             Tuple[
-                NDArray[Any, Int],
+                'UniqArray',
                 List['Quantity'],
             ]
         ] = extract_probdensity,
@@ -174,7 +178,7 @@ def read_bintable_chunks(
             'BinTableHDU',
             Iterator[
                 Tuple[
-                    NDArray[Any, Any],
+                    'NDArray[Any]',
                     List['Quantity'],
                 ]
             ],
@@ -218,12 +222,12 @@ def read_bintable_chunks(
 
 def load_ligo(
         infile: Union[IO, str, Path],
-        mask: Optional[NDArray[Any, Int]] = None,
+        mask: Optional['UniqArray'] = None,
         maps: Optional[Union[int, Iterable[int]]] = None,
         extractor: Callable[
-            ['BinTableHDU', NDArray[Any, Any], int],
+            ['BinTableHDU', 'NDArray[Any]', int],
             Tuple[
-                NDArray[Any, Int],
+                'UniqArray',
                 List['Quantity'],
             ]
         ] = extract_probdensity,
@@ -236,15 +240,15 @@ def load_ligo(
             int
         ] = calculate_max_rows_read,
         chunk_processor: Optional[Callable[
-            [NDArray[Any, Int], NDArray[Any, Any]],
-            Tuple[NDArray[Any, Int], NDArray[Any, Any]]
+            ['UniqArray', 'NDArray[Any]'],
+            Tuple['UniqArray', 'NDArray[Any]']
         ]] = uniq_minimize,
         post_processor: Optional[Callable[
-            [NDArray[Any, Int], NDArray[Any, Any]],
-            Tuple[NDArray[Any, Int], NDArray[Any, Any]]
+            ['UniqArray', 'NDArray[Any]'],
+            Tuple['UniqArray', 'NDArray[Any]']
         ]] = uniq_minimize,
         buf_rows: int = BUFFER_ROWS,
-) -> Iterator[Tuple[NDArray[Any, Int], 'Quantity', OrderedDict]]:
+) -> Iterator[Tuple['UniqArray', 'Quantity', OrderedDict]]:
     import numpy as np
 
     if isinstance(infile, (str, Path)):
@@ -324,10 +328,10 @@ def bintable_dtype(
         m = TFORM.match(cast(str, col.format))
         assert m is not None
         g = m.groups()
-        dt = BINTABLE_TO_NUMPY_TYPES[g[2]]
+        dt = BINTABLE_TO_NUMPY_TYPES[g[1]]
         tup = (col.name or '', dt)
-        if g[1]:
-            tup += (int(g[1]),)
+        if g[0]:
+            tup += (int(g[0]),)
         types.append(tup)
     return types
 

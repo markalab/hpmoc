@@ -3,7 +3,6 @@ Read/Write methods for ``hpmoc.partial.PartialUniqSkymap``.
 """
 
 from typing import Optional, Union, IO
-from nptyping import NDArray
 from .abstract import IoStrategy
 from .astroquery import AstroqueryIo
 from .gracedb import GracedbIo

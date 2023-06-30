@@ -7,15 +7,14 @@ far more features than are used here.
 .. _ligo-gracedb: https://ligo-gracedb.readthedocs.io/en/latest/quickstart.html
 """
 
-import importlib
+import importlib.util
 from io import BytesIO
-from typing import Optional, Union
-from nptyping import NDArray
+from typing import Optional, Union, TYPE_CHECKING
 from .abstract import StubIo, IoStrategy
 from .ligo import LigoIo
 from ..partial import PartialUniqSkymap
 
-if importlib.util.find_spec("ligo.gracedb") is None:
+if not TYPE_CHECKING and importlib.util.find_spec("ligo.gracedb") is None:
 
     class GracedbIo(StubIo):
         """
@@ -30,6 +29,10 @@ if importlib.util.find_spec("ligo.gracedb") is None:
 
 else:
 
+    if TYPE_CHECKING:
+        import ligo.gracedb
+        from numpy.typing import NDArray
+
     class GracedbIo(IoStrategy):
         """
         Use ``ligo.gracedb.rest.GraceDb.files`` to download skymaps from
@@ -41,7 +44,7 @@ else:
 
         @staticmethod
         def read(
-                mask: Optional[Union[PartialUniqSkymap, NDArray]],
+                mask: Optional[Union[PartialUniqSkymap, 'NDArray']],
                 graceid: str,
                 file: str,
                 *args,

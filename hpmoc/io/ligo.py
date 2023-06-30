@@ -3,13 +3,14 @@ Strategies for loading LIGO/Virgo/KAGRA skymaps into ``PartialUniqSkymap``
 instances.
 """
 
-from typing import Optional, Union, IO
-from nptyping import NDArray
-from .abstract import IoStrategy
-from ..fits import load_ligo
-from ..partial import PartialUniqSkymap
-from ..utils import uniq_coarsen, uniq_minimize
+from typing import Optional, Union, IO, TYPE_CHECKING
+from hpmoc.io.abstract import IoStrategy
+from hpmoc.fits import load_ligo
+from hpmoc.partial import PartialUniqSkymap
+from hpmoc.utils import uniq_coarsen, uniq_minimize
 
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
 
 class LigoIo(IoStrategy):
     """
@@ -18,12 +19,12 @@ class LigoIo(IoStrategy):
 
     @staticmethod
     def read(
-            mask: Optional[Union[PartialUniqSkymap, NDArray]],
-            file: Union[IO, str],
-            *args,
-            name: str = 'PROBDENSITY',
-            coarsen: Optional[int] = None,
-            **kwargs
+        mask: Optional[Union[PartialUniqSkymap, 'NDArray']],
+        file: Union[IO, str],
+        *args,
+        name: str = 'PROBDENSITY',
+        coarsen: Optional[int] = None,
+        **kwargs
     ):
         """
         Read a file saved in the format used by LIGO/Virgo for their skymaps.
@@ -52,15 +53,18 @@ class LigoIo(IoStrategy):
         [[u, s, meta]] = load_ligo(file, mask=mask, **kwargs)
         return PartialUniqSkymap(s, u, name=name, meta=meta, point_sources=pt)
 
+    @staticmethod
     def write(
-            skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            name: Optional[str] = None,
-            *args,
-            **kwargs
+        skymap: PartialUniqSkymap,
+        file: Union[IO, str],
+        name: Optional[str] = None,
+        *args,
+        **kwargs
     ):
         """
         Write a skymap to file in the format used by LIGO/Virgo for their
         skymaps. A thin wrapper around ``BasicIo.write``.
         """
+        from hpmoc.io import BasicIo
+
         BasicIo.write(skymap, file, name=name, *args, **kwargs)

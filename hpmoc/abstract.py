@@ -2,12 +2,13 @@
 Define an ``AbstractPartialUniqSkymap`` interface.
 """
 
-from typing import Union, Any, TYPE_CHECKING
-from nptyping import NDArray, Int
+from typing import Union, Any, Generic, TypeVar, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from astropy.units.quantity import Quantity
+    import numpy as np
+    import numpy.typing as npt
 
-class AbstractPartialUniqSkymap:
-    s: Union[NDArray[Any, Any], 'Quantity']
-    u: NDArray[Any, Int]
+_DType = TypeVar('_DType', covariant=True, bound='np.generic')
+class AbstractPartialUniqSkymap(Generic[_DType]):
+    s: 'npt.NDArray[_DType]'
+    u: 'npt.NDArray[np.integer[Any]]'

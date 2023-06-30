@@ -19,15 +19,19 @@ from collections import OrderedDict
 from typing import (
     List,
     Iterator,
-    Iterable,
+    MutableMapping,
     Callable,
+    Literal,
+    Sequence,
     Optional,
     Union,
     IO,
     Tuple,
     Any,
     TypeVar,
-    TYPE_CHECKING
+    TYPE_CHECKING,
+    cast,
+    overload
 )
 from .utils import (
     max_uint_type,
@@ -59,7 +63,9 @@ from .healpy import healpy as hp
 from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
 
 if TYPE_CHECKING:
-    from nptyping import NDArray, Int
+    import numpy as np
+    import numpy.typing as npt
+
     from astropy.visualization import wcsaxes
     from astropy.wcs.wcs import WCS
     import matplotlib.gridspec
@@ -88,7 +94,7 @@ def _get_op(name):
     return getattr(operator, name)
 
 
-def diadic_dunder(pad=None, coarse=False, post=None):
+def diadic_dunder(pad=None, coarse: bool = False, post=None):
     """
     Implement diadic dunder methods like ``__add__``, ``__radd__``, etc. for
     scalar, array, and ``PartialUniqSkymap`` arguments using ``uniq_diadic``.
@@ -164,8 +170,9 @@ def bool_to_uint8(s):
     return np.array(s, dtype=np.uint8)
 
 
-TPartial = TypeVar('TPartial', bound='PartialUniqSkymap')
-class PartialUniqSkymap(AbstractPartialUniqSkymap):
+_DType = TypeVar('_DType', covariant=True, bound='np.generic')
+_Other_DType = TypeVar('_Other_DType', bound='np.generic')
+class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
     """
     A HEALPix skymap object residing in memory with NUNIQ ordering. Only
     a subset of the full sky. You can index into a ``PartialUniqSkymap`` with
@@ -175,8 +182,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
     """
     point_sources: List[PointsTuple]
 
-    def __init__(self, s, u, copy=False, name=None, point_sources=None,
-                 meta=None, empty=None, compress=False, interp="nearest"):
+    def __init__(
+        self,
+        s: 'npt.NDArray[_DType]',
+        u: Union['npt.NDArray[np.integer[Any]]', 'WCS'],
+        copy: bool = False, name=None, point_sources=None,
+        meta=None, empty=None, compress=False, interp="nearest"):
         """
         Initialize a skymap with the pixel values and NUNIQ indices used.
 
@@ -272,9 +283,15 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         self.meta = newmeta
 
         if isinstance(s, (Qty, Col)):              # preserve astropy unit
-            self.s = Qty(self.s, s.unit, copy=False)
+            self.s = Qty(self.s, cast(Union[Qty, Col], s).unit, copy=False)
 
-    def nside(self, as_skymap=False, copy=False, **kwargs):
+    @overload
+    def nside(self, as_skymap: Literal[True], copy: bool = False, **kwargs) -> 'PartialUniqSkymap[np.integer[Any]]': ...
+
+    @overload
+    def nside(self, as_skymap: Literal[False] = False, copy: bool = False, **kwargs) -> 'npt.NDArray[np.integer[Any]]': ...
+
+    def nside(self, as_skymap=False, copy=False, **kwargs): # type: ignore
         """
         Pixel NSIDE values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
@@ -286,12 +303,18 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             u = np.array(self.u, copy=True) if copy else self.u
             m = self.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix NSIDE.']
-            return PartialUniqSkymap(n, u, copy=False, name='NSIDE', meta=m,
-                                     point_sources=self.point_sources,
-                                     **kwargs)
+            return type(self)(n, u, copy=False, name='NSIDE', meta=m,
+                              point_sources=self.point_sources,
+                              **kwargs)
         return n
 
-    def orders(self, as_skymap=False, copy=True, **kwargs):
+    @overload
+    def orders(self, as_skymap: Literal[True] = True, copy: bool = False, **kwargs) -> 'PartialUniqSkymap[np.integer[Any]]': ...
+
+    @overload
+    def orders(self, as_skymap: Literal[False], copy: bool = False, **kwargs) -> 'npt.NDArray[np.integer]': ...
+
+    def orders(self, as_skymap=False, copy=True, **kwargs): # type: ignore
         """
         HEALPix order values. If ``as_skymap=True``, return as a
         ``PartialUniqSkymap`` instance (with ``**kwargs`` passed to init).
@@ -303,20 +326,20 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             u = np.array(self.u, copy=True) if copy else self.u
             m = self.meta.copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix order.']
-            return PartialUniqSkymap(o, u, copy=False, name='ORDER', meta=m,
-                                     point_sources=self.point_sources,
-                                     **kwargs)
+            return type(self)(o, u, copy=False, name='ORDER', meta=m,
+                              point_sources=self.point_sources,
+                              **kwargs)
         return o
 
-    def copy(self):
+    def copy(self: 'PartialUniqSkymap[_DType]') -> 'PartialUniqSkymap[_DType]':
         """
         Return a copy of this instance with separate copies of its data. The
         copy can be edited without affecting the original.
         """
-        return self.__class__(self.s, self.u, copy=True, name=self.name,
-                              point_sources=self.point_sources, meta=self.meta)
+        return type(self)(self.s, self.u, copy=True, name=self.name,
+                          point_sources=self.point_sources, meta=self.meta)
 
-    def astype(self, dtype, copy=True, **kwargs):
+    def astype(self, dtype: type['_Other_DType'], copy=True, **kwargs) -> 'PartialUniqSkymap[_Other_DType]':
         """
         Return a new ``PartialUniqSkymap`` with the data-type of ``s`` set to
         ``dtype``. If ``copy=True``, always make sure both ``u`` and ``s`` are
@@ -325,9 +348,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         ``copy`` and ``**kwargs`` are passed on to ``s.astype`` to make the
         conversion.
         """
-        return PartialUniqSkymap(self.s.astype(dtype, copy=copy, **kwargs),
-                                 self.u, name=self.name, meta=self.meta,
-                                 point_sources=self.point_sources)
+
+        # https://github.com/microsoft/pyright/issues/5412
+        return type(self)(self.s.astype(dtype, copy=copy, **kwargs), # type: ignore
+                          self.u, name=self.name, meta=self.meta,
+                          point_sources=self.point_sources)
 
     def to(self, *args, **kwargs):
         """
@@ -348,12 +373,13 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
         if not isinstance(self.s, Quantity):
             raise TypeError("Can only convert dimensions of a ``Quantity``")
-        return PartialUniqSkymap(self.s.to(*args, **kwargs), self.u,
-                                 copy=False, name=self.name,
-                                 meta=self.meta.copy(),
-                                 point_sources=self.point_sources)
+        _s = cast(Quantity, self.s) # make pyright happy
+        return type(self)(_s.to(*args, **kwargs), self.u,
+                          copy=False, name=self.name,
+                          meta=self.meta.copy(),
+                          point_sources=self.point_sources)
 
-    def compress(self, stype=None, utype=None, **kwargs):
+    def compress(self, stype: Optional['np.dtype'] = None, utype: Optional['np.dtype'] = None, **kwargs) -> 'PartialUniqSkymap':
         """
         Eliminate redundant pixels with ``utils.uniq_minimize`` and store
         indices ``u`` in the smallest integer size that represents all values.
@@ -379,13 +405,13 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         """
         u, s = uniq_minimize(self.u, self.s)
         if utype is None:
-            utype = max_uint_type(self.u.max())
+            utype = np.dtype(max_uint_type(self.u.max()))
         s = s if stype is None else s.astype(stype)
-        return PartialUniqSkymap(s, u.astype(utype), copy=False,
-                                 name=self.name, meta=self.meta.copy(),
-                                 point_sources=self.point_sources)
+        return type(self)(s, u.astype(utype), copy=False,
+                          name=self.name, meta=self.meta.copy(),
+                          point_sources=self.point_sources)
 
-    def sort(self, copy=True):
+    def sort(self: 'PartialUniqSkymap[_DType]', copy=True) -> 'PartialUniqSkymap[_DType]':
         """
         Sort this skymap by UNIQ indices ``u`` (sorting ``s`` as well, of
         course). If ``copy=True``, copy ``u`` and ``s`` and return a new
@@ -397,9 +423,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             self.u[:] = self.u[ui]
             self.s[:] = self.s[ui]
             return self
-        return PartialUniqSkymap(self.s[ui], self.u[ui], name=self.name,
-                                 meta=self.meta, copy=True,
-                                 point_sources=self.point_sources)
+        return type(self)(self.s[ui], self.u[ui], name=self.name,
+                          meta=self.meta, copy=True,
+                          point_sources=self.point_sources)
 
     @property
     def value(self):
@@ -409,17 +435,19 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         """
         from astropy.units import Quantity
 
-        s = self.s.value if isinstance(self.s, Quantity) else self.s
-        return PartialUniqSkymap(s, self.u, copy=False, name=self.name,
-                                 meta=self.meta,
-                                 point_sources=self.point_sources)
+        if isinstance(self.s, Quantity):
+            s = cast(Quantity, self.s).value # make pyright happy
+            return type(self)(s, self.u, copy=False, name=self.name,
+                            meta=self.meta,
+                            point_sources=self.point_sources)
+        return self
 
     def apply(
-            self: TPartial,
+            self,
             func: Callable,
             copy: bool = True,
             quantity: bool = True
-    ) -> TPartial:
+    ) -> 'PartialUniqSkymap':
         """
         Map a function to this skymap's pixels and return a new skymap whose
         values are the returned values of ``func``. Note that ``func(self.s)``
@@ -431,7 +459,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         as an ``astropy.units.Quantity``), use ``quantity = True``. Note that
         this will strip units from the result.
         """
-        from astropy.units import Quantity as Q
+        from astropy.units import Quantity
 
         m = self.meta.copy()
         mod = getattr(func, '__module__',
@@ -441,7 +469,10 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         m['HISTORY'] = (m.get('HISTORY', []) +
                         [f'Applied {mod}{func.__name__}'])
         n = f"{func.__name__}({self.name})"
-        s = self.s.value if isinstance(self.s, Q) and not quantity else self.s
+        if not quantity and isinstance(self.s, Quantity):
+            s = cast(Quantity, self.s).value
+        else:
+            s = self.s
         return type(self)(func(s), self.u.copy() if copy else self.u,
                           copy=False, name=n, meta=m,
                           point_sources=self.point_sources)
@@ -459,7 +490,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         name = name or self.name or 'PIXELS'
         t = Table([self.u, self.s], names=[uname, name], meta=self.meta)
         for pt in self.point_sources:
-            t.meta.update(PointsTuple(*pt).meta_dict())
+            cast(MutableMapping, t.meta).update(PointsTuple(*pt).meta_dict())
         return t
 
     def write(
@@ -593,9 +624,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
                                  point_sources=self.point_sources)
 
     def quantiles(
-            self,
-            quantiles: Iterable[float],
-    ) -> Tuple[Iterator, NDArray, float]:
+            self: 'PartialUniqSkymap[_DType]',
+            quantiles: Sequence[float],
+    ) -> Tuple[Iterator, 'npt.NDArray[_DType]', '_DType']:
         """
         Get an iterator of downselected skymaps partitioned by ``quantiles``.
         For example, get the smallest sky area containing 90% of the
@@ -604,7 +635,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
 
         Parameters
         ----------
-        quantiles : Iterable[float]
+        quantiles : Sequence[float]
             Quantiles from which to select pixels. Must be in ascending order
             with values in the interval ``[0, 1]``. These will form endpoints
             for partitions of the ``skymap``. For example, ``[0.1, 0.9]`` will
@@ -650,12 +681,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         """
         import numpy as np
 
-        quantiles = np.array(quantiles, dtype=float)
+        quantiles_arr = np.asarray(quantiles, dtype=np.float_)
         indices, levels, norm = nside_quantile_indices(self.nside(), self.s,
-                                                       quantiles)
+                                                       quantiles_arr)
 
         def skymaps():
-            for i, l, u in zip(indices, quantiles[:-1], quantiles[1:]):
+            for i, l, u in zip(indices, quantiles_arr[:-1], quantiles_arr[1:]):
                 m = self.meta.copy()
                 m['HISTORY'] = m.get('HISTORY', []) + wrap(
                     f'Downselected to [{l:.2g}, {u:.2g}] quantile '
@@ -685,7 +716,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         s.meta['HISTORY'][-1] += f' (fixed NSIDE={nside})'
         return s
 
-    def __getitem__(self: TPartial, idx) -> TPartial:
+    def __getitem__(self, idx):
         """
         Get a view into this skymap with the given index applied to ``u`` and
         ``s``. Uses their provided ``__getitem__`` semantics, so you'll get
@@ -707,9 +738,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         repidx = repr(idx)
         msg = repidx if len(repidx) < 60 else repidx[:58]+'...'
         m['HISTORY'] = m.get('HISTORY', []) + [f'Got view: {msg}']
-        args = [a if np.iterable(a) else np.array(a).reshape((1,))
-                for a in (self.s[idx], self.u[idx])]
-        return type(self)(*args, copy=False, meta=m,
+        s = np.atleast_1d(self.s[idx])
+        u = np.atleast_1d(self.u[idx])
+        return type(self)(s, u, copy=False, meta=m,
                           point_sources=self.point_sources)
 
     def __setitem__(self, idx, value):
@@ -961,12 +992,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
             self,
             *skymaps: Union[
                 'PartialUniqSkymap',
-                NDArray[Any, Any],
+                'npt.NDArray[Any]',
                 Tuple[
-                    NDArray[Any, Any],
+                    'npt.NDArray[Any]',
                     Optional[
                         Union[
-                            NDArray[Any, Int],
+                            'npt.NDArray[Any]',
                             'WCS',
                             str,
                         ]
@@ -998,7 +1029,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         return gridplot(self, *skymaps, **kwargs)
 
     @_depr_visufunc
-    def multiplot(self, *skymapsₗ: List['PartialUniqSkymap'], nest: bool = True, **kwargs):
+    def multiplot(self, *skymaps: Sequence['PartialUniqSkymap'], nest: bool = True, **kwargs):
         """
         Call ``plotters.multiplot`` with the default ``transform``
         suitable for a ``PartialUniqSkymap``.
@@ -1022,7 +1053,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         PartialUniqSkymap.plot
         plot.plot
         """
-        return multiplot(*skymapsₗ, **kwargs)
+        return multiplot(self, *skymaps, **kwargs)
 
     def _vecs_for_repr_(self, maxlen, *vecs):
         if not vecs:
@@ -1142,152 +1173,153 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap):
         return tab
 
     # BEGIN COMPARATOR METHODS
+    # None of these methods should ever be reached, since they will be replaced
+    # by a constructed method that calls ``uniq_diadic`` with the appropriate
+    # operator. See ``diadic_dunder`` for more information.  
 
     @diadic_dunder(post=bool_to_uint8)
-    def __eq__(self, other): pass  # pylint: disable=C0321
+    def __eq__(self, other): raise NotImplementedError("__eq__")
 
     @diadic_dunder(post=bool_to_uint8)
-    def __ne__(self, other): pass  # pylint: disable=C0321
+    def __ne__(self, other): raise NotImplementedError("__ne__")
 
     @diadic_dunder(post=bool_to_uint8)
-    def __le__(self, other): pass  # pylint: disable=C0321
+    def __le__(self, other): raise NotImplementedError("__le__")
 
     @diadic_dunder(post=bool_to_uint8)
-    def __lt__(self, other): pass  # pylint: disable=C0321
+    def __lt__(self, other): raise NotImplementedError("__lt__")
 
     @diadic_dunder(post=bool_to_uint8)
-    def __ge__(self, other): pass  # pylint: disable=C0321
+    def __ge__(self, other): raise NotImplementedError("__ge__")
 
     @diadic_dunder(post=bool_to_uint8)
-    def __gt__(self, other): pass  # pylint: disable=C0321
+    def __gt__(self, other): raise NotImplementedError("__gt__")
 
     # BEGIN NUMERIC METHODS
 
     @diadic_dunder()
-    def __add__(self, other): pass  # pylint: disable=C0321
+    def __add__(self, other): raise NotImplementedError("__add__")
 
     @diadic_dunder()
-    def __sub__(self, other): pass  # pylint: disable=C0321
+    def __sub__(self, other): raise NotImplementedError("__sub__")
 
     @diadic_dunder()
-    def __mul__(self, other): pass  # pylint: disable=C0321
+    def __mul__(self, other): raise NotImplementedError("__mul__")
 
     # @diadic_dunder()
-    # def __matmul__(self, other): pass  # pylint: disable=C0321
+    # def __matmul__(self, other): raise NotImplementedError("__matmul__")
 
     @diadic_dunder()
-    def __truediv__(self, other): pass  # pylint: disable=C0321
+    def __truediv__(self, other): raise NotImplementedError("__truediv__")
 
     @diadic_dunder()
-    def __floordiv__(self, other): pass  # pylint: disable=C0321
+    def __floordiv__(self, other): raise NotImplementedError("__floordiv__")
 
     @diadic_dunder()
-    def __mod__(self, other): pass  # pylint: disable=C0321
+    def __mod__(self, other): raise NotImplementedError("__mod__")
 
     @diadic_dunder()
-    def __divmod__(self, other): pass  # pylint: disable=C0321
+    def __divmod__(self, other): raise NotImplementedError("__divmod__")
 
     @diadic_dunder()
-    def __pow__(self, other): pass  # pylint: disable=C0321
+    def __pow__(self, other): raise NotImplementedError("__pow__")
 
     @diadic_dunder()
-    def __lshift__(self, other): pass  # pylint: disable=C0321
+    def __lshift__(self, other): raise NotImplementedError("__lshift__")
 
     @diadic_dunder()
-    def __rshift__(self, other): pass  # pylint: disable=C0321
+    def __rshift__(self, other): raise NotImplementedError("__rshift__")
 
     @diadic_dunder()
-    def __and__(self, other): pass  # pylint: disable=C0321
+    def __and__(self, other): raise NotImplementedError("__and__")
 
     @diadic_dunder()
-    def __xor__(self, other): pass  # pylint: disable=C0321
+    def __xor__(self, other): raise NotImplementedError("__xor__")
 
     @diadic_dunder()
-    def __or__(self, other): pass  # pylint: disable=C0321
+    def __or__(self, other): raise NotImplementedError("__or__")
 
     # REVERSE NUMERIC METHODS
 
     @diadic_dunder()
-    def __radd__(self, other): pass  # pylint: disable=C0321
+    def __radd__(self, other): raise NotImplementedError("__radd__")
 
     @diadic_dunder()
-    def __rsub__(self, other): pass  # pylint: disable=C0321
+    def __rsub__(self, other): raise NotImplementedError("__rsub__")
 
     @diadic_dunder()
-    def __rmul__(self, other): pass  # pylint: disable=C0321
+    def __rmul__(self, other): raise NotImplementedError("__rmul__")
 
     # @diadic_dunder()
-    # def __rmatmul__(self, other): pass  # pylint: disable=C0321
+    # def __rmatmul__(self, other): raise NotImplementedError("__rmatmul__")
 
     @diadic_dunder()
-    def __rtruediv__(self, other): pass  # pylint: disable=C0321
+    def __rtruediv__(self, other): raise NotImplementedError("__rtruediv__")
 
     @diadic_dunder()
-    def __rfloordiv__(self, other): pass  # pylint: disable=C0321
+    def __rfloordiv__(self, other): raise NotImplementedError("__rfloordiv__")
 
     @diadic_dunder()
-    def __rmod__(self, other): pass  # pylint: disable=C0321
+    def __rmod__(self, other): raise NotImplementedError("__rmod__")
 
     @diadic_dunder()
-    def __rdivmod__(self, other): pass  # pylint: disable=C0321
+    def __rdivmod__(self, other): raise NotImplementedError("__rdivmod__")
 
     @diadic_dunder()
-    def __rpow__(self, other): pass  # pylint: disable=C0321
+    def __rpow__(self, other): raise NotImplementedError("__rpow__")
 
     @diadic_dunder()
-    def __rlshift__(self, other): pass  # pylint: disable=C0321
+    def __rlshift__(self, other): raise NotImplementedError("__rlshift__")
 
     @diadic_dunder()
-    def __rrshift__(self, other): pass  # pylint: disable=C0321
+    def __rrshift__(self, other): raise NotImplementedError("__rrshift__")
 
     @diadic_dunder()
-    def __rand__(self, other): pass  # pylint: disable=C0321
+    def __rand__(self, other): raise NotImplementedError("__rand__")
 
     @diadic_dunder()
-    def __rxor__(self, other): pass  # pylint: disable=C0321
+    def __rxor__(self, other): raise NotImplementedError("__rxor__")
 
     @diadic_dunder()
-    def __ror__(self, other): pass  # pylint: disable=C0321
+    def __ror__(self, other): raise NotImplementedError("__ror__")
 
     # IN-PLACE NUMERIC METHODS
 
     @diadic_dunder()
-    def __iadd__(self, other): pass  # pylint: disable=C0321
+    def __iadd__(self, other): raise NotImplementedError("__iadd__")
 
     @diadic_dunder()
-    def __isub__(self, other): pass  # pylint: disable=C0321
+    def __isub__(self, other): raise NotImplementedError("__isub__")
 
     @diadic_dunder()
-    def __imul__(self, other): pass  # pylint: disable=C0321
+    def __imul__(self, other): raise NotImplementedError("__imul__")
 
     # @diadic_dunder()
-    # def __imatmul__(self, other): pass  # pylint: disable=C0321
+    # def __imatmul__(self, other): raise NotImplementedError("__imatmul__")
 
     @diadic_dunder()
-    def __itruediv__(self, other): pass  # pylint: disable=C0321
+    def __itruediv__(self, other): raise NotImplementedError("__itruediv__")
 
     @diadic_dunder()
-    def __ifloordiv__(self, other): pass  # pylint: disable=C0321
+    def __ifloordiv__(self, other): raise NotImplementedError("__ifloordiv__")
 
     @diadic_dunder()
-    def __imod__(self, other): pass  # pylint: disable=C0321
+    def __imod__(self, other): raise NotImplementedError("__imod__")
 
     @diadic_dunder()
-    def __ipow__(self, other): pass  # pylint: disable=C0321
+    def __ipow__(self, other): raise NotImplementedError("__ipow__")
 
     @diadic_dunder()
-    def __ilshift__(self, other): pass  # pylint: disable=C0321
+    def __ilshift__(self, other): raise NotImplementedError("__ilshift__")
 
     @diadic_dunder()
-    def __irshift__(self, other): pass  # pylint: disable=C0321
+    def __irshift__(self, other): raise NotImplementedError("__irshift__")
 
     @diadic_dunder()
-    def __iand__(self, other): pass  # pylint: disable=C0321
+    def __iand__(self, other): raise NotImplementedError("__iand__")
 
     @diadic_dunder()
-    def __ixor__(self, other): pass  # pylint: disable=C0321
+    def __ixor__(self, other): raise NotImplementedError("__ixor__")
 
     @diadic_dunder()
-    def __ior__(self, other): pass  # pylint: disable=C0321
-
-
+    def __ior__(self, other): raise NotImplementedError("__ior__")
