@@ -14,7 +14,10 @@ from __future__ import annotations
 import os
 from operator import eq
 from numbers import Integral
-from typing import TypeVar, Union, IO, Any, Tuple, Callable, Protocol, TYPE_CHECKING, overload
+from typing import (
+    Optional, TypeVar, Union, IO, Any, NewType,
+    Tuple, Callable, Protocol, TypeGuard, TYPE_CHECKING, overload
+)
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
@@ -28,10 +31,13 @@ from .healpy import healpy as hp
 
 if TYPE_CHECKING:
     import numpy as np
-    from numpy.typing import NDArray
+    from numpy.typing import NDArray, ArrayLike, DTypeLike
 
     from astropy.wcs import wcs
     from astropy.units import Quantity
+
+    Int = Union[int, np.integer[Any]]
+    IntArray = NDArray[np.integer[Any]]
 
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5
@@ -48,14 +54,14 @@ N_X_OFFSET = 0.08  # [inches]
 N_Y_OFFSET = 0.08  # [inches]
 
 
-def max_uint_type(largest):
+def max_uint_type(largest: 'Int') -> 'np.dtype':
     import numpy as np
 
     if largest < 0:
         raise ValueError(f"Positive values only: {largest}")
     for dt in ('u1', 'u2', 'u4', 'u8'):
         if ~np.array(0, dt) > largest:
-            return dt
+            return np.dtype(dt)
     raise ValueError("You didn't pass an integer representable in less than "
                      "64 bits: {largest}")
 
@@ -63,6 +69,7 @@ def max_uint_type(largest):
 class EmptyStream(OSError):
     "Raised when a file stream returns no further content."
 
+_IntDType = TypeVar("_IntDType", bound="np.integer")
 
 # TODO test this much more
 def uniq2xyf_nside(u):
@@ -344,7 +351,13 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
     return np.arccos(dot_prod)
 
 
-def nest2uniq(indices, nside, in_place=False):
+@overload
+def nest2uniq(indices: 'Int', nside: 'Int', in_place: bool = ...) -> 'Int': ...
+
+@overload
+def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray'], in_place: bool = ...) -> 'IntArray': ...
+
+def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray'], in_place: bool = False): # type: ignore
     """Return the NUNIQ pixel indices for nested ``indices`` with
     NSIDE=``nside``.
 
@@ -376,18 +389,24 @@ def nest2uniq(indices, nside, in_place=False):
     >>> nest2uniq(np.array([284, 286, 287,  10,   8,   2, 279, 278, 285]), 8)
     array([540, 542, 543, 266, 264, 258, 535, 534, 541])
     """
+    import numpy as np
+
     check_valid_nside(nside)
-    add = 4*nside**2
+    add = 4*nside*nside
     if in_place:
-        indices += add
+        indices += add # type: ignore
     else:
         indices = indices + add
-    return indices
+    return np.int64(indices)
 
 
-def check_valid_nside(nside):
-    """Checks whether ``nside`` is a valid HEALPix NSIDE value. Raises a
-    ValueError if it is not.
+def is_int_array(a: 'NDArray[Any]') -> TypeGuard['IntArray']:
+    import numpy as np
+
+    return issubclass(a.dtype.type, np.integer)
+
+def check_valid_nside(nside: 'ArrayLike'):
+    """Checks whether ``nside`` is a valid HEALPix NSIDE value.
 
     Parameters
     ----------
@@ -401,13 +420,11 @@ def check_valid_nside(nside):
 
     Examples
     --------
-    Does nothing if you provide a valid NSIDE value (floats are accepted as
-    long as their exact values are valid):
+    Does nothing if you provide a valid NSIDE value
 
     >>> check_valid_nside([16, 4])
     >>> check_valid_nside(4)
     >>> check_valid_nside(1024)
-    >>> check_valid_nside([1024., 4096])
 
     A descriptive value error is raised if invalid values are provided:
 
@@ -425,14 +442,24 @@ def check_valid_nside(nside):
     import numpy as np
 
     nside = np.atleast_1d(nside)
-    # this should be okay precision-wise since powers of 2 are exact in
-    # floating-point for numbers that aren't too huge; more likely to fail
-    # open, fortunately
-    if np.any(2**np.floor(np.log2(nside)) != nside):
+    if not is_int_array(nside):
+        raise TypeError(
+            f"NSIDE must be an integer type! Got '{nside.dtype.name}'")
+
+    if np.any(nside & (nside-1)):
         raise ValueError("Not a valid NSIDE value: {}".format(nside))
 
 
-def nside2pixarea(nside, degrees=False):
+RAD_TO_DEG = 180 * pi
+SR_TO_DEG2 = RAD_TO_DEG * RAD_TO_DEG
+
+@overload
+def nside2pixarea(nside: 'Int', degrees: bool = ...) -> 'np.floating[Any]': ...
+
+@overload
+def nside2pixarea(nside: 'IntArray', degrees: bool = ...) -> 'NDArray[np.floating[Any]]': ...
+
+def nside2pixarea(nside: Union['Int', 'IntArray'], degrees = False):
     """
     Get the area per-pixel at ``nside``. ``nside`` can also be a HEALPix array
     here.
@@ -474,17 +501,16 @@ def nside2pixarea(nside, degrees=False):
     >>> np.all(nside2pixarea(nsides) == areas)
     True
     """
-    import numpy as np
 
     check_valid_nside(nside)
-    result = pi/3/nside**2
+    result = pi/3/nside/nside
+
     if degrees:
-        np.degrees(result, out=result)
-        np.degrees(result, out=result)
+        return result * SR_TO_DEG2
     return result
 
 
-def check_valid_nuniq(indices):
+def check_valid_nuniq(indices: 'ArrayLike') -> None:
     """Checks that ``indices`` are valid NUNIQ indices.
 
     Raises
@@ -498,13 +524,19 @@ def check_valid_nuniq(indices):
     indices = np.atleast_1d(indices)
     if not len(indices):  # can't go wrong with zero indices
         return
-    if not np.all(np.mod(indices, 1) == 0):
+    if not is_int_array(indices):
         raise ValueError("NUNIQ indices must be integers.")
     if not indices.min() > 3:
         raise ValueError("NUNIQ indices start at 4; found smaller values.")
 
 
-def uniq2order(indices):
+@overload
+def uniq2order(indices: 'np.number') -> 'np.int64': ...
+
+@overload
+def uniq2order(indices: 'NDArray[np.number]') -> 'NDArray[np.int64]': ...
+
+def uniq2order(indices): # type: ignore
     """
     Get the HEALPix order of the given NUNIQ-ordered indices.
 
@@ -516,8 +548,14 @@ def uniq2order(indices):
     """
     import numpy as np
     check_valid_nuniq(indices)
-    return np.array(np.floor(np.log2(indices/4.)/2.), dtype=int)
+    return np.int64(np.log2(indices)/2 - 1)
 
+
+@overload
+def uniq2nside(indices: 'np.number') -> 'np.int64': ...
+
+@overload
+def uniq2nside(indices: 'NDArray[np.number]') -> 'NDArray[np.int64]': ...
 
 def uniq2nside(indices):
     """
@@ -529,10 +567,18 @@ def uniq2nside(indices):
         If ``indices`` are not valid NUNIQ indices, i.e. they are not integers
         greater than 3.
     """
-    return 1 << uniq2order(indices)
+    import numpy as np
+
+    return np.int64(1) << uniq2order(indices)
 
 
-def uniq2nest_and_nside(indices, in_place=False):
+@overload
+def uniq2nest_and_nside(indices: '_IntDType', in_place: bool = ...) -> Tuple['_IntDType', 'np.int64']: ...
+
+@overload
+def uniq2nest_and_nside(indices: 'NDArray[_IntDType]', in_place: bool = ...) -> Tuple['NDArray[_IntDType]', 'np.int64']: ...
+
+def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_place: bool = False):
     """
     Parameters
     ----------
@@ -540,7 +586,8 @@ def uniq2nest_and_nside(indices, in_place=False):
         A scalar or numpy array of NUNIQ indices
     in_place : bool, optional
         If ``True``, perform the conversion in-place and return the converted
-        ``indices`` object along with the calculated ``nside``.
+        ``indices`` object along with the calculated ``nside``. Has no effect
+        if scalar is passed
 
     Returns
     -------
@@ -564,64 +611,68 @@ def uniq2nest_and_nside(indices, in_place=False):
     >>> all(nest2uniq(*uniq2nest_and_nside(nuniq)) == nuniq)
     True
     """
+    
     # uniq2nside implicitly checks whether the indices are valid NUNIQ indices
     nside = uniq2nside(indices)
     sub = 4*nside**2
+
+    # We can safely ignore type checking here because every element of sub
+    # will be less than indices
     if in_place:
-        indices -= sub
+        indices -= sub # type: ignore
     else:
-        indices = indices - sub
+        indices = indices - sub # type: ignore
     return indices, nside
 
 
-def uniq_sample(uniq, skymap, quantiles):
-    """
-    Do a probability-weighted random sample of locations in a skymap based on
-    quantile. Follows *ascending* density order, just like
-    ``nside_quantile_indices``.
+# def uniq_sample(uniq, skymap, quantiles):
+    # """
+    # Do a probability-weighted random sample of locations in a skymap based on
+    # quantile. Follows *ascending* density order, just like
+    # ``nside_quantile_indices``.
 
-    Parameters
-    ----------
-    uniq : array-like
-        NUNIQ indices of the skymap to be sampled.
-    skymap : array-like
-        Probability density at each of the pixels in ``uniq``.
-    quantiles : array-like
-        Values in the interval ``[0, 1]`` specifying which quantile to select
-        from the skymap. For example, ``[0.5, 0.9]`` will select locations from
-        within the pixels for which the integral of all
-        higher-probability-density regions are 0.5 and 0.1, respectively.
+    # Parameters
+    # ----------
+    # uniq : array-like
+    #     NUNIQ indices of the skymap to be sampled.
+    # skymap : array-like
+    #     Probability density at each of the pixels in ``uniq``.
+    # quantiles : array-like
+    #     Values in the interval ``[0, 1]`` specifying which quantile to select
+    #     from the skymap. For example, ``[0.5, 0.9]`` will select locations from
+    #     within the pixels for which the integral of all
+    #     higher-probability-density regions are 0.5 and 0.1, respectively.
 
-    Returns
-    -------
-    locations : array
-        Max-resolution (order = 30) NUNIQ indices drawn from the PDF defined by
-        ``uniq`` and ``skymap`` at the specified ``quantiles`` assuming that
-        each pixel in ``skymap`` has a uniform PDF within its borders. The
-        difference between successive values in the density-ordered CDF of
-        ``skymap`` will be used to select subpixels in NEST ordering from the
-        pixel in ``uniq`` with the greatest CDF value lower than the
-        corresponding quantile, allowing for reproducible results. The returned
-        values have the same order as the input ``quantiles``. You can use
-        ``healpy.pix2ang(*uniq2nest_and_nside(locations)[::-1], nest=True)`` to
-        recover the angles corresponding to the recovered locations.
+    # Returns
+    # -------
+    # locations : array
+    #     Max-resolution (order = 30) NUNIQ indices drawn from the PDF defined by
+    #     ``uniq`` and ``skymap`` at the specified ``quantiles`` assuming that
+    #     each pixel in ``skymap`` has a uniform PDF within its borders. The
+    #     difference between successive values in the density-ordered CDF of
+    #     ``skymap`` will be used to select subpixels in NEST ordering from the
+    #     pixel in ``uniq`` with the greatest CDF value lower than the
+    #     corresponding quantile, allowing for reproducible results. The returned
+    #     values have the same order as the input ``quantiles``. You can use
+    #     ``healpy.pix2ang(*uniq2nest_and_nside(locations)[::-1], nest=True)`` to
+    #     recover the angles corresponding to the recovered locations.
 
-    See Also
-    --------
-    nside_quantile_indices
-    uniq2nest_and_nside
-    healpy.pix2ang
-    """
-    import numpy as np
+    # See Also
+    # --------
+    # nside_quantile_indices
+    # uniq2nest_and_nside
+    # healpy.pix2ang
+    # """
+    # import numpy as np
 
-    orders = uniq2order(uniq)
-    nside = hp.order2nside(orders)
-    [inds], levels, norm = nside_quantile_indices(nside, skymap, [0, 1])
-    cdf = hp.nside2pixarea(nside[inds])
-    cdf *= skymap[inds]
-    np.cumsum(cdf, out=cdf)
-    rough_loc = cdf.searchsorted(quantiles)
-    i_loc = rough_loc.argsort()
+    # orders = uniq2order(uniq)
+    # nside = hp.order2nside(orders)
+    # [inds], levels, norm = nside_quantile_indices(nside, skymap, [0, 1])
+    # cdf = hp.nside2pixarea(nside[inds])
+    # cdf *= skymap[inds]
+    # np.cumsum(cdf, out=cdf)
+    # rough_loc = cdf.searchsorted(quantiles)
+    # i_loc = rough_loc.argsort()
     # TODO finish
 
 
@@ -779,7 +830,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
             norm*np.pi/3)
 
 
-def uniq_intersection(u1, u2):
+def uniq_intersection(u1: 'IntArray', u2: 'IntArray') -> Tuple['IntArray', 'IntArray', 'IntArray']:
     """Downselect the pixel indices given in ``u1`` to the set that
     overlaps with pixels in ``u2`` and return pairs of indices into
     both of the input index lists showing which pixel in ``u2`` each
@@ -801,15 +852,15 @@ def uniq_intersection(u1, u2):
 
     Returns
     -------
-    u̇1 : array
+    u1_idx : array
         Indices *into* ``u1`` that overlap with ``u2``.
-    u̇2 : array
+    u2_idx : array
         Corresponding indices *into* ``u2`` that overlap with ``u1``.
-    δo⃗ : array
+    δo : array
         Corresponding differences in order between the indices, e.g. if the
-        first entry of ``u̇1`` has NSIDE 16 (order 4) and the
-        corresponding entry of ``u̇2`` has NSIDE 1024 (order 10), then the
-        first entry of ``δo⃗`` will be (10 - 4) = 6.
+        first entry of ``u1_idx`` has NSIDE 16 (order 4) and the
+        corresponding entry of ``u2_idx`` has NSIDE 1024 (order 10), then the
+        first entry of ``δo`` will be (10 - 4) = 6.
 
     Raises
     ------
@@ -1159,7 +1210,7 @@ def wcs2nest(wcs, nside=None, order_delta=None):
     -------
     nside : int
         The NSIDE of the output indices.
-    nest : NDArray[Any, Int]
+    nest : NDArray[Any, 'Int']
         The HEALPix NEST indices.
     x : NDArray[Any, Float]
         The pixel-space x-coordinates of the points in ``nest``.
@@ -1267,7 +1318,7 @@ _DType = TypeVar('_DType', covariant=True, bound='np.generic')
 def interp_wcs_nn(
         wcs: 'wcs.WCS',
         data: 'NDArray[_DType]',
-) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']:
+) -> Tuple['IntArray', 'NDArray[_DType]']:
     """
     Do a nearest-neighbor interpolation of ``data`` with coordinates
     specified by ``wcs`` FITS world coordinate system.
@@ -1321,7 +1372,7 @@ def interp_wcs(
                 ]
             ],
         ] = 'nearest'
-) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']:
+) -> Tuple['IntArray', 'NDArray[_DType]']:
     """
     Interpolate ``data`` with coordinates specified by ``wcs`` FITS
     world coordinate system into a HEALPix NUNIQ skymap.
@@ -1691,27 +1742,27 @@ class _Combine(Protocol):
     def __call__(self, x: 'NDArray[_DType]', i: 'NDArray[np.bool_]') -> 'NDArray[_DType]': ...
 
 # TODO: Consider changing return signature to return
-# Tuple[NDArray[np.integer[Any]], Tuple[NDArray[Any], ...]]
+# Tuple[IntArray, Tuple[NDArray[Any], ...]]
 # instead
 
 @overload
 def uniq_minimize(
-    u: 'NDArray[np.integer[Any]]',
+    u: 'IntArray',
     x: 'NDArray[_DType]', /, *,
-    test: _Test = eq,
-    combine: _Combine = lambda x, i: x[i]
-) -> Tuple['NDArray[np.integer[Any]]', 'NDArray[_DType]']: ...
+    test: _Test = ...,
+    combine: _Combine = ...
+) -> Tuple['IntArray', 'NDArray[_DType]']: ...
 
 @overload
 def uniq_minimize(
-    u: 'NDArray[np.integer[Any]]',
+    u: 'IntArray',
     *x: 'NDArray[Any]',
-    test: _Test = eq,
-    combine: _Combine = lambda x, i: x[i]
+    test: _Test = ...,
+    combine: _Combine = ...
 ) -> Tuple['NDArray[Any]', ...]: ...
     
 def uniq_minimize(
-    u: 'NDArray[np.integer[Any]]',
+    u: 'IntArray',
     *x: 'NDArray[Any]',
     test: _Test = eq,
     combine: _Combine = lambda x, i: x[i]
@@ -2221,8 +2272,10 @@ def read_partial_skymap(infile: Union[IO, str], uniq, memmap=True):
                  meta=meta)
 
 
-def nside_slices(*uniqs, include_empty=False, return_index=False,
-                 return_inverse=False, dtype=None):
+def nside_slices(*u: 'IntArray', include_empty: bool = False,
+                 return_index: bool = False,
+                 return_inverse: bool = False,
+                 dtype: Optional[DTypeLike] = None):
     """
     Sort and slice up a list of NUNIQ pixel index arrays, returning the sorted
     arrays as well as slice information for chunking them by NSIDE (pixel
@@ -2234,36 +2287,37 @@ def nside_slices(*uniqs, include_empty=False, return_index=False,
 
     Parameters
     ----------
-    *uniq, array-like
+    *u, array-like
         ``np.array`` instances containing NUNIQ HEALPix indices
     include_empty : bool, optional
         If ``True``, also include NSIDE orders not included in the input
         indices. Affects all return values.
     return_index : bool, optional
-        Whether to return ``u̇``. Only returned if ``True``.
+        Whether to return ``index``. Only returned if ``True``.
     return_inverse : bool, optional
-        Whether to return ``u̇ˢ``. Only returned if ``True``.
-    dtype : int or numpy.dtype, optional
+        Whether to return ``inverse``. Only returned if ``True``.
+    dtype : DTypeLike, optional
         If provided, cast the returned array to this data type. Useful for
         pre-allocating output arrays that only depend on spatial information.
+        Can be a dtype or a value with .dtype
 
     Returns
     -------
-    uniq_sorted : List[array]
+    u_sorted : List[array]
         Sorted versions of each input array
     slices : List[List[slice]]
-        Slices into each ``uniq_sorted`` chunked by NSIDE order
+        Slices into each ``u_sorted`` chunked by NSIDE order
     orders : array
         An array of HEALPix NSIDE orders included in the input indices
     lengths : List[array]
         The lengths of each slice in ``slice_starts``
     views : List[List[array]]
-        Lists of array views into each ``uniq_sorted`` corresponding to the
+        Lists of array views into each ``u_sorted`` corresponding to the
         slices given in ``slices``
     index: List[array], optional
-        Indices into the original array that give ``uniq_sorted``
+        Indices into the original array that give ``u_sorted``
     inverse : List[Array], optional
-        Indices into each ``uniq_sorted`` that give the original arrays
+        Indices into each ``us_sorted`` that give the original arrays
 
     See Also
     --------
@@ -2311,14 +2365,19 @@ def nside_slices(*uniqs, include_empty=False, return_index=False,
     >>> [ii.astype(int) for ii in ius]
     [array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])]
     """
-    return group_slices(*uniqs, f=uniq2order,
+    return group_slices(*u, f=uniq2order,
                         inv=lambda x: nest2uniq(0, hp.order2nside(x)),
                         include_empty=include_empty, return_index=return_index,
                         return_inverse=return_inverse, dtype=dtype)
 
 
-def group_slices(*u, f=lambda x: x, inv=lambda x: x, include_empty=False,
-                 return_index=False, return_inverse=False, dtype=None):
+def group_slices(*u: 'NDArray[_DType]',
+                 f: Callable[['NDArray[_DType]'], 'IntArray']=lambda x: x, # type: ignore
+                 inv: Callable[['IntArray'], 'NDArray[_DType]']=lambda x: x,
+                 include_empty: bool = False,
+                 return_index: bool = False,
+                 return_inverse: bool = False,
+                 dtype: Any = None):
     """
     Group elements of ``u`` inputs using some sort of monotonic step function
     ``f: u.dtype -> int`` codomain and a pseudo-inverse ``inv`` mapping to the
@@ -2336,7 +2395,7 @@ def group_slices(*u, f=lambda x: x, inv=lambda x: x, include_empty=False,
     """
     import numpy as np
 
-    u = [np.array(u, dtype=dtype, copy=False) for u in u ]
+    u = tuple(np.array(u, dtype=dtype, copy=False) for u in u)
     uˢ, u̇_u̇ˢ = [np.unique(u, return_index=return_index, # type: ignore
                           return_inverse=return_inverse) for u in u], [] # type: ignore
     if return_index or return_inverse:
