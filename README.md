@@ -1,5 +1,12 @@
 # hpmoc: HEALPix Multi-Order Coordinate Partial Skymaps
 
+## Citing and Acknowleding
+
+If you use `hpmoc` in published research, we ask that you cite [Stefan Countryman's thesis](https://academiccommons.columbia.edu/doi/10.7916/c8n9-p112).
+`hpmoc` is introduced in section 4.5.13.
+
+`hpmoc` is licensed under the terms of the [GNU General Public License, version 2 or later](https://www.gnu.org/licenses/old-licenses/gpl-2.0.en.html)
+
 ## Installation
 
 `hpmoc` has only a few dependencies, but they are large numerical/scientific
@@ -15,12 +22,11 @@ conda activate hpmoc
 ### With pip
 
 If you just want to use `hpmoc` and don't need to modify the source code, you
-can install [the last released
-version](https://bitbucket.org/stefancountryman/hpmoc/downloads/hpmoc-latest-py3-none-any.whl)
+can install [the last released version](https://github.com/markalab/hpmoc/releases/latest)
 using pip:
 
 ```bash
-pip install hpmoc-latest-py3-none-any.whl
+pip install hpmoc-<REPLACE_WITH_VERSION>-py3-none-any.whl
 ```
 
 This should install all required dependencies for you.
@@ -31,7 +37,7 @@ If you want to install from source (to try the latest, unreleased version, or
 to make your own modifications, run tests, etc.), first clone the repository:
 
 ```bash
-git clone git@bitbucket.org:stefancountryman/hpmoc.git
+git clone https://github.com/markalab/hpmoc.git
 cd hpmoc
 ```
 
