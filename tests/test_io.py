@@ -109,7 +109,8 @@ def test_io_ligo_o3_cwb_ring_fitsgz_128():
 
 def test_gracedb():
     local = PartialUniqSkymap.read(DATA/'S200105ae.fits', strategy='ligo')
-    remote = PartialUniqSkymap.read('S200105ae', 'bayestar.multiorder.fits,0',
+    remote = PartialUniqSkymap.read('bayestar.multiorder.fits,0',
+                                    graceid='S200105ae',
                                     strategy='gracedb')
     assert (local.u == remote.u).all(), "Gracedb indices read failed."
     assert (local.s == remote.s).all(), "Gracedb pixel read failed."

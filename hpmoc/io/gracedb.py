@@ -9,10 +9,11 @@ far more features than are used here.
 
 import importlib.util
 from io import BytesIO
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Optional, Union, IO, TYPE_CHECKING
 from .abstract import StubIo, IoStrategy
 from .ligo import LigoIo
 from ..partial import PartialUniqSkymap
+from numpy.typing import ArrayLike
 
 if not TYPE_CHECKING and importlib.util.find_spec("ligo.gracedb") is None:
 
@@ -30,8 +31,7 @@ if not TYPE_CHECKING and importlib.util.find_spec("ligo.gracedb") is None:
 else:
 
     if TYPE_CHECKING:
-        import ligo.gracedb
-        from numpy.typing import NDArray
+        import ligo.gracedb.rest
 
     class GracedbIo(IoStrategy):
         """
@@ -42,14 +42,15 @@ else:
         .. _GraceDB: https://gracedb.ligo.org
         """
 
-        @staticmethod
+        @classmethod
         def read(
-                mask: Optional[Union[PartialUniqSkymap, 'NDArray']],
-                graceid: str,
-                file: str,
-                *args,
-                client: Optional['ligo.gracedb.rest.GraceDb'] = None,
-                **kwargs
+            cls,
+            skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
+            file: Union[IO, str],
+            *args,
+            graceid: str,
+            client: Optional['ligo.gracedb.rest.GraceDb'] = None,
+            **kwargs
         ):
             """
             Load a file from GraceDB_ in the format used by LIGO/Virgo/KAGRA
@@ -84,15 +85,18 @@ else:
             """
             from ligo.gracedb.rest import GraceDb
 
+            if not isinstance(file, str):
+                raise TypeError("file must be a str")
+
             if client is None:
                 client = GraceDb()
             # Unfortunately GraceDb responses don't work for streaming reads.
             # Not sure why, but defaulting to a single read operation seems
             # safest.
             buf = BytesIO(client.files(graceid, file).read())
-            return LigoIo.read(mask, buf, *args, **kwargs)
+            return LigoIo.read(skymap, buf, *args, **kwargs)
 
-        @staticmethod
-        def write(*args, **kwargs):
+        @classmethod
+        def write(cls, *args, **kwargs):
             raise NotImplementedError("Not yet implemented. Might never be "
                                       "implemented. Requires auth.")

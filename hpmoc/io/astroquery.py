@@ -6,10 +6,11 @@ be accomplished automatically by adding the ``astroquery`` dependencies on
 installation.
 """
 
-import importlib
-from typing import Optional
+import importlib.util
+from typing import Optional, Union
 from .abstract import StubIo, ReadonlyIo
 from ..partial import PartialUniqSkymap
+from numpy.typing import ArrayLike
 
 # TODO think through these features further
 if importlib.util.find_spec("astroquery") is None:
@@ -32,10 +33,11 @@ else:
         analyses.
         """
 
-        @staticmethod
+        @classmethod
         def read(
+            cls,
             # FIXME implement masking.
-            _skymap: Optional[PartialUniqSkymap],
+            skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
             *args,
             **kwargs,
         ) -> PartialUniqSkymap:
@@ -50,11 +52,15 @@ else:
             """
             from astropy.wcs import WCS
             from astroquery.skyview import SkyView
+            from astropy.io.fits.hdu import PrimaryHDU
 
             # TODO maybe use ``get_image_list`` which returns a generator over
             # filenames (which are lazily downloaded).
-            hdu = SkyView.get_images(*args, **kwargs)
+            hdulistlist = SkyView.get_images(*args, **kwargs)
+            if len(hdulistlist) != 1:
+                raise ValueError("Got more than one image")
+            hdu: PrimaryHDU = hdulistlist[0][0] # type: ignore
             # TODO handle multiple returned results and multiple constituent
             # skymaps more gracefully, ideally by making IoStrategy.read return
             # a generator over loaded skymaps.
-            return PartialUniqSkymap(hdu.data[0][0], WCS(hdu.header))
+            return PartialUniqSkymap(hdu.data[0][0], WCS(hdu.header)) # type: ignore

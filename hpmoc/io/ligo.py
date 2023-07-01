@@ -5,21 +5,20 @@ instances.
 
 from typing import Optional, Union, IO, TYPE_CHECKING
 from hpmoc.io.abstract import IoStrategy
-from hpmoc.fits import load_ligo
+from hpmoc.io.fits import load_ligo
 from hpmoc.partial import PartialUniqSkymap
 from hpmoc.utils import uniq_coarsen, uniq_minimize
-
-if TYPE_CHECKING:
-    from numpy.typing import NDArray
+from numpy.typing import ArrayLike
 
 class LigoIo(IoStrategy):
     """
     Read/write files in the format used by LIGO/Virgo for their skymaps.
     """
 
-    @staticmethod
+    @classmethod
     def read(
-        mask: Optional[Union[PartialUniqSkymap, 'NDArray']],
+        cls,
+        skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
         file: Union[IO, str],
         *args,
         name: str = 'PROBDENSITY',
@@ -45,16 +44,19 @@ class LigoIo(IoStrategy):
         *args, **kwargs
             Arguments to pass on to ``hpmoc.fits.load_ligo``.
         """
-        pt = mask.point_sources if isinstance(mask, PartialUniqSkymap) else []
-        if mask is not None:
-            mask = mask.u if isinstance(mask, PartialUniqSkymap) else mask
+        pt = skymap.point_sources if isinstance(skymap, PartialUniqSkymap) else []
+        if skymap is not None:
+            mask = skymap.u if isinstance(skymap, PartialUniqSkymap) else skymap
             mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
-            mask, = uniq_minimize(mask)
+            mask = uniq_minimize(mask)[0]
+        else:
+            mask = None
         [[u, s, meta]] = load_ligo(file, mask=mask, **kwargs)
         return PartialUniqSkymap(s, u, name=name, meta=meta, point_sources=pt)
 
-    @staticmethod
+    @classmethod
     def write(
+        cls,
         skymap: PartialUniqSkymap,
         file: Union[IO, str],
         name: Optional[str] = None,

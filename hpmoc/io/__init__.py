@@ -11,6 +11,9 @@ from ..points import PointsTuple
 from ..partial import PartialUniqSkymap
 from ..utils import uniq2order, read_partial_skymap
 
+import numpy as np
+from numpy.typing import ArrayLike
+
 
 class BasicIo(IoStrategy):
     """
@@ -18,15 +21,16 @@ class BasicIo(IoStrategy):
     """
 
     #FIXME add mask
-    @staticmethod
+    @classmethod
     def read(
-            _skymap: Optional[PartialUniqSkymap],
-            file: Union[IO, str],
-            *args,
-            name: Optional[str] = None,
-            uname: str = 'UNIQ',
-            empty = None,
-            **kwargs
+        cls,
+        skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
+        file: Union[IO, str],
+        *args,
+        name: Optional[str] = None,
+        uname: str = 'UNIQ',
+        empty = None,
+        **kwargs
     ) -> PartialUniqSkymap:
         """
         Read a file saved in the default format used by ``PartialUniqSkymap``.
@@ -68,14 +72,15 @@ class BasicIo(IoStrategy):
                                  meta=t.meta,
                                  point_sources=PointsTuple.meta_read(t.meta))
 
-    @staticmethod
+    @classmethod
     def write(
-            skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            name: Optional[str] = None,
-            uname: Optional[str] = 'UNIQ',
-            *args,
-            **kwargs
+        cls,
+        skymap: PartialUniqSkymap,
+        file: Union[IO, str],
+        name: Optional[str] = None,
+        uname: str = 'UNIQ',
+        *args,
+        **kwargs
     ):
         """
         Read a file saved in the default format used by ``PartialUniqSkymap``.
@@ -104,15 +109,16 @@ class OldLigoIo(IoStrategy):
     the old method (pre 0.3.0).
     """
 
-    @staticmethod
+    @classmethod
     def read(
-            mask: Optional[PartialUniqSkymap],
-            file: Union[IO, str],
-            *args,
-            name: str = 'PROBDENSITY',
-            memmap: bool = True,
-            coarsen: int = 0,
-            **kwargs
+        cls,
+        skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
+        file: Union[IO, str],
+        *args,
+        name: str = 'PROBDENSITY',
+        memmap: bool = True,
+        coarsen: int = 0,
+        **kwargs
     ):
         """
         Read a file saved in the format used by LIGO/Virgo for their skymaps.
@@ -138,24 +144,30 @@ class OldLigoIo(IoStrategy):
         """
         import numpy as np
 
-        if mask is None:
+        if skymap is None:
             pt = []
             m = np.arange(12)+4  # 12 base pixels = whole sky
+        elif isinstance(skymap, PartialUniqSkymap):
+            pt = skymap.point_sources
+            m = skymap.u
         else:
-            pt = mask.point_sources
-            m = mask.u⃗
+            pt = []
+            m = np.asarray(skymap, dtype=np.int64)
         m = np.unique(m >> (2*min(uniq2order(m.min()), coarsen)))
         p = read_partial_skymap(file, m, memmap=memmap)
-        return PartialUniqSkymap(p[name], p['UNIQ'],
+        return PartialUniqSkymap(p[name],
+                                 p['UNIQ'],
                                  name=name, meta=p.meta,
                                  point_sources=pt)
 
+    @classmethod
     def write(
-            skymap: PartialUniqSkymap,
-            file: Union[IO, str],
-            name: Optional[str] = None,
-            *args,
-            **kwargs
+        cls,
+        skymap: PartialUniqSkymap,
+        file: Union[IO, str],
+        name: Optional[str] = None,
+        *args,
+        **kwargs
     ):
         """
         Write a skymap to file in the format used by LIGO/Virgo for their

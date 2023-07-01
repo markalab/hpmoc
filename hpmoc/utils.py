@@ -15,7 +15,7 @@ import os
 from operator import eq
 from numbers import Integral
 from typing import (
-    Optional, TypeVar, Union, IO, Any, NewType,
+    Optional, TypeVar, Union, IO, Any,
     Tuple, Callable, Protocol, TypeGuard, TYPE_CHECKING, overload
 )
 import functools
@@ -614,7 +614,7 @@ def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_pl
     
     # uniq2nside implicitly checks whether the indices are valid NUNIQ indices
     nside = uniq2nside(indices)
-    sub = 4*nside**2
+    sub = 4*nside*nside
 
     # We can safely ignore type checking here because every element of sub
     # will be less than indices

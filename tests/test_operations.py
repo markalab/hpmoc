@@ -25,7 +25,7 @@ def is_ligo_map(name):
     return bool(re.match(r"M?S[0-9]{6}[a-z]+\.(fits\.gz|multiorder\.fits)", name))
 
 @pytest.fixture(scope="module")
-def skymaps_cache():
+def skymaps():
     skymaps = {}
     for path in (*GW_SKYMAPS, *GRB_SKYMAPS):
         if is_ligo_map(path.name):

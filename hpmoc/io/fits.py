@@ -10,11 +10,9 @@ import re
 import gzip
 import logging
 from pathlib import Path
-from math import ceil
 from collections import OrderedDict
 from typing import (
     Union,
-    IO,
     List,
     Tuple,
     Callable,
@@ -25,8 +23,8 @@ from typing import (
     cast,
     TYPE_CHECKING
 )
-from .healpy import healpy as hp
-from .utils import (
+from ..healpy import healpy as hp
+from ..utils import (
     set_partial_skymap_metadata,
     EmptyStream,
     nest2uniq,
@@ -50,6 +48,8 @@ if TYPE_CHECKING:
     )
     from astropy.io.fits.hdu.base import ExtensionHDU
     from astropy.units.quantity import Quantity
+
+    from _typeshed import SupportsRead
 
 LOGGER = logging.getLogger(__name__)
 FITS_BLOCKSIZE = 2880
@@ -155,7 +155,7 @@ def extract_probdensity(hdu, chunk, offset):
 
 
 def read_bintable_chunks(
-        stream: IO,
+        stream: SupportsRead[bytes],
         tables: int = -1,
         buf_rows: int = BUFFER_ROWS,
         extractor: Callable[
@@ -221,7 +221,7 @@ def read_bintable_chunks(
 
 
 def load_ligo(
-        infile: Union[IO, str, Path],
+        infile: Union[SupportsRead[bytes], str, Path],
         mask: Optional['UniqArray'] = None,
         maps: Optional[Union[int, Iterable[int]]] = None,
         extractor: Callable[
@@ -336,7 +336,7 @@ def bintable_dtype(
     return types
 
 
-def _next_header_blocks(stream: IO):
+def _next_header_blocks(stream: SupportsRead[bytes]):
     block = stream.read(FITS_BLOCKSIZE)
     if not block:
         return block
@@ -347,7 +347,7 @@ def _next_header_blocks(stream: IO):
     return block + _next_header_blocks(stream)
 
 
-def next_header(stream: IO) -> 'Header':
+def next_header(stream: SupportsRead[bytes]) -> 'Header':
     "Read the next ``astropy.fits.Header`` from a fits file stream (bytes)."
     from astropy.io import fits
 
@@ -357,7 +357,7 @@ def next_header(stream: IO) -> 'Header':
     return fits.Header.fromstring(header)
 
 
-def next_hdu(stream: IO) -> 'ExtensionHDU':
+def next_hdu(stream: SupportsRead[bytes]) -> 'ExtensionHDU':
     "Read the next FITS HDU from a fits file stream (bytes)."
     from astropy.io import fits
 
