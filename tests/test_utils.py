@@ -1,10 +1,9 @@
 "Test utility functions."
 
 from pathlib import Path
-from operator import mul
-import numpy as np
 from hpmoc import PartialUniqSkymap
 from hpmoc.utils import *
+import numpy as np
 
 DATA = Path(__file__).absolute().parent.parent/"tests"/"data"
 
@@ -15,4 +14,4 @@ def test_uniq_minimize():
     m = PartialUniqSkymap.read(DATA/"S191216ap.fits.gz", strategy="ligo")
     u, s = uniq_minimize(m.u, m.s)
     assert (mo.u == u).all()
-    assert ((mo.s - s)/s).max() < 1e-15
+    assert np.all(np.isclose(mo.s, s))
