@@ -405,7 +405,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         """
         u, s = uniq_minimize(self.u, self.s)
         if utype is None:
-            utype = np.dtype(max_uint_type(self.u.max()))
+            utype = max_uint_type(self.u.max())
         s = s if stype is None else s.astype(stype)
         return type(self)(s, u.astype(utype), copy=False,
                           name=self.name, meta=self.meta.copy(),
@@ -711,7 +711,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             detail.
         """
         nside = nside or uniq2nside(self.u.max())
-        u⃗ᵒ = uniq2nest(self.u, nside, nest=True)
+        u⃗ᵒ = uniq2nest(self.u, nside, nest=False)
         s = self.reraster(u⃗ᵒ, copy=False)
         s.meta['HISTORY'][-1] += f' (fixed NSIDE={nside})'
         return s
@@ -819,23 +819,23 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         return render(self.u, self.s, u⃗ᵒ, pad=pad, valid=valid,
                       mask_missing=mask_missing)
 
-    def reraster(self, u⃗ᵒ, pad=None, mask_missing=False, copy=True):
+    def reraster(self, u_out, pad=None, mask_missing=False, copy=True):
         """
         Return a new ``PartialUniqSkymap`` instance with the same pixel values
-        rerasterized to match the output NUNIQ indices ``u⃗ᵒ``. Fill in missing
+        rerasterized to match the output NUNIQ indices ``u_out``. Fill in missing
         values in the output skymap with ``pad``. If ``pad`` is not provided
-        and this skymap does not cover the full region defined in ``u⃗ᵒ``,
+        and this skymap does not cover the full region defined in ``u_out``,
         raises a ``ValueError``. Preserves ``astropy.units.Unit`` of this
         skymap's pixel values (if ``s`` is an ``astropy.units.Quantity``). If
-        ``copy`` is ``False``, use ``u⃗ᵒ`` as the indices of the new skymap;
+        ``copy`` is ``False``, use ``u_out`` as the indices of the new skymap;
         otherwise, use a copy.
         """
         import numpy as np
 
-        sᵒ = reraster(self.u, self.s, u⃗ᵒ, pad=pad, mask_missing=mask_missing)
+        s_out = reraster(self.u, self.s, u_out, pad=pad, mask_missing=mask_missing)
         m = self.meta.copy()
         m['HISTORY'] = m.get('HISTORY', []) + ['Rerasterized.']
-        return PartialUniqSkymap(sᵒ, np.array(u⃗ᵒ, copy=copy), copy=False,
+        return PartialUniqSkymap(s_out, np.array(u_out, copy=copy), copy=False,
                                  meta=m, point_sources=self.point_sources)
 
     def coords(self):
