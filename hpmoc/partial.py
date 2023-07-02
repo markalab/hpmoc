@@ -62,17 +62,13 @@ from .plotters import (
 from .healpy import healpy as hp
 from .points import PT_META_REGEX, PT_META_KW_REGEX, PT_META_COLOR_REGEX, _vecs_for_repr_, PointsTuple
 
-if TYPE_CHECKING:
-    import numpy as np
-    import numpy.typing as npt
+import numpy as np
+from numpy.typing import NDArray
 
+if TYPE_CHECKING:
     from astropy.visualization import wcsaxes
     from astropy.wcs.wcs import WCS
     import matplotlib.gridspec
-
-DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
-                     'divmod': divmod}
-
 
 # _depr_visufunc = deprecated(
 #     reason=dedent("""
@@ -87,6 +83,118 @@ DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
 # )
 
 _depr_visufunc = lambda x: x
+
+_XType = TypeVar('_XType', bound='np.generic')
+_YType = TypeVar('_YType', bound='np.generic')
+_OType = TypeVar('_OType', bound='np.generic')
+
+@overload
+def apply_diadic(
+    op: Callable[[NDArray[_XType], NDArray[_YType]], NDArray[_OType]],
+    x: PartialUniqSkymap[_XType],
+    y: PartialUniqSkymap[_YType],
+    /,
+    **kwargs
+) -> PartialUniqSkymap[_OType]: ...
+
+@overload
+def apply_diadic(
+    op: Callable[[NDArray[_XType], Union[_YType, NDArray[_YType]]], NDArray[_OType]],
+    x: PartialUniqSkymap[_XType],
+    y: Union[_XType, NDArray[_XType]],
+    /,
+    **kwargs
+) -> PartialUniqSkymap[_OType]: ...
+
+@overload
+def apply_diadic(
+    op: Callable[[Union[_XType, NDArray[_XType]], NDArray[_YType]], NDArray[_OType]],
+    x: Union[_XType, NDArray[_XType]],
+    y: PartialUniqSkymap[_YType],
+    /,
+    **kwargs
+) -> PartialUniqSkymap[_OType]: ...
+
+def apply_diadic(f, x, y, /, iop=None, post=None, **kwargs):
+    """
+    Apply the diadic function ``f(x, y) -> o``. If both ``x`` and `y``, are 
+    ``PartialUniqSkymap``s, the operation is performed efficiently on a MOC
+    healpix grid either upsampling (if ``coarse=False``, default) to the
+    highest input resolution in each area of the sky or downsampling to the
+    lowest input resolution (if ``coarse=True``). Additional kwargs are passed
+    to ``hpmoc.utils.uniq_diadic``. If one of ``x`` or ``y`` is not a skymap,
+    the operation is the value array with standard numpy array/scalar arithmetic.
+
+    The resulting ``PartialUniqSkymap`` will have the point sources from both
+    ``x`` and ``y``. The metadata and history of ``x`` will be preserved,
+    unless ``x`` is not a ``PartialUniqSkymap``.
+
+    ``PartialUniqSkymap`` support all Python operators like *, +, -, and /
+    already. This function should be used for calculations that require more
+    than one basic arithmetic operation.
+
+    Parameters
+    ----------
+    f : function (x, y) -> o
+        The operation to apply
+    x : PartialUniqSkymap or array-like
+        The left side operand. At least one of ``x`` or ``y`` must be a
+        ``PartialUniqSkymap``
+    y : PartialUniqSkymap or array-like
+        The right side operand. At least one of ``x`` or ``y`` must be a
+        ``PartialUniqSkymap``
+    iop : function (x, y) -> o, optional
+        NUNIQ indices of the output skymap.
+    **kwargs
+        Additional kwargs are passed to ``hpmoc.utils.uniq_diadic``
+    Returns
+    -------
+    o : PartialUniqSkymap
+        The result of the operation ``f(x, y)``. If ``x`` and ``y`` are both
+        ``PartialUniqSkymap``s, ``o`` may have different UNIQ indices from
+        either due to resolution conformation.
+
+    See Also
+    --------
+    hpmoc.utils.uniq_diadic
+
+    """
+    if iop is None:
+        iop = f
+    px = isinstance(x, PartialUniqSkymap)
+    py = isinstance(y, PartialUniqSkymap)
+    if px and py:
+        uu, ss = uniq_diadic(f, (x.u, y.u), (x.s, y.s), **kwargs)
+        pts = [*x.point_sources, *y.point_sources]
+        xname = x.name or 'PIXELS'
+        yname = y.name or 'PIXELS'
+        s = x
+    elif px:
+        ss = f(x.s, y)
+        uu = x.u
+        pts = x.point_sources
+        xname = x.name or 'PIXELS'
+        yname = 'array'
+        s = x
+    elif py:
+        ss = f(x, y.s)
+        uu = y.u
+        pts = y.point_sources
+        xname = 'array'
+        yname = y.name or 'PIXELS'
+        s = y
+    else:
+        raise TypeError("At least one of `x` or `y` must be a `PartialUniqSkymap`.")
+
+    meta = s.meta.copy()
+    meta['HISTORY'] = meta.get('HISTORY', []) + [
+        f'DIAD: {f.__name__}({xname}, {yname})']
+    return PartialUniqSkymap(ss if post is None else post(ss), uu,
+                                point_sources=pts, copy=False, meta=meta)
+    
+
+DIADIC_EXCEPTIONS = {'and': operator.and_, 'or': operator.or_,
+                     'divmod': divmod}
 
 def _get_op(name):
     if name in DIADIC_EXCEPTIONS:
@@ -125,29 +233,11 @@ def diadic_dunder(pad=None, coarse: bool = False, post=None):
             Ω = Ωᵢ = _get_op(name)
 
         @functools.wraps(meth)
-        def wrapper(s, o, pad=pad, coarse=coarse, post=post):
-            import numpy as np
-            from astropy.units import Quantity as Qty
-            # from IPython.core.debugger import Tracer; Tracer()()
-
-            if isinstance(o, PartialUniqSkymap):
-                uu, ss = uniq_diadic(Ω, srt(s.u, o.u), srt(s.s, o.s),
-                                     pad=pad, coarse=coarse)
-                pts = o.point_sources
-                oname = o.name or 'PIXELS'
-            elif (not np.iterable(o)) or isinstance(o, (np.ndarray, Qty)):
-                ss = Ωᵢ(*srt(s.s, o))
-                uu = s.u
-                pts = []
-                oname = 'array'
-            else:
+        def wrapper(s, o, pad=pad, coarse=coarse, post=post, **kwargs):
+            try:
+                return apply_diadic(Ω, *srt(s, o), iop=Ωᵢ, pad=pad, coarse=coarse, post=post, **kwargs)
+            except TypeError:
                 return NotImplemented
-            pts = [*s.point_sources, *pts]
-            m = s.meta.copy()
-            m['HISTORY'] = m.get('HISTORY', []) + [
-                f'DIAD: {meth.__name__}({s.name or "PIXELS"}, {oname})']
-            return PartialUniqSkymap(ss if post is None else post(ss), uu,
-                                     point_sources=pts, copy=False, meta=m)
 
         wrapper.__doc__ = dedent(f"""
             ``__{name}__`` for scalars, arrays, and `PartialUniqSkymap`
@@ -155,7 +245,8 @@ def diadic_dunder(pad=None, coarse: bool = False, post=None):
             arguments ``pad`` to provide a pad value for missing pixels and/or
             ``coarse`` to specify whether the resulting skymap should take the
             higher or lower resolution in overlapping areas (default coarse
-            value: {coarse})
+            value: {coarse}). For additional kwargs, see documentation of
+            ``hpmoc.utils.uniq_diadic``.
         """)
 
         return wrapper
@@ -184,8 +275,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
 
     def __init__(
         self,
-        s: 'npt.NDArray[_DType]',
-        u: Union['npt.NDArray[np.integer[Any]]', 'WCS'],
+        s: 'NDArray[_DType]',
+        u: Union['NDArray[np.integer[Any]]', 'WCS'],
         copy: bool = False, name=None, point_sources=None,
         meta=None, empty=None, compress=False, interp="nearest"):
         """
@@ -289,7 +380,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
     def nside(self, as_skymap: Literal[True], copy: bool = False, **kwargs) -> 'PartialUniqSkymap[np.integer[Any]]': ...
 
     @overload
-    def nside(self, as_skymap: Literal[False] = False, copy: bool = False, **kwargs) -> 'npt.NDArray[np.integer[Any]]': ...
+    def nside(self, as_skymap: Literal[False] = False, copy: bool = False, **kwargs) -> 'NDArray[np.integer[Any]]': ...
 
     def nside(self, as_skymap=False, copy=False, **kwargs): # type: ignore
         """
@@ -312,7 +403,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
     def orders(self, as_skymap: Literal[True] = True, copy: bool = False, **kwargs) -> 'PartialUniqSkymap[np.integer[Any]]': ...
 
     @overload
-    def orders(self, as_skymap: Literal[False], copy: bool = False, **kwargs) -> 'npt.NDArray[np.integer]': ...
+    def orders(self, as_skymap: Literal[False], copy: bool = False, **kwargs) -> 'NDArray[np.integer]': ...
 
     def orders(self, as_skymap=False, copy=True, **kwargs): # type: ignore
         """
@@ -626,7 +717,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
     def quantiles(
             self: 'PartialUniqSkymap[_DType]',
             quantiles: Sequence[float],
-    ) -> Tuple[Iterator, 'npt.NDArray[_DType]', '_DType']:
+    ) -> Tuple[Iterator, 'NDArray[_DType]', '_DType']:
         """
         Get an iterator of downselected skymaps partitioned by ``quantiles``.
         For example, get the smallest sky area containing 90% of the
@@ -992,12 +1083,12 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             self,
             *skymaps: Union[
                 'PartialUniqSkymap',
-                'npt.NDArray[Any]',
+                'NDArray[Any]',
                 Tuple[
-                    'npt.NDArray[Any]',
+                    'NDArray[Any]',
                     Optional[
                         Union[
-                            'npt.NDArray[Any]',
+                            'NDArray[Any]',
                             'WCS',
                             str,
                         ]

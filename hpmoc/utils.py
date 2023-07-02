@@ -113,7 +113,7 @@ def min_int_dtype(vmin, vmax):
     if vmax < vmin:
         raise ValueError(f"vmax must be larger than vmin. got: {vmin, vmax}")
     ranges = INT_RANGES if vmin < 0 else UINT_RANGES
-    for [dmin, dmax], dtype in ranges:
+    for [dmin, dmax], dtype in ranges.items():
         if vmin > dmin and vmax < dmax:
             return np.dtype(dtype)
     raise ValueError("Could not find a type to represent {vmin, vmax}.")
@@ -1624,9 +1624,9 @@ def reraster(u, x, u_out,
     elif u̇ₘᵒ.size != 0 and pad is None:
         raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
 
-    dtype_out = float
+    dtype_out = np.float64
     if method == "average" and not np.issubdtype(dtype_out, np.floating):
-        dtype_out = float
+        dtype_out = np.float64
 
     x_out = x_out_raw = np.zeros(u_out.shape, dtype=dtype_out)  # pixel values
     unit = None
@@ -1635,23 +1635,22 @@ def reraster(u, x, u_out,
         x = x.value                                 #   astropy.Quantity
         x_out = Qty(x_out, copy=False, unit=unit, dtype=dtype_out)
 
+    if pad:
+        x_out_raw[u̇ₘᵒ] = pad                        # pad missing if u̇ₘᵒ
+
     if method == 'average':
         δ⃗ = 4.**-δo                                    # NUNIQ slice offset tmp
-        n_out = np.zeros(u_out.shape, dtype=float)      # normalization for pix avg
+        n_out = np.zeros(u_out.shape, dtype=np.float64) # normalization for pix avg
         np.add.at(n_out, u̇ᵒ, δ⃗)
-        np.add.at(n_out, u̇ₘᵒ, 1.)                       # pad missing if u̇ₘᵒ
+        n_out[u̇ₘᵒ] = 1.                                 # pad missing if u̇ₘᵒ
 
         δ⃗ *= x[u̇]                                      # subpixel contributions
         np.add.at(x_out_raw, u̇ᵒ, δ⃗)
-        np.add.at(x_out_raw, u̇ₘᵒ, pad or 0.)            # pad missing if u̇ₘᵒ
-
         x_out_raw /= n_out                              # normalize pixel values
     elif method == 'sum':
-        np.add.at(x_out_raw, u̇ᵒ, δ⃗)
-        np.add.at(x_out_raw, u̇ₘᵒ, pad or 0.)            # pad missing if u̇ₘᵒ
+        np.add.at(x_out_raw, u̇ᵒ, x[u̇])
     elif method == 'copy':
         x_out_raw[u̇ᵒ] = x[u̇]
-        x_out_raw[u̇ₘᵒ] = pad or 0
     else:
         raise ValueError(f"Unknown method '{method}'.")
 
@@ -2017,13 +2016,15 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, method='average'):
 
         t = xs[i][u̇ᵁ]
 
-        # re-raster the source to the target
-        # when upsampling (source nside < target nside), perform a very fast
-        # shortcut.
+        # re-raster the source to the target with a fast shortcut
+        # when performing upsampling (source nside < target nside)
         if not coarse:
             source = xs[i-1]
-            r = np.empty_like(t)
-            r[u̇ᵁ̇] = source[u̇ˈᵁ][u̇ˈᵁ̇]
+            r = raw = np.empty(t.shape, dtype=source.dtype)
+            if hasattr(source, "unit"):
+                from astropy.units import Quantity
+                r = Quantity(raw, dtype=raw.dtype, unit=source.unit, copy=False)
+            raw[u̇ᵁ̇] = source[u̇ˈᵁ][u̇ˈᵁ̇]
         else: # when downsampling, call the reraster method to average pixels.
             r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
                             intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
