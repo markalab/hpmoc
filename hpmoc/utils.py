@@ -29,15 +29,15 @@ import binascii
 from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
 
-if TYPE_CHECKING:
-    import numpy as np
-    from numpy.typing import NDArray, ArrayLike, DTypeLike
+import numpy as np
+from numpy.typing import NDArray, ArrayLike, DTypeLike
 
+Int = Union[int, np.integer[Any]]
+IntArray = NDArray[np.integer[Any]]
+
+if TYPE_CHECKING:
     from astropy.wcs import wcs
     from astropy.units import Quantity
-
-    Int = Union[int, np.integer[Any]]
-    IntArray = NDArray[np.integer[Any]]
 
 LOGGER = logging.getLogger(__name__)
 GZIP_BUFFSIZE = 10**5
@@ -54,8 +54,7 @@ N_X_OFFSET = 0.08  # [inches]
 N_Y_OFFSET = 0.08  # [inches]
 
 
-def max_uint_type(largest: 'Int') -> 'np.dtype':
-    import numpy as np
+def max_uint_type(largest: Int) -> 'np.dtype':
 
     if largest < 0:
         raise ValueError(f"Positive values only: {largest}")
@@ -95,7 +94,6 @@ def xyf_nside2uniq(x, y, f, nside):
     """
     Examples
     --------
-    >>> import numpy as np
     >>> (xyf_nside2uniq(*uniq2xyf_nside(np.arange(4, 10000))) == np.arange(4, 10000)).all()
     True
 
@@ -111,12 +109,11 @@ def min_int_dtype(vmin, vmax):
     Find the smallest integer datatype that can represent a given range of
     values.
     """
-    import numpy as np
 
     if vmax < vmin:
         raise ValueError(f"vmax must be larger than vmin. got: {vmin, vmax}")
     ranges = INT_RANGES if vmin < 0 else UINT_RANGES
-    for [dmin, dmax], dtype in INT_RANGES:
+    for [dmin, dmax], dtype in ranges:
         if vmin > dmin and vmax < dmax:
             return np.dtype(dtype)
     raise ValueError("Could not find a type to represent {vmin, vmax}.")
@@ -153,7 +150,6 @@ def nest2ang(n, nside):
         the declination (in degrees) of each pixel. You can get each of these
         individually with ``ra, dec = nest2ang(...)``.
     """
-    import numpy as np
     from astropy.units import degree  # pylint: disable=no-name-in-module
 
     nside = np.full(n.shape, nside) if isinstance(nside, Integral) else nside
@@ -179,7 +175,6 @@ def resol2nside(res, coarse=False, degrees=True):
         Whether ``res`` is specified in degrees. If ``False``, radians
         are assumed.
     """
-    import numpy as np
 
     r = hp.nside2resol(2**np.arange(MAX_ORDER))[::-1]
     r = np.degrees(r) if degrees else r
@@ -221,7 +216,6 @@ def nest2dangle(n, nside, ra, dec, degrees=True, in_place=False):
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
 
-    >>> import numpy as np
     >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = nest2dangle(range(12), 1, 32, 90).to('deg')
     >>> Δθ⃗
@@ -248,7 +242,6 @@ def nest2dangle(n, nside, ra, dec, degrees=True, in_place=False):
     ... ).ptp()
     0.0
     """
-    import numpy as np
     from astropy.units import rad, deg, Quantity  # pylint: disable=E0611
 
     n = np.array(n, copy=False)
@@ -282,7 +275,6 @@ def uniq2dangle(u, ra, dec, degrees=True):
     The 12 base healpix pixels' distances from north pole should all be equal
     to 90 minus their declinations:
 
-    >>> import numpy as np
     >>> from hpmoc.healpy import healpy as hp
     >>> Δθ⃗ = uniq2dangle(range(4, 16), 32, 90).to('deg')
     >>> Δθ⃗
@@ -339,12 +331,10 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
     Simple examples of distances to north pole:
 
     >>> from math import pi
-    >>> import numpy as np
     >>> dangle_rad(0, pi/2, np.array([0, 0, 0, 2, 3]),
     ...            np.array([pi/2, -pi/2, 0, 0, 0]))/pi
     array([0. , 1. , 0.5, 0.5, 0.5])
     """
-    import numpy as np
     delta_ra = mapra - ra
     dot_prod = (np.sin(mapdec)*np.sin(dec) +
                 np.cos(mapdec)*np.cos(dec)*np.cos(delta_ra))
@@ -352,12 +342,12 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
 
 
 @overload
-def nest2uniq(indices: 'Int', nside: 'Int', in_place: bool = ...) -> 'Int': ...
+def nest2uniq(indices: Int, nside: Int, in_place: bool = ...) -> Int: ...
 
 @overload
-def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray'], in_place: bool = ...) -> 'IntArray': ...
+def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_place: bool = ...) -> IntArray: ...
 
-def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray'], in_place: bool = False): # type: ignore
+def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_place: bool = False): # type: ignore
     """Return the NUNIQ pixel indices for nested ``indices`` with
     NSIDE=``nside``.
 
@@ -385,11 +375,9 @@ def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray']
 
     Examples
     --------
-    >>> import numpy as np
     >>> nest2uniq(np.array([284, 286, 287,  10,   8,   2, 279, 278, 285]), 8)
     array([540, 542, 543, 266, 264, 258, 535, 534, 541])
     """
-    import numpy as np
 
     check_valid_nside(nside)
     add = 4*nside*nside
@@ -400,8 +388,7 @@ def nest2uniq(indices: Union['Int', 'IntArray'], nside: Union['Int', 'IntArray']
     return np.int64(indices)
 
 
-def is_int_array(a: 'NDArray[Any]') -> TypeGuard['IntArray']:
-    import numpy as np
+def is_int_array(a: 'NDArray[Any]') -> TypeGuard[IntArray]:
 
     return issubclass(a.dtype.type, np.integer)
 
@@ -439,7 +426,6 @@ def check_valid_nside(nside: 'ArrayLike'):
     ...     print("Caught exception:", err)
     Caught exception: Not a valid NSIDE value: [17]
     """
-    import numpy as np
 
     nside = np.atleast_1d(nside)
     if not is_int_array(nside):
@@ -454,12 +440,12 @@ RAD_TO_DEG = 180 * pi
 SR_TO_DEG2 = RAD_TO_DEG * RAD_TO_DEG
 
 @overload
-def nside2pixarea(nside: 'Int', degrees: bool = ...) -> 'np.floating[Any]': ...
+def nside2pixarea(nside: Int, degrees: bool = ...) -> 'np.floating[Any]': ...
 
 @overload
-def nside2pixarea(nside: 'IntArray', degrees: bool = ...) -> 'NDArray[np.floating[Any]]': ...
+def nside2pixarea(nside: IntArray, degrees: bool = ...) -> 'NDArray[np.floating[Any]]': ...
 
-def nside2pixarea(nside: Union['Int', 'IntArray'], degrees = False):
+def nside2pixarea(nside: Union[Int, IntArray], degrees = False):
     """
     Get the area per-pixel at ``nside``. ``nside`` can also be a HEALPix array
     here.
@@ -495,7 +481,6 @@ def nside2pixarea(nside: Union['Int', 'IntArray'], degrees = False):
 
     This should work for a list of NSIDES as well.
 
-    >>> import numpy as np
     >>> nsides = np.array([1, 1, 2, 4])
     >>> areas = np.array([allsky/12, allsky/12, allsky/48, allsky/192])
     >>> np.all(nside2pixarea(nsides) == areas)
@@ -519,7 +504,6 @@ def check_valid_nuniq(indices: 'ArrayLike') -> None:
         If ``indices`` are not valid NUNIQ indices, i.e. they are not integers
         greater than 3.
     """
-    import numpy as np
 
     indices = np.atleast_1d(indices)
     if not len(indices):  # can't go wrong with zero indices
@@ -546,7 +530,6 @@ def uniq2order(indices): # type: ignore
         If ``indices`` are not valid NUNIQ indices, i.e. they are not integers
         greater than 3.
     """
-    import numpy as np
     check_valid_nuniq(indices)
     return np.int64(np.log2(indices)/2 - 1)
 
@@ -567,7 +550,6 @@ def uniq2nside(indices):
         If ``indices`` are not valid NUNIQ indices, i.e. they are not integers
         greater than 3.
     """
-    import numpy as np
 
     return np.int64(1) << uniq2order(indices)
 
@@ -599,7 +581,6 @@ def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_pl
 
     Examples
     --------
-    >>> import numpy as np
     >>> from pprint import pprint
     >>> nuniq = np.array([540, 542, 543, 266, 264, 258, 535, 534, 541])
     >>> pprint([u.astype(int) for u in uniq2nest_and_nside(nuniq)])
@@ -663,7 +644,6 @@ def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_pl
     # uniq2nest_and_nside
     # healpy.pix2ang
     # """
-    # import numpy as np
 
     # orders = uniq2order(uniq)
     # nside = hp.order2nside(orders)
@@ -750,7 +730,6 @@ def nside_quantile_indices(nside, skymap, quantiles):
     Get the pixel indices for pixels between the 0.1 (10%) and 0.9 (90%)
     quantiles on a fixed-resolution full skymap:
 
-    >>> import numpy as np
     >>> skymap = np.array([ 9, 10, 11,  0,  1,  2,  3,  4,  5,  6,  7,  8])
     >>> i, levels, norm = nside_quantile_indices(1, skymap, [0.1, 0.9])
     >>> [ii.astype(int) for ii in i]
@@ -802,7 +781,6 @@ def nside_quantile_indices(nside, skymap, quantiles):
     [1]
     [2]
     """
-    import numpy as np
 
     q = np.asarray(quantiles, dtype=float)
     if np.ndim(q) != 1:
@@ -830,7 +808,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
             norm*np.pi/3)
 
 
-def uniq_intersection(u1: 'IntArray', u2: 'IntArray') -> Tuple['IntArray', 'IntArray', 'IntArray']:
+def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, IntArray]:
     """Downselect the pixel indices given in ``u1`` to the set that
     overlaps with pixels in ``u2`` and return pairs of indices into
     both of the input index lists showing which pixel in ``u2`` each
@@ -874,7 +852,6 @@ def uniq_intersection(u1: 'IntArray', u2: 'IntArray') -> Tuple['IntArray', 'IntA
     Some pixels with NSIDE of 16, 32, and 64, respectively:
 
     >>> from pprint import pprint
-    >>> import numpy as np
     >>> u1 = np.array([1024, 4100, 1027, 1026, 44096])
 
     Pixels at NSIDE = 32 that overlap with only the first and last pixels of
@@ -892,7 +869,6 @@ def uniq_intersection(u1: 'IntArray', u2: 'IntArray') -> Tuple['IntArray', 'IntA
      array([4, 3, 0, 1, 2]),
      array([-1,  0,  1,  1, -1]))
     """
-    import numpy as np
 
     uˢ, s⃗, o⃗, _, v⃗, u̇ = nside_slices(u1, u2, return_index=True)
     if len(uˢ[0]) != len(u1):
@@ -964,7 +940,6 @@ def uniq_intersection(u1: 'IntArray', u2: 'IntArray') -> Tuple['IntArray', 'IntA
 #     uniq_intersection
 #     """
 #     from operator import gt, lt
-#     import numpy as np
 
 #     u = u1, u2
 #     *u̇, δo⃗ = uniq_intersection(*u)                      # initial intersection
@@ -1035,7 +1010,6 @@ def uniq2nest(u, nside, nest=True):
     select the pixel containing the last pixel, which is smaller than--than the
     target pixel size):
 
-    >>> import numpy as np
     >>> u = np.array([1024, 4100, 1027, 1026, 44096])
     >>> uniq2nest(u, 32).astype(int)
     array([   0,    1,    2,    3,    4,    8,    9,   10,   11,   12,   13,
@@ -1064,7 +1038,6 @@ def uniq2nest(u, nside, nest=True):
               48,    49,    50,    51,    52,    53,    54,    55,    56,
               57,    58,    59,    60,    61,    62,    63, 27712])
     """
-    import numpy as np
 
     check_valid_nuniq(u)
 
@@ -1121,7 +1094,6 @@ def fill(u, x, nside, pad=None):
         Fixed-res full-sky version of the input skymap in NEST ordering with
         missing values filled by ``pad``.
     """
-    import numpy as np
 
     u_out0 = 4*nside**2                               # output offset
     u_out = np.arange(u_out0, 4*u_out0)                  # output NUNIQ indices
@@ -1184,7 +1156,6 @@ def nest_reres(nest, nside_in, nside_out):
     >>> print(n)
     [0]
     """
-    import numpy as np
 
     nest = np.array(nest, copy=True)
     d = hp.nside2order(nside_out) - hp.nside2order(nside_in)
@@ -1210,14 +1181,13 @@ def wcs2nest(wcs, nside=None, order_delta=None):
     -------
     nside : int
         The NSIDE of the output indices.
-    nest : NDArray[Any, 'Int']
+    nest : NDArray[Any, Int]
         The HEALPix NEST indices.
     x : NDArray[Any, Float]
         The pixel-space x-coordinates of the points in ``nest``.
     y : NDArray[Any, Float]
         The pixel-space y-coordinates of the points in ``nest``.
     """
-    import numpy as np
     from astropy.coordinates.sky_coordinate import SkyCoord
     from astropy.units import deg
 
@@ -1285,7 +1255,6 @@ def wcs2ang(wcs: 'wcs.WCS', lonlat=True) -> tuple[
         The declination/latitude angle if ``lonlat=True``, otherwise the
         azimuthal/phi angle.
     """
-    import numpy as np
     from astropy.units import deg, Quantity
 
     sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
@@ -1318,7 +1287,7 @@ _DType = TypeVar('_DType', covariant=True, bound='np.generic')
 def interp_wcs_nn(
         wcs: 'wcs.WCS',
         data: 'NDArray[_DType]',
-) -> Tuple['IntArray', 'NDArray[_DType]']:
+) -> Tuple[IntArray, 'NDArray[_DType]']:
     """
     Do a nearest-neighbor interpolation of ``data`` with coordinates
     specified by ``wcs`` FITS world coordinate system.
@@ -1348,7 +1317,6 @@ def interp_wcs_nn(
     hpmoc.partial.PartialUniqSkymap
     astropy.wcs.WCS
     """
-    import numpy as np
 
     nside, nest, x, y = wcs2nest(wcs, order_delta=2)
     interp = data[np.round(x).astype(int), np.round(y).astype(int)]
@@ -1372,7 +1340,7 @@ def interp_wcs(
                 ]
             ],
         ] = 'nearest'
-) -> Tuple['IntArray', 'NDArray[_DType]']:
+) -> Tuple[IntArray, 'NDArray[_DType]']:
     """
     Interpolate ``data`` with coordinates specified by ``wcs`` FITS
     world coordinate system into a HEALPix NUNIQ skymap.
@@ -1515,7 +1483,6 @@ def render(u, x, u_out, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗�
     hpmoc.points.PointsTuple.render
     np.ma.core.MaskedArray
     """
-    import numpy as np
     from astropy.wcs import WCS
 
     if isinstance(u_out, WCS):
@@ -1589,7 +1556,6 @@ def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
     --------
     Create a small partial skymap with example pixel values:
 
-    >>> import numpy as np
     >>> u = np.array([1024, 4100, 1027, 1026, 44096])
     >>> x = np.array([1.,   2.,   3.,   4.,   5.])
 
@@ -1633,7 +1599,6 @@ def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
     >>> reraster(u, x, u_out, intersection=uniq_intersection(u, u_out))
     array([1., 1., 2., 4., 5.])
     """
-    import numpy as np
     from astropy.units import Quantity as Qty
 
     u̇, u̇ᵒ, δo⃗ = intersection or uniq_intersection(u, u_out)    # indices into u, u_out
@@ -1723,7 +1688,6 @@ def uniq_coarsen(u, orders):
     >>> print(uniq_coarsen([4, 21, 80, 81, 353, 354, 355], 4))
     [4 5]
     """
-    import numpy as np
 
     if orders < 0:
         raise ValueError(f"orders must be > 0, instead got: {orders}")
@@ -1747,22 +1711,22 @@ class _Combine(Protocol):
 
 @overload
 def uniq_minimize(
-    u: 'IntArray',
+    u: IntArray,
     x: 'NDArray[_DType]', /, *,
     test: _Test = ...,
     combine: _Combine = ...
-) -> Tuple['IntArray', 'NDArray[_DType]']: ...
+) -> Tuple[IntArray, 'NDArray[_DType]']: ...
 
 @overload
 def uniq_minimize(
-    u: 'IntArray',
+    u: IntArray,
     *x: 'NDArray[Any]',
     test: _Test = ...,
     combine: _Combine = ...
 ) -> Tuple['NDArray[Any]', ...]: ...
     
 def uniq_minimize(
-    u: 'IntArray',
+    u: IntArray,
     *x: 'NDArray[Any]',
     test: _Test = eq,
     combine: _Combine = lambda x, i: x[i]
@@ -1807,7 +1771,6 @@ def uniq_minimize(
     Make a set of pixels corresponding to the first four base pixels as well as
     the first pixel at NSIDE = 2 lying in the fifth base pixel:
 
-    >>> import numpy as np
     >>> u = np.concatenate([nest2uniq(np.arange(2), 1),
     ...                     nest2uniq(np.arange(8, 17), 2)])
     >>> print(u)
@@ -1863,7 +1826,6 @@ def uniq_minimize(
     >>> print(xm2)
     [1]
     """
-    import numpy as np
 
     isort = np.argsort(u)
     u = u[isort]
@@ -1976,7 +1938,6 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False):
 
     >>> from pprint import pprint
     >>> from operator import mul
-    >>> import numpy as np
     >>> u1 = np.array([1024, 4100, 1027, 1026, 44096])
     >>> x1 = np.array([1.,   2.,   3.,   4.,   5.])
     >>> u2 = np.array([4096, 4097, 1025, 1026, 11024])
@@ -1998,7 +1959,6 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False):
     (array([ 1026,  4096,  4097,  4100, 44096]),
      array([4.e+02, 0.e+00, 1.e+01, 2.e+00, 5.e+03]))
     """
-    import numpy as np
 
     tmp = np.array(uniq_intersection(*us))          # inds into uⁱ & changes in
     *u̇ᵢ, δo⃗ = tmp[:, tmp[2].argsort()]              # order δo⃗, sorted on δo⃗
@@ -2241,7 +2201,6 @@ def read_partial_skymap(infile: Union[IO, str], uniq, memmap=True):
     TmpGunzipFits
     """
     from astropy.table import Table
-    import numpy as np
 
     T = Table.read(infile, format='fits', memmap=memmap)    # read skymap table
     meta = T.meta.copy()
@@ -2272,7 +2231,7 @@ def read_partial_skymap(infile: Union[IO, str], uniq, memmap=True):
                  meta=meta)
 
 
-def nside_slices(*u: 'IntArray', include_empty: bool = False,
+def nside_slices(*u: IntArray, include_empty: bool = False,
                  return_index: bool = False,
                  return_inverse: bool = False,
                  dtype: Optional[DTypeLike] = None):
@@ -2325,7 +2284,6 @@ def nside_slices(*u: 'IntArray', include_empty: bool = False,
 
     Examples
     --------
-    >>> import numpy as np
     >>> from pprint import pprint
     >>> u1 = np.array([1024, 4100, 1027, 263168, 263169, 1026, 44096])
     >>> u2 = np.array([4096, 4097, 1025, 16842752, 1026, 11024])
@@ -2372,8 +2330,8 @@ def nside_slices(*u: 'IntArray', include_empty: bool = False,
 
 
 def group_slices(*u: 'NDArray[_DType]',
-                 f: Callable[['NDArray[_DType]'], 'IntArray']=lambda x: x, # type: ignore
-                 inv: Callable[['IntArray'], 'NDArray[_DType]']=lambda x: x,
+                 f: Callable[['NDArray[_DType]'], IntArray]=lambda x: x, # type: ignore
+                 inv: Callable[[IntArray], 'NDArray[_DType]']=lambda x: x,
                  include_empty: bool = False,
                  return_index: bool = False,
                  return_inverse: bool = False,
@@ -2393,7 +2351,6 @@ def group_slices(*u: 'NDArray[_DType]',
     --------
     nside_slices
     """
-    import numpy as np
 
     u = tuple(np.array(u, dtype=dtype, copy=False) for u in u)
     uˢ, u̇_u̇ˢ = [np.unique(u, return_index=return_index, # type: ignore
