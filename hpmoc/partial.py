@@ -1208,7 +1208,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             kwargs = {'projections': projs, 'bottom': 0.1, 'left': 0.04,
                       'missing_color': 'gray'}
             if 'IPython' in sys.modules:
-                from IPython.utils.io.capture import capture_output
+                from IPython.utils.capture import capture_output
 
                 with capture_output():
                     gs, [[ax], *_] = self.gridplot(**kwargs)

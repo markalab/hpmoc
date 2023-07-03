@@ -174,7 +174,7 @@ class OldLigoIo(IoStrategy):
             m = np.asarray(skymap, dtype=np.int64)
         m = np.unique(m >> (2*min(uniq2order(m.min()), coarsen)))
         p = read_partial_skymap(file, m, memmap=memmap)
-        return PartialUniqSkymap(p[name],
+        return PartialUniqSkymap(np.squeeze(p[name]),
                                  p['UNIQ'],
                                  name=name, meta=p.meta,
                                  point_sources=pt)
