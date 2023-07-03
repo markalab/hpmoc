@@ -632,7 +632,7 @@ def plot(
                 NDArray[Any],
                 Optional[
                     Union[
-                        NDArray[np.integer[Any]],
+                        NDArray['np.integer[Any]'],
                         'WCS',
                         str,
                     ]
@@ -1084,7 +1084,7 @@ def gridplot(
                 NDArray[Any],
                 Optional[
                     Union[
-                        NDArray[np.integer[Any]],
+                        NDArray['np.integer[Any]'],
                         'WCS',
                         str,
                     ]

@@ -31,8 +31,9 @@ from operator import eq
 from numbers import Integral
 from typing import (
     Optional, TypeVar, Union, IO, Any,
-    Tuple, Callable, Protocol, TypeGuard, TYPE_CHECKING, overload
+    Tuple, Callable, Protocol, TYPE_CHECKING, overload
 )
+from typing_extensions import TypeGuard
 import functools
 from dataclasses import dataclass  # possible removal for older pythons
 from math import pi
@@ -47,8 +48,8 @@ from .healpy import healpy as hp
 import numpy as np
 from numpy.typing import NDArray, ArrayLike, DTypeLike
 
-Int = Union[int, np.integer[Any]]
-IntArray = NDArray[np.integer[Any]]
+Int = Union[int, 'np.integer[Any]']
+IntArray = NDArray['np.integer[Any]']
 
 if TYPE_CHECKING:
     from astropy.wcs import wcs
@@ -83,7 +84,7 @@ def max_uint_type(largest: Int) -> 'np.dtype':
 class EmptyStream(OSError):
     "Raised when a file stream returns no further content."
 
-_IntDType = TypeVar("_IntDType", bound="np.integer")
+_IntDType = TypeVar('_IntDType', bound='np.integer[Any]')
 
 # TODO test this much more
 def uniq2xyf_nside(u):
@@ -404,7 +405,6 @@ def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_pla
 
 
 def is_int_array(a: 'NDArray[Any]') -> TypeGuard[IntArray]:
-
     return issubclass(a.dtype.type, np.integer)
 
 def check_valid_nside(nside: 'ArrayLike'):

@@ -26,13 +26,15 @@ classifiers = [ "Programming Language :: Python :: 3",
  "Topic :: Software Development :: Libraries",
  "Typing :: Typed",
 ]
-requires-python = ">=3.6"
+requires-python = ">=3.8"
 dependencies = [
-    "numpy",
+    "numpy>=1.21",
     "matplotlib",
     "astropy",
-    "astropy-healpix"
+    "astropy-healpix",
+    "typing_extensions",
 ]
+readme = "README.md"
 
 [project.optional-dependencies]
 jup = ["jupyter", "ipython"]

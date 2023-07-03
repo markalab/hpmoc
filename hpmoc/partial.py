@@ -22,8 +22,6 @@ A partial HEALPix skymap class supporting multi-resolution HEALPix skymaps in
 NUNIQ ordering.
 """
 
-from __future__ import annotations
-
 import sys
 import functools
 import operator
@@ -43,6 +41,7 @@ from typing import (
     IO,
     Tuple,
     Any,
+    Type,
     TypeVar,
     TYPE_CHECKING,
     cast,
@@ -106,29 +105,29 @@ _OType = TypeVar('_OType', bound='np.generic')
 @overload
 def apply_diadic(
     op: Callable[[NDArray[_XType], NDArray[_YType]], NDArray[_OType]],
-    x: PartialUniqSkymap[_XType],
-    y: PartialUniqSkymap[_YType],
+    x: 'PartialUniqSkymap[_XType]',
+    y: 'PartialUniqSkymap[_YType]',
     /,
     **kwargs
-) -> PartialUniqSkymap[_OType]: ...
+) -> 'PartialUniqSkymap[_OType]': ...
 
 @overload
 def apply_diadic(
     op: Callable[[NDArray[_XType], Union[_YType, NDArray[_YType]]], NDArray[_OType]],
-    x: PartialUniqSkymap[_XType],
+    x: 'PartialUniqSkymap[_XType]',
     y: Union[_XType, NDArray[_XType]],
     /,
     **kwargs
-) -> PartialUniqSkymap[_OType]: ...
+) -> 'PartialUniqSkymap[_OType]': ...
 
 @overload
 def apply_diadic(
     op: Callable[[Union[_XType, NDArray[_XType]], NDArray[_YType]], NDArray[_OType]],
     x: Union[_XType, NDArray[_XType]],
-    y: PartialUniqSkymap[_YType],
+    y: 'PartialUniqSkymap[_YType]',
     /,
     **kwargs
-) -> PartialUniqSkymap[_OType]: ...
+) -> 'PartialUniqSkymap[_OType]': ...
 
 def apply_diadic(f, x, y, /, iop=None, post=None, **kwargs):
     """
@@ -445,7 +444,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         return type(self)(self.s, self.u, copy=True, name=self.name,
                           point_sources=self.point_sources, meta=self.meta)
 
-    def astype(self, dtype: type['_Other_DType'], copy=True, **kwargs) -> 'PartialUniqSkymap[_Other_DType]':
+    def astype(self, dtype: Type['_Other_DType'], copy=True, **kwargs) -> 'PartialUniqSkymap[_Other_DType]':
         """
         Return a new ``PartialUniqSkymap`` with the data-type of ``s`` set to
         ``dtype``. If ``copy=True``, always make sure both ``u`` and ``s`` are

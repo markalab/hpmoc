@@ -53,7 +53,7 @@ if TYPE_CHECKING:
     import numpy as np
     from numpy.typing import NDArray
 
-    UniqArray = NDArray[np.integer[Any]]
+    UniqArray = NDArray['np.integer[Any]']
 
     from astropy.io.fits import (
         Header,
