@@ -201,7 +201,10 @@ import math
 from copy import deepcopy
 from functools import partial
 from warnings import warn
-from typing import Optional, Union, Tuple, Iterable, Callable, Any, List, TYPE_CHECKING
+from typing import (
+    Optional, Union, Tuple, Iterable, Callable,
+    Sequence, Mapping, Sized, Any, TYPE_CHECKING
+)
 from textwrap import indent, wrap
 from .healpy import healpy as hp
 from .utils import (
@@ -210,13 +213,23 @@ from .utils import (
     N_Y_OFFSET,
     wcs2ang,
     wcs2mask_and_uniq,
-    render,
     monochrome_opacity_colormap,
 )
 from .points import PointsTuple
 
 import numpy as np
 from numpy.typing import NDArray
+
+if TYPE_CHECKING:
+    import astropy.io.fits
+    from astropy.wcs.wcs import WCS
+    import astropy.visualization.wcsaxes.frame
+
+    import matplotlib.colors
+    import matplotlib.gridspec
+    import matplotlib.figure
+
+    from .partial import PartialUniqSkymap
 
 DEFAULT_CBAR_KWARGS = {
     'orientation': 'horizontal',
@@ -345,7 +358,7 @@ def _set_delts(projection, hdelta, vdelta, scatter, sigmas):
 def get_frame_class(
         projection: Union[
             str,
-            'astropy.wcs.WCS',
+            'WCS',
             'astropy.io.fits.Header',
         ] = 'MOL',
         frame_class: Optional[
@@ -362,8 +375,8 @@ def get_frame_class(
                 Tuple[float, float],
             ]
         ] = None,
-        scatter: List[PointsTuple] = tuple(),
-        sigmas: List[float] = (1,),
+        scatter: Sequence[PointsTuple] = tuple(),
+        sigmas: Sequence[float] = (1,),
 ) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
     """
     Get the frame class associated with a given projection. If already given a
@@ -443,9 +456,9 @@ def get_wcs(
             ]
         ] = None,
         facing_sky: bool = DEFAULT_FACING,
-        scatter: List[PointsTuple] = tuple(),
-        sigmas: List[float] = (1,),
-) -> 'astropy.wcs.WCS':
+        scatter: Sequence[PointsTuple] = tuple(),
+        sigmas: Sequence[float] = (),
+) -> 'WCS':
     """
     Get a ``WCS`` instance by name to match the given parameters.
 
@@ -493,12 +506,12 @@ def get_wcs(
     facing_sky: bool
         Whether the projection is outward- or inward-facing. Equivalent to
         reversing the direction of the longitude.
-    scatter : List[PointsTuple]
+    scatter : Sequence[PointsTuple]
         A list of collections of point sources that will be plotted. If only
         one collection containing one point source is provided and ``rot=None``
         (the default), then ``rot`` will be set to the location of that single
         point source.
-    sigmas : List[float]
+    sigmas : Sequence[float]
         See ``plot`` for meaning. If ``sigmas`` is non-empty; ``rot`` is set by
         a single point source in ``scatter`` as described above; ``hdelta``
         and ``vdelta`` are both ``None``; and the ``projection`` is an alias
@@ -520,23 +533,22 @@ def get_wcs(
     """
     from astropy.io.fits import Header
     from astropy.wcs import WCS
-    import numpy as np
 
     dec_dir = -1 if facing_sky else 1
     header = Header(_WCS_HEADERS[projection.upper()].copy())
     if width is not None:
-        header['CDELT1'] *= header['NAXIS1'] / width
-        header['NAXIS1'] = width
-    header['CRPIX1'] = header['NAXIS1'] / 2 + 0.5
-    header['CDELT2'] *= header['NAXIS2'] / height
-    header['NAXIS2'] = height
-    header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5
+        header['CDELT1'] *= header['NAXIS1'] / width # type: ignore
+        header['NAXIS1'] = width # type: ignore
+    header['CRPIX1'] = header['NAXIS1'] / 2 + 0.5 # type: ignore
+    header['CDELT2'] *= header['NAXIS2'] / height # type: ignore
+    header['NAXIS2'] = height # type: ignore
+    header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5 # type: ignore
     # rot set to point location if only one point present
     if _one_pt(scatter, rot):
         pt = scatter[0].points[0]
         rot = tuple(pt[:2])
         if _set_delts(projection, hdelta, vdelta, scatter, sigmas):
-            sig = 1.5 * max(sigmas) * pt[2]
+            sig = 1.5 * max(sigmas) * pt[2] # type: ignore
             header['CDELT1'] *= sig / 180
             header['CDELT2'] *= sig / 180
     if rot:
@@ -557,11 +569,11 @@ def get_wcs(
         header['CDELT1'] = hdelta
     if vdelta is not None:
         header['CDELT2'] = vdelta
-    header['CDELT1'] *= dec_dir
+    header['CDELT1'] *= dec_dir # type: ignore
     return WCS(header)
 
 
-get_wcs.__doc__ = get_wcs.__doc__.format(allsky=_docs['allsky'],
+get_wcs.__doc__ = get_wcs.__doc__.format(allsky=_docs['allsky'], # type: ignore
                                          zenithal=_docs['zenithal'])
 
 
@@ -600,14 +612,14 @@ def get_projection(projection, *args, **kwargs):
 # TODO allow ICRS override
 def plot(
         skymap: Union[
-            'hpmoc.PartialUniqSkymap',
+            'PartialUniqSkymap',
             NDArray[Any],
             Tuple[
                 NDArray[Any],
                 Optional[
                     Union[
                         NDArray[np.integer[Any]],
-                        'astropy.wcs.WCS',
+                        'WCS',
                         str,
                     ]
                 ],
@@ -624,8 +636,8 @@ def plot(
         missing_color: Optional[Union[str, Tuple[int, int, int]]] = None,
         nan_color: Optional[Union[str, Tuple[int, int, int]]] = None,
         alpha: float = 1.,
-        sigmas: Iterable[float] = [],
-        outline_sigmas: Iterable[float] = [],
+        sigmas: Sequence[float] = [],
+        outline_sigmas: Sequence[float] = [],
         scatter_labels: Union[bool, dict] = True,
         ax: Optional[Union[
             'astropy.visualization.wcsaxes.WCSAxes',
@@ -633,7 +645,7 @@ def plot(
         ]] = None,
         projection: Union[
             str,
-            'astropy.wcs.WCS',
+            'WCS',
             'astropy.io.fits.Header',
         ] = 'Mollweide',
         frame_class: Optional[
@@ -661,13 +673,13 @@ def plot(
             ]
         ] = None,
         cr: Iterable[float] = tuple(),
-        cr_format: Callable[[float, float], str] = None,
+        cr_format: Optional[Callable[[float, float], str]] = None,
         cr_filled: bool = False,
         cr_kwargs: Optional[dict] = None,
         cr_label_kwargs: Optional[dict] = None,
         pixels: Union[bool, dict] = False,
         pixels_format: Optional[
-            Callable[['hpmoc.PartialUniqSkymap'], Iterable[str]]
+            Callable[['PartialUniqSkymap'], Iterable[str]]
         ] = None,
         cbar: Union[bool, dict] = False,
 ) -> Union[
@@ -677,7 +689,7 @@ def plot(
     """
     Parameters
     ----------
-    skymap : 'hpmoc.PartialUniqSkymap', array, or (array, array)
+    skymap : 'PartialUniqSkymap', array, or (array, array)
         The skymap to plot. Can be a ``PartialUniqSkymap``, a single-resolution
         HEALPix skymap *in NEST ordering only*, or a tuple of (pixel values,
         NUNIQ indices) accepted as the first two arguments to
@@ -893,13 +905,16 @@ def plot(
                          frame_class=frame_class)
             fig.add_axes(ax)
         else:
-            if isinstance(subplot, SubplotSpec):
-                subplot = (subplot,)
-            ax = fig.add_subplot(*subplot, projection=projection,
+            _subplot = subplot
+            if isinstance(_subplot, SubplotSpec):
+                _subplot = (subplot,)
+            ax = fig.add_subplot(*_subplot, projection=projection, # type: ignore
                                  frame_class=frame_class)
     else:
         # initialize projection
         projection = ax.wcs
+
+    assert ax is not None
     # get the pixel coordinates
     _, ra, dec = wcs2ang(ax.wcs)
 
@@ -1049,14 +1064,14 @@ def plot(
 
 def gridplot(
         *skymaps: Union[
-            'hpmoc.PartialUniqSkymap',
+            'PartialUniqSkymap',
             NDArray[Any],
             Tuple[
                 NDArray[Any],
                 Optional[
                     Union[
                         NDArray[np.integer[Any]],
-                        'astropy.wcs.WCS',
+                        'WCS',
                         str,
                     ]
                 ],
@@ -1066,34 +1081,34 @@ def gridplot(
             Union[
                 'matplotlib.figure.Figure',
                 'matplotlib.gridspec.GridSpec',
-                dict,
+                Mapping,
             ]
         ] = None,
-        projections: List[
+        projections: Sequence[
             Union[
                 str,
-                'astropy.wcs.WCS',
+                'WCS',
                 'astropy.io.fits.Header',
-                List[
+                Sequence[
                     Union[
                         str,
-                        'astropy.wcs.WCS',
+                        'WCS',
                         'astropy.io.fits.Header',
                         'astropy.visualization.wcsaxes.WCSAxes',
                     ]
                 ],
             ]
         ]= ('MOL',),
-        scatters: Optional[List[List[PointsTuple]]] = None,
+        scatters: Optional[Sequence[Sequence[PointsTuple]]] = None,
         # fig args
         subplot_height: float = DEFAULT_GRID_ROW_HEIGHT,
         # fig.add_gridspec args
         ncols: int = DEFAULT_NCOLS,
         hspace: float = DEFAULT_HSPACE,
         wspace: float = DEFAULT_WSPACE,
-        wshrink: Union[float, List[float]] = 1.,
+        wshrink: Union[float, Sequence[float]] = 1.,
         # plotter args
-        subplot_kwargs: Optional[List[Optional[List[dict]]]] = None,
+        subplot_kwargs: Optional[Sequence[Optional[Sequence[dict]]]] = None,
         left=0.,
         right=1.,
         bottom=0.,
@@ -1101,7 +1116,7 @@ def gridplot(
         **kwargs
 ) -> Tuple[
         'matplotlib.gridspec.GridSpec',
-        List[List['astropy.visualization.wcsaxes.WCSAxes']]
+        Sequence[Sequence['astropy.visualization.wcsaxes.WCSAxes']]
 ]:
     """
     Make a grid plot of multiple skymaps (optionally with scatterplots for
@@ -1109,7 +1124,7 @@ def gridplot(
 
     Parameters
     ----------
-    *skymaps : 'hpmoc.PartialUniqSkymap', array, or (array, array)
+    *skymaps : 'PartialUniqSkymap', array, or (array, array)
         The skymaps to plot. Can be a ``PartialUniqSkymap``, a
         single-resolution HEALPix skymap *in NEST ordering only*, or a tuple of
         (pixel values, NUNIQ indices) accepted as the first two arguments to
@@ -1120,7 +1135,7 @@ def gridplot(
         create a new figure. If a ``GridSpec`` is provided, then the figure
         to which it is attached will be used, and that ``GridSpec`` will be used
         to define the layout.
-    projections : List[Union[str, WCS, fits.Header, List[Union[str, WCS, fits.Header, WCSAxes]]]], optional
+    projections : Sequence[Union[str, WCS, fits.Header, Sequence[Union[str, WCS, fits.Header, WCSAxes]]]], optional
         A list of projections (see the ``projection`` argument of ``plot``) to
         use for each skymap in ``skymaps``. If multiple projections are
         specified, they will be plotted alongside each other; if this makes the
@@ -1129,7 +1144,7 @@ def gridplot(
         returned by this function (which you should do while also passing a
         ``GridSpec`` as ``fig``), allowing you to plot multiple layers of data
         to the same grid plot.
-    scatters : List[List[PointsTuple]], optional
+    scatters : Sequence[Sequence[PointsTuple]], optional
         Scatterplots to use, one list for each skymap containing the sets of
         points to plot for that skymap. For any of the skymaps which are
         ``PartialUniqSkymap`` instances, you can default to plotting that
@@ -1156,7 +1171,7 @@ def gridplot(
         Scale the plot widths by this much. Useful if you are adding color
         bars to preserve spacing. If a list, each element corresponds to a
         projection.
-    subplot_kwargs : List[Optional[List[dict]]], optional
+    subplot_kwargs : Sequence[Optional[Sequence[dict]]], optional
         Lists of keyword argument dictionaries that will be used for each
         subplot. The first index specifies the plotter, and the second index
         specifies the skymap from ``skymaps``. This behavior allows you to
@@ -1181,7 +1196,7 @@ def gridplot(
         The ``GridSpec`` defining the shape of the subplots. Access the plotted
         figure as ``gs.figure``. Reuse this layout by passing ``gs`` to another
         invocation of ``gridplot``.
-    axs : List[List['astropy.visualization.wcsaxes.WCSAxes']]
+    axs : Sequence[Sequence['astropy.visualization.wcsaxes.WCSAxes']]
         The axes which were plotted. The first index (outer list) corresponds
         to the projection used, and the second index (inner lists) correspond
         to the skymap. Reuse the axes and projections by passing
@@ -1211,8 +1226,10 @@ def gridplot(
     from astropy.io.fits import Header
     from astropy.wcs import WCS
 
+    from .partial import PartialUniqSkymap
+
     gs = fig if isinstance(fig, GridSpec) else None
-    fig = fig if gs is None else gs.figure
+    fig = fig if gs is None else gs.figure # type: ignore
     projections = list(projections)
     nᵖ = len(projections)  # number of projections per skymap
     nᶜ = len(skymaps)       # number of cells, i.e. skymaps
@@ -1229,13 +1246,18 @@ def gridplot(
         nrows = gs.nrows
         if nrows * nʳ < nˢ:
             raise ValueError(f"Not enough rows {nrows} for {nˢ} subplots.")
-    scatters = scatters or [s.point_sources for s in skymaps]
+
+    if scatters is None:
+        scatters = [
+            s.point_sources if isinstance(s, PartialUniqSkymap) else []
+            for s in skymaps
+        ]
     subplot_kwargs = subplot_kwargs or [None]*nᵖ
-    try:
+    if isinstance(wshrink, Sized):
         if len(wshrink) != nᵖ:
             raise ValueError(f"Must provide one wshrink {wshrink} for "
                              f"each projection {projections}")
-    except TypeError:
+    else:
         wshrink = [wshrink]*nᵖ
 
     if len(scatters) != nᶜ:
@@ -1249,14 +1271,14 @@ def gridplot(
     for i in range(len(subplot_kwargs)):
         kw = subplot_kwargs[i]
         if kw is None:
-            subplot_kwargs[i] = [{}]*nᶜ
+            subplot_kwargs[i] = [{}]*nᶜ # type: ignore
         elif len(kw) != nᶜ:
             raise ValueError(f"{i}-th element of subplot_kwargs {kw} must "
                              f"have same len as skymaps {skymaps} or else be "
                              "omitted.")
         del kw
         for j in range(nᶜ):
-            subplot_kwargs[i][j].update(kwargs)
+            subplot_kwargs[i][j].update(kwargs) # type: ignore
 
     # initialize frame classes and projections
     frames = []
@@ -1267,7 +1289,7 @@ def gridplot(
         if isinstance(p, (str, WCS, Header)):
             p = [p]*nᶜ
         for iᶜ, pp in enumerate(p):
-            kw = subplot_kwargs[iᵖ][iᶜ]
+            kw = subplot_kwargs[iᵖ][iᶜ] # type: ignore
             if isinstance(pp, (str, WCS, Header)):
                 fa.append(get_frame_class(
                     pp, scatter=scatters[iᶜ],
@@ -1297,7 +1319,7 @@ def gridplot(
             'facecolor': 'w',
             'edgecolor': 'k',
         }
-        fkw.update(**(fig or {}))
+        fkw.update(**(fig or {})) # type: ignore
         fig = figure(**fkw)
     if gs is None:
         gs = fig.add_gridspec(
