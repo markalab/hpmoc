@@ -24,6 +24,8 @@ from hpmoc.io.abstract import IoStrategy
 from hpmoc.io.fits import load_ligo
 from hpmoc.partial import PartialUniqSkymap
 from hpmoc.utils import uniq_coarsen, uniq_minimize
+
+import numpy as np
 from numpy.typing import ArrayLike
 
 class LigoIo(IoStrategy):
@@ -37,7 +39,7 @@ class LigoIo(IoStrategy):
         skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
         file: Union[IO, str],
         *args,
-        name: str = 'PROBDENSITY',
+        name: Optional[str] = None,
         coarsen: Optional[int] = None,
         **kwargs
     ):
@@ -52,7 +54,7 @@ class LigoIo(IoStrategy):
             The file object or filename to read from. Can be a stream as no
             seeking will be performed.
         name : str, optional
-            The column-name of the pixel data.
+            The column-name of the pixel data. Defaults to 'PROBDENSITY'
         coarsen : int, optional
             If provided, coarsen the ``mask`` by up to this many HEALPix
             orders (up to order 0) to speed up read times. This will select
@@ -60,9 +62,13 @@ class LigoIo(IoStrategy):
         *args, **kwargs
             Arguments to pass on to ``hpmoc.fits.load_ligo``.
         """
+        if name is None:
+            name = 'PROBDENSITY'
+
         pt = skymap.point_sources if isinstance(skymap, PartialUniqSkymap) else []
         if skymap is not None:
             mask = skymap.u if isinstance(skymap, PartialUniqSkymap) else skymap
+            mask = np.asarray(mask, dtype=np.int64)
             mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
             mask = uniq_minimize(mask)[0]
         else:

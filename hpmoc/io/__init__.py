@@ -93,9 +93,9 @@ class BasicIo(IoStrategy):
         cls,
         skymap: PartialUniqSkymap,
         file: Union[IO, str],
+        *args,
         name: Optional[str] = None,
         uname: str = 'UNIQ',
-        *args,
         **kwargs
     ):
         """
@@ -131,7 +131,7 @@ class OldLigoIo(IoStrategy):
         skymap: Optional[Union[PartialUniqSkymap, ArrayLike]],
         file: Union[IO, str],
         *args,
-        name: str = 'PROBDENSITY',
+        name: Optional[str] = None,
         memmap: bool = True,
         coarsen: int = 0,
         **kwargs
@@ -146,7 +146,7 @@ class OldLigoIo(IoStrategy):
         file : file or str
             The file object or filename to read from.
         name : str, optional
-            The column-name of the pixel data.
+            The column-name of the pixel data. Defaults to 'PROBDENSITY'.
         memmap : bool, optional
             Whether to memory-map the input file during read. Useful when
             reading small sky areas from large files to conserve memory.
@@ -159,6 +159,9 @@ class OldLigoIo(IoStrategy):
             Arguments to pass on to ``astropy.table.Table.read``.
         """
         import numpy as np
+
+        if name is None:
+            name = "PROBDENSITY"
 
         if skymap is None:
             pt = []

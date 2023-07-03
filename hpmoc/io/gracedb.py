@@ -109,7 +109,7 @@ else:
             # Unfortunately GraceDb responses don't work for streaming reads.
             # Not sure why, but defaulting to a single read operation seems
             # safest.
-            buf = BytesIO(client.files(graceid, file).read())
+            buf = BytesIO(client.files(graceid, file).read()) # type: ignore
             return LigoIo.read(skymap, buf, *args, **kwargs)
 
         @classmethod
