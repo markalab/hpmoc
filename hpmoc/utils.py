@@ -878,16 +878,15 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
 
     ζ = 0
     i⃗ᶠ = [np.ndarray((len(uˢ[0])+len(uˢ[1]),), dtype=int) for _ in [0, 1]]
-    δo⃗ = np.zeros_like(i⃗ᶠ[0], dtype=int)
+    δo = np.zeros_like(i⃗ᶠ[0], dtype=int)
 
     for s in reversed(range(len(s⃗[0]))):  # pylint: disable=invalid-name
-        ϵ⃗ = list(np.intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True)[1:])
-        for i in [0, 1]:
-            ϵ⃗[i] += s⃗[i][s].start                       # offset by slice start
-            i⃗ᶠ[i][ζ:ζ+len(ϵ⃗[i])] = ϵ⃗[i]                 # put in result array
-            if s < len(s⃗[0])-1:                         # coarsen high res
+        _, *e = np.intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True)
+        for i in (0, 1):                 
+            i⃗ᶠ[i][ζ:ζ+len(e[i])] = e[i] + s⃗[i][s].start # offset by slice start and put in result array
+            if s < len(s⃗[0])-1:                          # coarsen high res
                 uˢ[i][s⃗[i][s].stop:] >>= 2*(o⃗[s+1]-o⃗[s])
-        ζ += len(ϵ⃗[0])  # offset for array insertions
+        ζ += len(e[0])  # offset for array insertions
         for i, j in [(0, 1), (1, 0)]:
             ρ⃗ = np.intersect1d(v⃗[i][s], uˢ[i][s⃗[i][s].stop:])
             if len(ρ⃗):  # pylint: disable=len-as-condition
@@ -903,10 +902,10 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
                 i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] = s⃗[j][sⱼ].start
                 i⃗ᶠ[i][ζ:ζ+𝓁ᵋ] += ϵ⃗ʲ[i⃗ᵋ]
                 i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] += i⃗ᵋ
-                δo⃗[ζ:ζ+𝓁ᵋ] = (j-i)*(o⃗[sⱼ]-o⃗[s])  # pylint: disable=E1137
+                δo[ζ:ζ+𝓁ᵋ] = (j-i)*(o⃗[sⱼ]-o⃗[s])  # pylint: disable=E1137
                 ζ += 𝓁ᵋ
 
-    return u̇[0][i⃗ᶠ[0][:ζ]], u̇[1][i⃗ᶠ[1][:ζ]], δo⃗[:ζ]
+    return u̇[0][i⃗ᶠ[0][:ζ]], u̇[1][i⃗ᶠ[1][:ζ]], δo[:ζ]
 
 
 # pylint: disable=no-member
@@ -1501,7 +1500,7 @@ def render(u, x, u_out, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗�
 
 
 def reraster(u, x, u_out,
-             pad=None, mask_missing=False,
+             check_missing=True, pad=None, mask_missing=False,
              intersection=None, method='average'):
     """
     Rasterize skymap pixel values ``x`` with NUNIQ indices ``u`` to match
@@ -1516,6 +1515,12 @@ def reraster(u, x, u_out,
         Pixel values. Must be the same length as u.
     u_out : array-like
         NUNIQ indices of the output skymap.
+    check_missing : bool, optional
+        If ``True`` (default), perform a check for pixels in ``u_out``
+        that have no overlapping pixels in ``u``. If ``False``, skip this
+        check. check_missing must be True if either ``pad`` or
+        ``mask_missing=True`` are specified. You want to leave this as the
+        default unless you are sure that no pixels are missing.
     pad : float or int, optional
         A pad value to use for pixels missing from the input skymap. Only used
         if ``u`` does not fully cover ``u_out``. Use ``healpy.UNSEEN`` for this
@@ -1613,16 +1618,22 @@ def reraster(u, x, u_out,
     """
     from astropy.units import Quantity as Qty
 
-    u̇, u̇ᵒ, δo = intersection or uniq_intersection(u, u_out)    # indices into u, u_out
-    u̇ₘᵒ = np.setdiff1d(np.arange(len(u_out)), u̇ᵒ)      # u_out pixels missing from u
+    u̇, u̇ᵒ, δo = intersection or uniq_intersection(u, u_out)  # indices into u, u_out
 
     m = None
-    if mask_missing:
-        m = np.zeros(u_out.shape, dtype=bool)
-        if u̇ₘᵒ.size != 0:
-            m[u̇ₘᵒ] = True
-    elif u̇ₘᵒ.size != 0 and pad is None:
-        raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
+    u̇ₘᵒ = None
+    if check_missing:
+        u̇ₘᵒ = np.setdiff1d(np.arange(len(u_out)), u̇ᵒ)  # u_out pixels missing from u
+
+        if mask_missing:
+            m = np.zeros(u_out.shape, dtype=bool)
+            if u̇ₘᵒ.size != 0:
+                m[u̇ₘᵒ] = True
+        elif u̇ₘᵒ.size != 0 and pad is None:
+            raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
+    elif pad is not None or mask_missing:
+        raise ValueError("check_missing=False is not compatible with pad or mask_missing")
+
 
     dtype_out = np.float64
     if method == "average" and not np.issubdtype(dtype_out, np.floating):
@@ -1635,14 +1646,15 @@ def reraster(u, x, u_out,
         x = x.value                                 #   astropy.Quantity
         x_out = Qty(x_out, copy=False, unit=unit, dtype=dtype_out)
 
-    if pad:
+    if u̇ₘᵒ is not None and pad is not None:
         x_out_raw[u̇ₘᵒ] = pad                        # pad missing if u̇ₘᵒ
 
     if method == 'average':
         δ⃗ = 4.**-δo                                    # NUNIQ slice offset tmp
         n_out = np.zeros(u_out.shape, dtype=np.float64) # normalization for pix avg
         np.add.at(n_out, u̇ᵒ, δ⃗)
-        n_out[u̇ₘᵒ] = 1.                                 # pad missing if u̇ₘᵒ
+        if u̇ₘᵒ is not None:
+            n_out[u̇ₘᵒ] = 1.                             # pad missing if u̇ₘᵒ
 
         δ⃗ *= x[u̇]                                      # subpixel contributions
         np.add.at(x_out_raw, u̇ᵒ, δ⃗)
@@ -1913,7 +1925,7 @@ def uniq_minimize(
             for y, ys in zip([u, *x], [us, *xs]))
 
 
-def uniq_diadic(f, us, xs, pad=None, coarse=False, method='average'):
+def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
     """
     Apply a diadic function ``f(x1, x2) -> y`` that operates on skymap pixel
     values of the same resolution to skymaps with arbitrary
@@ -1951,9 +1963,9 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, method='average'):
         planning to integrate the result of this operation. This can
         also be useful if you need to cover the *exact* area defined by the
         input skymaps.
-    method : 'average', 'sum', or 'copy', optional
-        the method to use for up/downsampling pixel values. See documentation
-        for ``reraster``.
+    downsample_method : 'average', 'sum', or 'copy', optional
+        the method to use for downsampling pixel values. When upsampling,
+        we always use 'copy' to save computation time.
 
     Returns
     -------
@@ -2015,26 +2027,14 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, method='average'):
         uʸⁱ.append(u_out)
 
         t = xs[i][u̇ᵁ]
-
-        # re-raster the source to the target with a fast shortcut
-        # when performing upsampling (source nside < target nside)
-        if not coarse:
-            source = xs[i-1]
-            r = raw = np.empty(t.shape, dtype=source.dtype)
-            if hasattr(source, "unit"):
-                from astropy.units import Quantity
-                r = Quantity(raw, dtype=raw.dtype, unit=source.unit, copy=False)
-            raw[u̇ᵁ̇] = source[u̇ˈᵁ][u̇ˈᵁ̇]
-        else: # when downsampling, call the reraster method to average pixels.
-            r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
-                            intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
-                            method=method)
+        r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
+                        intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
+                        check_missing=False,
+                        method=downsample_method if coarse else 'copy')
 
         # calculate result, order depending on if down or up res
-        if j:
-            y⃗ⁱ.append(f(t, r))
-        else:
-            y⃗ⁱ.append(f(r, t))
+        y⃗ⁱ.append(f(t, r) if j else f(r, t))
+        
 
     if pad is not None:                             # include non-overlapping
         for j in (0, 1):                            # regions if pad provided
