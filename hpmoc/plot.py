@@ -215,8 +215,8 @@ from .utils import (
 )
 from .points import PointsTuple
 
-if TYPE_CHECKING:
-    from nptyping import NDArray, Int
+import numpy as np
+from numpy.typing import NDArray
 
 DEFAULT_CBAR_KWARGS = {
     'orientation': 'horizontal',
@@ -601,12 +601,12 @@ def get_projection(projection, *args, **kwargs):
 def plot(
         skymap: Union[
             'hpmoc.PartialUniqSkymap',
-            NDArray[Any, Any],
+            NDArray[Any],
             Tuple[
-                NDArray[Any, Any],
+                NDArray[Any],
                 Optional[
                     Union[
-                        NDArray[Any, Int],
+                        NDArray[np.integer[Any]],
                         'astropy.wcs.WCS',
                         str,
                     ]
@@ -1050,12 +1050,12 @@ def plot(
 def gridplot(
         *skymaps: Union[
             'hpmoc.PartialUniqSkymap',
-            NDArray[Any, Any],
+            NDArray[Any],
             Tuple[
-                NDArray[Any, Any],
+                NDArray[Any],
                 Optional[
                     Union[
-                        NDArray[Any, Int],
+                        NDArray[np.integer[Any]],
                         'astropy.wcs.WCS',
                         str,
                     ]

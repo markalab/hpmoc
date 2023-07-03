@@ -40,5 +40,3 @@ dependencies:
   #- icc_rt  # -c numba
   #- intelpython3_full  # -c intel
   # pip
-  - pip:
-    - nptyping=1.4.4
