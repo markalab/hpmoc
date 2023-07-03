@@ -1,21 +1,31 @@
+# Copyright (C) 2019-2023 Columbia Experimental Gravity Group (GECo)
+
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 "HEALPix helper utilities needed for both ``utils`` and ``healpy``."
 
+import numpy as np
 
-def compress_masks():
-    """
-    Must use ``numpy.uint64`` due to signedness issues when bit-flipping large
-    python floats as bitmasks.
-    """
-    import numpy as np
-
-    return np.array([
-        0x5555555555555555,
-        0x3333333333333333,
-        0x0f0f0f0f0f0f0f0f,
-        0x00ff00ff00ff00ff,
-        0x0000ffff0000ffff,
-        0x00000000ffffffff,
-    ], dtype=np.uint64)
+COMPRESS_MASKS = np.array([
+    0x5555555555555555,
+    0x3333333333333333,
+    0x0f0f0f0f0f0f0f0f,
+    0x00ff00ff00ff00ff,
+    0x0000ffff0000ffff,
+    0x00000000ffffffff,
+], dtype=np.uint64)
 
 
 def alt_compress(x, in_place=False):
@@ -39,15 +49,13 @@ def alt_compress(x, in_place=False):
     --------
     alt_expand
     """
-    import numpy as np
 
     if isinstance(x, int):
         x = np.uint64(x)
     elif not (in_place and np.issubdtype(x.dtype, np.uint64)):
         x = x.astype(np.uint64)
-    masks = compress_masks()
-    x &= masks[0]
-    for i, m in enumerate(masks[1:]):
+    x &= COMPRESS_MASKS[0]
+    for i, m in enumerate(COMPRESS_MASKS[1:]):
         hold = m&x
         x &= ~m
         x >>= np.uint64(1<<i)
@@ -70,16 +78,14 @@ def alt_expand(x, in_place=False):
     --------
     alt_compress
     """
-    import numpy as np
 
-    masks = compress_masks()
-    o = len(masks)
+    o = len(COMPRESS_MASKS)
     if isinstance(x, int):
         x = np.uint64(x)
     elif not (in_place and np.issubdtype(x.dtype, np.uint64)):
         x = x.astype(np.uint64)
-    x &= masks[-1]
-    for i, m in enumerate(masks[-2::-1]):
+    x &= COMPRESS_MASKS[-1]
+    for i, m in enumerate(COMPRESS_MASKS[-2::-1]):
         hold = m&x
         x &= ~m
         x <<= np.uint64(1<<(o-i-2))
