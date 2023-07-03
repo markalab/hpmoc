@@ -128,7 +128,7 @@ def min_int_dtype(vmin, vmax):
     if vmax < vmin:
         raise ValueError(f"vmax must be larger than vmin. got: {vmin, vmax}")
     ranges = INT_RANGES if vmin < 0 else UINT_RANGES
-    for [dmin, dmax], dtype in ranges:
+    for [dmin, dmax], dtype in ranges.items():
         if vmin > dmin and vmax < dmax:
             return np.dtype(dtype)
     raise ValueError("Could not find a type to represent {vmin, vmax}.")
@@ -893,16 +893,15 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
 
     ζ = 0
     i⃗ᶠ = [np.ndarray((len(uˢ[0])+len(uˢ[1]),), dtype=int) for _ in [0, 1]]
-    δo⃗ = np.zeros_like(i⃗ᶠ[0], dtype=int)
+    δo = np.zeros_like(i⃗ᶠ[0], dtype=int)
 
     for s in reversed(range(len(s⃗[0]))):  # pylint: disable=invalid-name
-        ϵ⃗ = list(np.intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True)[1:])
-        for i in [0, 1]:
-            ϵ⃗[i] += s⃗[i][s].start                       # offset by slice start
-            i⃗ᶠ[i][ζ:ζ+len(ϵ⃗[i])] = ϵ⃗[i]                 # put in result array
-            if s < len(s⃗[0])-1:                         # coarsen high res
+        _, *e = np.intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True)
+        for i in (0, 1):                 
+            i⃗ᶠ[i][ζ:ζ+len(e[i])] = e[i] + s⃗[i][s].start # offset by slice start and put in result array
+            if s < len(s⃗[0])-1:                          # coarsen high res
                 uˢ[i][s⃗[i][s].stop:] >>= 2*(o⃗[s+1]-o⃗[s])
-        ζ += len(ϵ⃗[0])  # offset for array insertions
+        ζ += len(e[0])  # offset for array insertions
         for i, j in [(0, 1), (1, 0)]:
             ρ⃗ = np.intersect1d(v⃗[i][s], uˢ[i][s⃗[i][s].stop:])
             if len(ρ⃗):  # pylint: disable=len-as-condition
@@ -918,10 +917,10 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
                 i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] = s⃗[j][sⱼ].start
                 i⃗ᶠ[i][ζ:ζ+𝓁ᵋ] += ϵ⃗ʲ[i⃗ᵋ]
                 i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] += i⃗ᵋ
-                δo⃗[ζ:ζ+𝓁ᵋ] = (j-i)*(o⃗[sⱼ]-o⃗[s])  # pylint: disable=E1137
+                δo[ζ:ζ+𝓁ᵋ] = (j-i)*(o⃗[sⱼ]-o⃗[s])  # pylint: disable=E1137
                 ζ += 𝓁ᵋ
 
-    return u̇[0][i⃗ᶠ[0][:ζ]], u̇[1][i⃗ᶠ[1][:ζ]], δo⃗[:ζ]
+    return u̇[0][i⃗ᶠ[0][:ζ]], u̇[1][i⃗ᶠ[1][:ζ]], δo[:ζ]
 
 
 # pylint: disable=no-member
@@ -1515,8 +1514,9 @@ def render(u, x, u_out, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗�
     return s⃗ₒ
 
 
-# pylint: disable=unsupported-assignment-operation,invalid-unary-operand-type
-def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
+def reraster(u, x, u_out,
+             check_missing=True, pad=None, mask_missing=False,
+             intersection=None, method='average'):
     """
     Rasterize skymap pixel values ``x`` with NUNIQ indices ``u`` to match
     pixels ``u_out``, discarding sky areas excluded by ``u_out`` and (optionally)
@@ -1530,6 +1530,12 @@ def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
         Pixel values. Must be the same length as u.
     u_out : array-like
         NUNIQ indices of the output skymap.
+    check_missing : bool, optional
+        If ``True`` (default), perform a check for pixels in ``u_out``
+        that have no overlapping pixels in ``u``. If ``False``, skip this
+        check. check_missing must be True if either ``pad`` or
+        ``mask_missing=True`` are specified. You want to leave this as the
+        default unless you are sure that no pixels are missing.
     pad : float or int, optional
         A pad value to use for pixels missing from the input skymap. Only used
         if ``u`` does not fully cover ``u_out``. Use ``healpy.UNSEEN`` for this
@@ -1543,6 +1549,17 @@ def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
         If you've already computed ``uniq_intersection(u, u_out)``, you can pass
         it as this argument to avoid recomputing it. No checks will be made for
         correctness if provided.
+    method : "average", "sum", or "copy"
+        "average" will compute the average of constituent pixels when converting
+        to a lower resolution. Use "average" when the quantity represented by `x`
+        is intensive. If `x` has an integer dtype, it will automatically be
+        converted to `float`.
+        "sum" will compute the sum of constituent pixels when converting to
+        a lower resolution pixel. Use this when the quantity represented in x is
+        extensive.
+        "copy" will directly copy, with unreliable results when converting to a
+        lower resolution. This method provides a significant speedup when you
+        know no pixels will be converted to a lower resolution.
 
     Returns
     -------
@@ -1616,34 +1633,57 @@ def reraster(u, x, u_out, pad=None, mask_missing=False, intersection=None):
     """
     from astropy.units import Quantity as Qty
 
-    u̇, u̇ᵒ, δo⃗ = intersection or uniq_intersection(u, u_out)    # indices into u, u_out
-    u̇ₘᵒ = np.setdiff1d(np.arange(len(u_out)), u̇ᵒ)      # u_out pixels missing from u
+    u̇, u̇ᵒ, δo = intersection or uniq_intersection(u, u_out)  # indices into u, u_out
 
     m = None
-    if mask_missing:
-        m = np.zeros(u_out.shape, dtype=bool)
-        if u̇ₘᵒ.size != 0:
-            m[u̇ₘᵒ] = True
-    elif u̇ₘᵒ.size != 0 and pad is None:
-        raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
+    u̇ₘᵒ = None
+    if check_missing:
+        u̇ₘᵒ = np.setdiff1d(np.arange(len(u_out)), u̇ᵒ)  # u_out pixels missing from u
 
-    δ⃗ = 4.**-δo⃗                                     # NUNIQ slice offset tmp
-    nᵒ = np.zeros(u_out.shape, dtype=float)            # normalization for pix avg
-    np.add.at(nᵒ, u̇ᵒ, δ⃗)
-    np.add.at(nᵒ, u̇ₘᵒ, 1.)                          # pad missing if u̇ₘᵒ
+        if mask_missing:
+            m = np.zeros(u_out.shape, dtype=bool)
+            if u̇ₘᵒ.size != 0:
+                m[u̇ₘᵒ] = True
+        elif u̇ₘᵒ.size != 0 and pad is None:
+            raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
+    elif pad is not None or mask_missing:
+        raise ValueError("check_missing=False is not compatible with pad or mask_missing")
 
-    xᵒ = np.zeros(u_out.shape, dtype=float)            # pixel values
+
+    dtype_out = np.float64
+    if method == "average" and not np.issubdtype(dtype_out, np.floating):
+        dtype_out = np.float64
+
+    x_out = x_out_raw = np.zeros(u_out.shape, dtype=dtype_out)  # pixel values
+    unit = None
     if isinstance(x, Qty):                          # include units for
-        xᵒ = xᵒ*x.unit                              #   astropy.Quantity
-        δ⃗ = Qty(δ⃗, copy=False)
-    δ⃗ *= x[u̇]                                       # subpixel contributions
-    np.add.at(xᵒ, u̇ᵒ, δ⃗)
-    np.add.at(xᵒ, u̇ₘᵒ, pad or 0.)                   # pad missing if u̇ₘᵒ
+        unit = x.unit
+        x = x.value                                 #   astropy.Quantity
+        x_out = Qty(x_out, copy=False, unit=unit, dtype=dtype_out)
 
-    xᵒ /= nᵒ                                        # normalize pixel values
+    if u̇ₘᵒ is not None and pad is not None:
+        x_out_raw[u̇ₘᵒ] = pad                        # pad missing if u̇ₘᵒ
+
+    if method == 'average':
+        δ⃗ = 4.**-δo                                    # NUNIQ slice offset tmp
+        n_out = np.zeros(u_out.shape, dtype=np.float64) # normalization for pix avg
+        np.add.at(n_out, u̇ᵒ, δ⃗)
+        if u̇ₘᵒ is not None:
+            n_out[u̇ₘᵒ] = 1.                             # pad missing if u̇ₘᵒ
+
+        δ⃗ *= x[u̇]                                      # subpixel contributions
+        np.add.at(x_out_raw, u̇ᵒ, δ⃗)
+        x_out_raw /= n_out                              # normalize pixel values
+    elif method == 'sum':
+        np.add.at(x_out_raw, u̇ᵒ, x[u̇])
+    elif method == 'copy':
+        x_out_raw[u̇ᵒ] = x[u̇]
+    else:
+        raise ValueError(f"Unknown method '{method}'.")
+
     if m is not None:
-        return np.ma.MaskedArray(xᵒ, m)
-    return xᵒ
+        return np.ma.MaskedArray(x_out, m)
+    return x_out
 
 
 def uniq_coarsen(u, orders):
@@ -1900,7 +1940,7 @@ def uniq_minimize(
             for y, ys in zip([u, *x], [us, *xs]))
 
 
-def uniq_diadic(f, us, xs, pad=None, coarse=False):
+def uniq_diadic(f, us, xs, pad=None, coarse=False, reraster_method=None):
     """
     Apply a diadic function ``f(x1, x2) -> y`` that operates on skymap pixel
     values of the same resolution to skymaps with arbitrary
@@ -1910,7 +1950,7 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False):
 
     Parameters
     ----------
-    Ω : Callable[[np.ndarray, np.ndarray], np.ndarray]
+    f : Callable[[np.ndarray, np.ndarray], np.ndarray]
         A binary function operating on two sets of skymap pixel values
         corresponding elementwise to the same sky locations. **Must be a
         skymap-resolution independent operation for the results to make
@@ -1938,6 +1978,11 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False):
         planning to integrate the result of this operation. This can
         also be useful if you need to cover the *exact* area defined by the
         input skymaps.
+    reraster_method : 'average', 'sum', or 'copy', optional
+        the method to use for rerastering pixel values. If unspecified,
+        defaults to 'copy' if coarse=False and 'average' if ``coarse=True``.
+        'copy' should be used for intensive quantities if ``coarse=False`` for
+        faster computation.
 
     Returns
     -------
@@ -1975,25 +2020,41 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False):
      array([4.e+02, 0.e+00, 1.e+01, 2.e+00, 5.e+03]))
     """
 
+    if reraster_method is None:
+        reraster_method = 'average' if coarse else 'copy'
+
     tmp = np.array(uniq_intersection(*us))          # inds into uⁱ & changes in
-    *u̇ᵢ, δo⃗ = tmp[:, tmp[2].argsort()]              # order δo⃗, sorted on δo⃗
+    *u̇ᵢ, δo = tmp[:, tmp[2].argsort()]              # order δo, sorted on δo
     del tmp                                         # mark for GC
 
-    sᵒ⃗ = 0, *δo⃗.searchsorted([0, 1]), len(δo⃗)       # slice starts
-    o̸⃗ = [slice(sᵒ⃗[j], sᵒ⃗[j+1]) for j in (0, 2, 1)]  # slice by δo⃗
+    bound_down, bound_up = δo.searchsorted([0, 1]) 
+    slice_down = slice(0, bound_down)
+    slice_same = slice(bound_down, bound_up)
+    slice_up   = slice(bound_up, len(δo))
 
-    uʸⁱ = [us[0][u̇ᵢ[0][o̸⃗[2]]]]                      # calc, store same-res
-    y⃗ⁱ = [f(*(xs[i][u̇ᵢ[i][o̸⃗[2]]] for i in (0, 1)))] # in results list
-    assert np.all(uʸⁱ[0] == us[1][u̇ᵢ[1][o̸⃗[2]]]), f'indices do not correspond'
+    uʸⁱ = [us[0][u̇ᵢ[0][slice_same]]]                       # calc, store same-res
+    y⃗ⁱ = [f(xs[0][u̇ᵢ[0][slice_same]], xs[1][u̇ᵢ[1][slice_same]])] # in results list
+    assert np.all(uʸⁱ[0] == us[1][u̇ᵢ[1][slice_same]]), f'indices do not correspond'
 
-    for j in range(2):                              # j=0: downres; j=1: upres
+    for j, sl in ((0, slice_down), (1, slice_up)):  # j=0: downres; j=1: upres
+        if sl.start == sl.stop:
+            continue # empty slice
+
         i = (j+coarse) % 2                          # target pixelization ind
-        u̇ᵁ, u̇ᵁ̇ = np.unique(u̇ᵢ[i][o̸⃗[j]], return_inverse=True)        # target
-        u̇ˈᵁ, u̇ˈᵁ̇ = np.unique(u̇ᵢ[i-1][o̸⃗[j]], return_inverse=True)    # reraster
-        uʸⁱ.append(us[i][u̇ᵁ])                       # put NUNIQ inds in result
-        δxⁱ = [reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], uʸⁱ[-1],        # same res
-                        intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo⃗[o̸⃗[j]])), xs[i][u̇ᵁ]][::2*j-1]
-        y⃗ⁱ.append(f(*δxⁱ))                          # calculate result
+        u̇ᵁ, u̇ᵁ̇ = np.unique(u̇ᵢ[i][sl], return_inverse=True)        # target
+        u̇ˈᵁ, u̇ˈᵁ̇ = np.unique(u̇ᵢ[i-1][sl], return_inverse=True)    # reraster
+        u_out = us[i][u̇ᵁ]                       # put NUNIQ inds in result
+        uʸⁱ.append(u_out)
+
+        t = xs[i][u̇ᵁ]
+        r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
+                        intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
+                        check_missing=False,
+                        method=reraster_method)
+
+        # calculate result, order depending on if down or up res
+        y⃗ⁱ.append(f(t, r) if j else f(r, t))
+        
 
     if pad is not None:                             # include non-overlapping
         for j in (0, 1):                            # regions if pad provided
