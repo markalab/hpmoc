@@ -1,23 +1,48 @@
 [build-system]
-requires = ["flit_core >=2,<4", "bump2version", "black"]
 build-backend = "flit_core.buildapi"
+requires = [ "flit_core >=2,<4",
+ "bump2version",
+]
 
-[tool.flit.metadata]
-module = "hpmoc"
-author = "Stefan Trklja Countryman"
-author-email = "stefan.countryman@gmail.com"
-home-page = "https://bitbucket.org/stefancountryman/hpmoc"
-requires = [
+[project]
+name = "hpmoc"
+dynamic = ["version", "description"]
+authors = [
+    {name = "Stefan Trklja Countryman", email = "stefan.countryman@gmail.com"}
+]
+maintainers = [
+    {name = "Albert Zhang", email = "alchzh@gmail.com"}
+]
+classifiers = [ "Programming Language :: Python :: 3",
+ "Framework :: IPython",
+ "Framework :: Jupyter",
+ "Intended Audience :: Science/Research",
+ "Natural Language :: English",
+ "Programming Language :: Python :: 3 :: Only",
+ "Topic :: Scientific/Engineering :: Astronomy",
+ "Topic :: Scientific/Engineering :: Information Analysis",
+ "Topic :: Scientific/Engineering :: Physics",
+ "Topic :: Scientific/Engineering :: Visualization",
+ "Topic :: Software Development :: Libraries",
+ "Typing :: Typed",
+]
+requires-python = ">=3.6"
+dependencies = [
     "numpy",
     "matplotlib",
     "astropy",
     "astropy-healpix"
 ]
-requires-python = ">=3.6"
 
-[tool.flit.metadata.requires-extra]
+[project.optional-dependencies]
 jup = ["jupyter", "ipython"]
-test = ["pytest", "pytest-cov", "h5py", "PyYAML"]
+test = [
+    "pytest",
+    "pytest-cov",
+    "h5py",
+    "PyYAML",
+    "mhealpy"
+]
 dev = [
     "flit",
     "sphinx",
@@ -29,6 +54,11 @@ dev = [
 astroquery = ["astroquery"]
 gracedb = ["ligo-gracedb"]
 healpy = ["healpy"]
+
+[project.urls]
+Homepage = "https://github.com/markalab/hpmoc"
+Documentation = "https://hpmoc.stc.sh/"
+Repository = "https://github.com/markalab/hpmoc.git"
 
 [tool.black]
 line-length = 79
