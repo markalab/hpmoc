@@ -1,6 +1,23 @@
 # hpmoc: HEALPix Multi-Order Coordinate Partial Skymaps
 
-## Citing and Acknowleding
+HPMOC is an ultra high-performance, cross-platform toolset for working with
+multi-order coordinate (MOC) HEALPix_ images (i.e. images with multiple pixel
+resolutions). MOC images are used by the [LIGO-Virgo-KAGRA collaboration](https://www.ligo.org/),
+the [Interplanerary Network](https://ipn3.ssl.berkeley.edu/) and others to represent portions of
+the sky with variable resolution. By only including pixels in regions of
+interest, and only then at a resolution appropriate to how they were
+observed/calculated, it is possible to reduce storage and computation costs by
+several orders of magnitude.
+
+HPMOC is the *only* library providing tools for loading partial/whole MOC
+skymaps (as well as standard HEALPix skymaps), taking spatial intersections,
+modifying resolution, plotting the skymaps, converting them to and from
+[Astropy WCS](https://docs.astropy.org/en/stable/wcs/index.html) projections,
+performing pointwise math, and generating PSF skymaps from point sources,
+all using algorithms that minimize memory, computation, and storage costs.
+It is based off of work on [LLAMA](https://multimessenger.science), the world's first Gravitational
+Wave/High-Energy Neutrino low-latency search pipeline, which has been improved
+and refactored into this separate module.
 
 If you use `hpmoc` in published research, we ask that you cite [Stefan Countryman's thesis](https://academiccommons.columbia.edu/doi/10.7916/c8n9-p112).
 `hpmoc` is introduced in section 4.5.13.
