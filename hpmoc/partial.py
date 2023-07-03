@@ -1007,7 +1007,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             **kwargs
     ) -> Tuple[
             'matplotlib.gridspec.GridSpec',
-            List[List['wcsaxes.WCSAxes']]
+            Sequence[Sequence['wcsaxes.WCSAxes']]
     ]:
         """
         Plot this skymap and any others in ``skymaps``. A thin wrapper around
@@ -1103,9 +1103,9 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             kwargs = {'projections': projs, 'bottom': 0.1, 'left': 0.04,
                       'missing_color': 'gray'}
             if 'IPython' in sys.modules:
-                from IPython.utils import io
+                from IPython.utils.io.capture import capture_output
 
-                with io.capture_output():
+                with capture_output():
                     gs, [[ax], *_] = self.gridplot(**kwargs)
             else:
                 gs, [[ax], *_] = self.gridplot(**kwargs)
@@ -1113,6 +1113,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
                 for co in ax.coords:
                     co.set_ticklabel_visible(False)
             fig = gs.figure
+            assert fig is not None
             fig.savefig(img, format='png')
             plt.close(fig)
             img.seek(0)
