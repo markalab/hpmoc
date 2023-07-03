@@ -60,6 +60,16 @@ Homepage = "https://github.com/markalab/hpmoc"
 Documentation = "https://hpmoc.stc.sh/"
 Repository = "https://github.com/markalab/hpmoc.git"
 
+[tool.flit.sdist]
+include = ["doc/"]
+exclude = [
+    "Dockerfile",
+    ".*",
+    "bin/",
+    "jup/",
+    "tests/",
+]
+
 [tool.black]
 line-length = 79
 target-version = ['py37']
