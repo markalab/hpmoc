@@ -1925,7 +1925,7 @@ def uniq_minimize(
             for y, ys in zip([u, *x], [us, *xs]))
 
 
-def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
+def uniq_diadic(f, us, xs, pad=None, coarse=False, reraster_method=None):
     """
     Apply a diadic function ``f(x1, x2) -> y`` that operates on skymap pixel
     values of the same resolution to skymaps with arbitrary
@@ -1935,7 +1935,7 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
 
     Parameters
     ----------
-    Ω : Callable[[np.ndarray, np.ndarray], np.ndarray]
+    f : Callable[[np.ndarray, np.ndarray], np.ndarray]
         A binary function operating on two sets of skymap pixel values
         corresponding elementwise to the same sky locations. **Must be a
         skymap-resolution independent operation for the results to make
@@ -1963,9 +1963,11 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
         planning to integrate the result of this operation. This can
         also be useful if you need to cover the *exact* area defined by the
         input skymaps.
-    downsample_method : 'average', 'sum', or 'copy', optional
-        the method to use for downsampling pixel values. When upsampling,
-        we always use 'copy' to save computation time.
+    reraster_method : 'average', 'sum', or 'copy', optional
+        the method to use for rerastering pixel values. If unspecified,
+        defaults to 'copy' if coarse=False and 'average' if ``coarse=True``.
+        'copy' should be used for intensive quantities if ``coarse=False`` for
+        faster computation.
 
     Returns
     -------
@@ -2003,6 +2005,9 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
      array([4.e+02, 0.e+00, 1.e+01, 2.e+00, 5.e+03]))
     """
 
+    if reraster_method is None:
+        reraster_method = 'average' if coarse else 'copy'
+
     tmp = np.array(uniq_intersection(*us))          # inds into uⁱ & changes in
     *u̇ᵢ, δo = tmp[:, tmp[2].argsort()]              # order δo, sorted on δo
     del tmp                                         # mark for GC
@@ -2030,7 +2035,7 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, downsample_method='average'):
         r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
                         intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
                         check_missing=False,
-                        method=downsample_method if coarse else 'copy')
+                        method=reraster_method)
 
         # calculate result, order depending on if down or up res
         y⃗ⁱ.append(f(t, r) if j else f(r, t))
