@@ -18,7 +18,7 @@
 Abstract definitions of ``IoStrategy``.
 """
 
-from typing import Optional, Union, IO
+from typing import Optional, Union, IO, ClassVar
 from ..partial import PartialUniqSkymap
 from numpy.typing import ArrayLike
 
@@ -57,8 +57,8 @@ class StubIo(IoStrategy):
     A placeholder for an IO strategy that is included with ``HPMOC`` but
     requires dependencies that are not currently installed.
     """
-    qualname: str
-    requirements: str
+    qualname: ClassVar[str]
+    requirements: ClassVar[str]
 
     @classmethod
     def read(cls, *args, **kwargs):

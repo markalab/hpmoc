@@ -37,8 +37,8 @@ if importlib.util.find_spec("astroquery") is None:
         ``astroquery`` if you want to be able to directly read
         ``hpmoc.partial.PartialUniqSkymap`` instances from ``astroquery``.
         """
-        qualname: "hpmoc.io.astroquery.AstroqueryIo"
-        requirements: "astroquery"
+        qualname = "hpmoc.io.astroquery.AstroqueryIo"
+        requirements = "astroquery"
 
 else:
 

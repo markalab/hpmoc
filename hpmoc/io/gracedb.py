@@ -31,7 +31,7 @@ from .ligo import LigoIo
 from ..partial import PartialUniqSkymap
 from numpy.typing import ArrayLike
 
-if not TYPE_CHECKING and importlib.util.find_spec("ligo.gracedb") is None:
+if not TYPE_CHECKING and (importlib.util.find_spec("ligo") is None or importlib.util.find_spec("ligo.gracedb") is None):
 
     class GracedbIo(StubIo):
         """
@@ -41,8 +41,8 @@ if not TYPE_CHECKING and importlib.util.find_spec("ligo.gracedb") is None:
 
         .. _GraceDB: https://gracedb.ligo.org
         """
-        qualname: "hpmoc.io.gracedb.GracedbIo"
-        requirements: "ligo-gracedb"
+        qualname = "hpmoc.io.gracedb.GracedbIo"
+        requirements = "ligo-gracedb"
 
 else:
 
