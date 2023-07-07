@@ -44,6 +44,7 @@ from tempfile import NamedTemporaryFile
 import binascii
 from .healpy_utils import alt_compress, alt_expand
 from .healpy import healpy as hp
+from .arraysetops import intersect1d
 
 import numpy as np
 from numpy.typing import NDArray, ArrayLike, DTypeLike
@@ -822,7 +823,6 @@ def nside_quantile_indices(nside, skymap, quantiles):
     return ((i[ll:u] for ll, u in zip(j[:-1], j[1:])), skymap[i[l]],
             norm*np.pi/3)
 
-
 def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, IntArray]:
     """Downselect the pixel indices given in ``u1`` to the set that
     overlaps with pixels in ``u2`` and return pairs of indices into
@@ -896,14 +896,14 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
     δo = np.zeros_like(i⃗ᶠ[0], dtype=int)
 
     for s in reversed(range(len(s⃗[0]))):  # pylint: disable=invalid-name
-        _, *e = np.intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True)
+        _, *e = intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True, assume_unique=(True, True))
         for i in (0, 1):                 
             i⃗ᶠ[i][ζ:ζ+len(e[i])] = e[i] + s⃗[i][s].start # offset by slice start and put in result array
             if s < len(s⃗[0])-1:                          # coarsen high res
                 uˢ[i][s⃗[i][s].stop:] >>= 2*(o⃗[s+1]-o⃗[s])
         ζ += len(e[0])  # offset for array insertions
         for i, j in [(0, 1), (1, 0)]:
-            ρ⃗ = np.intersect1d(v⃗[i][s], uˢ[i][s⃗[i][s].stop:])
+            ρ⃗ = intersect1d(v⃗[i][s], uˢ[i][s⃗[i][s].stop:], assume_unique=(True, False))
             if len(ρ⃗):  # pylint: disable=len-as-condition
                 raise ValueError(f"`i⃗{i}` has pixels overlapping with "
                                  f"themselves at NUNIQ pixel indices {ρ⃗}")
