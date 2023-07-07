@@ -32,7 +32,10 @@ def skymaps():
             strategy = "ligo"
         else:
             strategy = "basic"
-        skymaps[path] = PartialUniqSkymap.read(path, strategy=strategy)
+        s = skymaps[path] = PartialUniqSkymap.read(path, strategy=strategy)
+        scramble = np.random.shuffle(np.arange(len(s.u)))
+        s.s[:] = s.s[scramble]
+        s.u[:] = s.u[scramble]
     yield skymaps
 
 @pytest.mark.parametrize('skymap_1,skymap_2', list(zip(GW_SKYMAPS, GW_SKYMAPS)))
