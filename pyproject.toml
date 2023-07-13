@@ -44,7 +44,8 @@ test = [
     "pytest-cov",
     "h5py",
     "PyYAML",
-    "mhealpy"
+    "mhealpy",
+    "ligo.skymap"
 ]
 dev = [
     "flit",

@@ -115,3 +115,16 @@ def test_gracedb():
     assert (local.u == remote.u).all(), "Gracedb indices read failed."
     assert (local.s == remote.s).all(), "Gracedb pixel read failed."
     assert local.meta == remote.meta, "Gracedb meta read failed."
+
+def test_ligo_skymap_write_read_compat():
+    """Test that we use to_table on the skymap (maybe with extra
+    columns) and then use the ligo.skymap.io.fits functions to write/read it"""
+    from ligo.skymap.io.fits import read_sky_map, write_sky_map
+    import tempfile
+
+    skymap = PartialUniqSkymap.read(DATA/'S200105ae.fits', strategy='ligo')
+    table = skymap.to_table(name="PROBDENSITY", meta_compat=True)
+
+    with tempfile.NamedTemporaryFile() as f:
+        write_sky_map(f.name, table, moc=True)
+        read_sky_map(f.name, moc=True)
