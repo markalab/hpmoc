@@ -607,7 +607,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             "COORDSYS",
             "MOCORDER",
             "INDXSCHM"
-        } if self.meta else set()
+        } if meta_compat else set()
         
         meta = {k: v for k, v in self.meta.items()
                 if k not in filtered_keys}
