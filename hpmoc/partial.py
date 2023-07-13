@@ -32,7 +32,7 @@ from collections import OrderedDict
 from typing import (
     List,
     Iterator,
-    MutableMapping,
+    Mapping,
     Callable,
     Literal,
     Sequence,
@@ -286,6 +286,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
     notation to set pixel values at the specified NUNIQ index locations.
     """
     point_sources: List[PointsTuple]
+    meta: Mapping[str, Any]
 
     def __init__(
         self,
@@ -376,7 +377,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         self.point_sources = PointsTuple.dedup(*(point_sources or []))
 
         meta = meta or {}
-        newmeta = OrderedDict()
+        newmeta = {}
         for k, v in meta.items():
             if not (PT_META_REGEX.match(k) or
                     PT_META_KW_REGEX.match(k) or
@@ -389,6 +390,11 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
 
         if isinstance(s, (Qty, Col)):              # preserve astropy unit
             self.s = Qty(self.s, cast(Union[Qty, Col], s).unit, copy=False)
+
+    def _meta_copy(self):
+        """Returns a shallow copy of self.meta. Needed since .copy() isn't in
+        the ABC for Mapping"""
+        return {k: v for k, v in self.meta.items()}
 
     @overload
     def nside(self, as_skymap: Literal[True], copy: bool = False, **kwargs) -> 'PartialUniqSkymap[np.integer[Any]]': ...
@@ -406,7 +412,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         n = uniq2nside(self.u)
         if as_skymap:
             u = np.array(self.u, copy=True) if copy else self.u
-            m = self.meta.copy()
+            m = self._meta_copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix NSIDE.']
             return type(self)(n, u, copy=False, name='NSIDE', meta=m,
                               point_sources=self.point_sources,
@@ -429,7 +435,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         o = uniq2order(self.u)
         if as_skymap:
             u = np.array(self.u, copy=True) if copy else self.u
-            m = self.meta.copy()
+            m = self._meta_copy()
             m['HISTORY'] = m.get('HISTORY', []) + ['Take HEALPix order.']
             return type(self)(o, u, copy=False, name='ORDER', meta=m,
                               point_sources=self.point_sources,
@@ -481,7 +487,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         _s = cast(Quantity, self.s) # make pyright happy
         return type(self)(_s.to(*args, **kwargs), self.u,
                           copy=False, name=self.name,
-                          meta=self.meta.copy(),
+                          meta=self._meta_copy(),
                           point_sources=self.point_sources)
 
     def compress(self, stype: Optional['np.dtype'] = None, utype: Optional['np.dtype'] = None, **kwargs) -> 'PartialUniqSkymap':
@@ -513,7 +519,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
             utype = max_uint_type(self.u.max())
         s = s if stype is None else s.astype(stype)
         return type(self)(s, u.astype(utype), copy=False,
-                          name=self.name, meta=self.meta.copy(),
+                          name=self.name, meta=self._meta_copy(),
                           point_sources=self.point_sources)
 
     def sort(self: 'PartialUniqSkymap[_DType]', copy=True) -> 'PartialUniqSkymap[_DType]':
@@ -566,7 +572,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         """
         from astropy.units import Quantity
 
-        m = self.meta.copy()
+        m = self._meta_copy()
         mod = getattr(func, '__module__',
                       getattr(type(func), '__module__',
                               sys._getframe(-1).f_locals.get('__name__')))
@@ -582,20 +588,34 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
                           copy=False, name=n, meta=m,
                           point_sources=self.point_sources)
 
-    def to_table(self, name=None, uname='UNIQ'):
+    def to_table(self, name=None, uname='UNIQ', meta_compat=False):
         """
         Return a new ``astropy.table.Table`` whose ``UNIQ`` column is the NUNIQ
         indices ``self.u`` and ``PIXELS`` (or ``self.name``, if set) column is
         the skymap pixel values ``s``. Optionally override the pixel value
         column name and/or the NUNIQ column name with the ``name`` and
-        ``uname`` arguments respectively.
+        ``uname`` arguments respectively. If ``meta_compat`` is ``True``, drop
+        metadata keys that are added by ``ligo.skymap.io.fits.write_sky_map``
+        so they don't get duplicated.
         """
         from astropy.table import Table
 
         name = name or self.name or 'PIXELS'
-        t = Table([self.u, self.s], names=[uname, name], meta=self.meta)
+        filtered_keys = {
+            "PIXTYPE",
+            "ORDERING",
+            "COORDSYS",
+            "MOCORDER",
+            "INDXSCHM"
+        } if self.meta else set()
+        
+        meta = {k: v for k, v in self.meta.items()
+                if k not in filtered_keys}
+
         for pt in self.point_sources:
-            cast(MutableMapping, t.meta).update(PointsTuple(*pt).meta_dict())
+            meta.update(PointsTuple(*pt).meta_dict())
+
+        t = Table([self.u, self.s], names=[uname, name], meta=meta)
         return t
 
     def write(
@@ -721,7 +741,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         sᵒ = fill(self.u, self.s, nside, pad=pad)
         if not as_skymap:
             return sᵒ
-        m = self.meta.copy()
+        m = self._meta_copy()
         m['HISTORY'] = (m.get('HISTORY', []) +
                         [f'Filled to NEST, NSIDE={nside}.'])
         return PartialUniqSkymap(sᵒ, np.arange(4*nside**2, 16*nside**2),
@@ -792,7 +812,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
 
         def skymaps():
             for i, l, u in zip(indices, quantiles_arr[:-1], quantiles_arr[1:]):
-                m = self.meta.copy()
+                m = self._meta_copy()
                 m['HISTORY'] = m.get('HISTORY', []) + wrap(
                     f'Downselected to [{l:.2g}, {u:.2g}] quantile '
                     f'({(u-l)*100:.2g}%) of {norm:.2g} ({norm*(u-l):.2g} ',
@@ -839,7 +859,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         """
         import numpy as np
 
-        m = self.meta.copy()
+        m = self._meta_copy()
         repidx = repr(idx)
         msg = repidx if len(repidx) < 60 else repidx[:58]+'...'
         m['HISTORY'] = m.get('HISTORY', []) + [f'Got view: {msg}']
@@ -924,7 +944,7 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         return render(self.u, self.s, u⃗ᵒ, pad=pad, valid=valid,
                       mask_missing=mask_missing)
 
-    def reraster(self, u_out, pad=None, mask_missing=False, copy=True):
+    def reraster(self, u_out, pad=None, mask_missing=False, copy=True, **kwargs):
         """
         Return a new ``PartialUniqSkymap`` instance with the same pixel values
         rerasterized to match the output NUNIQ indices ``u_out``. Fill in missing
@@ -937,8 +957,8 @@ class PartialUniqSkymap(AbstractPartialUniqSkymap[_DType]):
         """
         import numpy as np
 
-        s_out = reraster(self.u, self.s, u_out, pad=pad, mask_missing=mask_missing)
-        m = self.meta.copy()
+        s_out = reraster(self.u, self.s, u_out, pad=pad, mask_missing=mask_missing, **kwargs)
+        m = self._meta_copy()
         m['HISTORY'] = m.get('HISTORY', []) + ['Rerasterized.']
         return PartialUniqSkymap(s_out, np.array(u_out, copy=copy), copy=False,
                                  meta=m, point_sources=self.point_sources)
