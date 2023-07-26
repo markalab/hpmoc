@@ -11,16 +11,15 @@ use `conda`, which should come with an Anaconda distribution of Python:
 conda create -n hpmoc
 conda activate hpmoc
 ```
+note that creating a new environment is optional and hpmoc can now be installed similar to any other python package. 
 
 ### With pip
 
 If you just want to use `hpmoc` and don't need to modify the source code, you
-can install [the last released
-version](https://bitbucket.org/stefancountryman/hpmoc/downloads/hpmoc-latest-py3-none-any.whl)
-using pip:
+can install using pip:
 
 ```bash
-pip install hpmoc-latest-py3-none-any.whl
+pip install hpmoc
 ```
 
 This should install all required dependencies for you.
