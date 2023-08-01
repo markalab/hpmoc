@@ -171,9 +171,9 @@ def nest2ang(n, nside):
 
     nside = np.full(n.shape, nside) if isinstance(nside, Integral) else nside
     ra_dec = np.ndarray((2, len(n)))                    # pre-allocate results
-    for nside in np.unique(nside):                            # iterate NSIDE values
-        i = np.nonzero(nside == nside)[0]
-        ra_dec[:, i] = np.array(hp.pix2ang(nside, n[i], nest=True, lonlat=True))
+    for ns in np.unique(nside):                            # iterate NSIDE values
+        i = np.nonzero(nside == ns)[0]
+        ra_dec[:, i] = np.array(hp.pix2ang(ns, n[i], nest=True, lonlat=True))
     return ra_dec*degree
 
 
@@ -308,8 +308,8 @@ def uniq2dangle(u, ra, dec, degrees=True):
     """
     [uˢ], _, o⃗, _, [v⃗], [u̇ˢ] = nside_slices(u, return_inverse=True,
                                             dtype=float)
-    nside = 1 << o⃗                                     # NSIDE for each view
-    for nside, v⃗ⁱ in zip(nside, v⃗):                       # views into uˢ
+    nsides = 1 << o⃗                                     # NSIDE for each view
+    for nside, v⃗ⁱ in zip(nsides, v⃗):                       # views into uˢ
         v⃗ⁱ -= 4*nside**2                               # convert to nest in-place
         u = nest2dangle(v⃗ⁱ, nside, ra, dec, degrees=degrees, in_place=True).unit
     return uˢ[u̇ˢ]*u                                 # unsort results in uˢ*

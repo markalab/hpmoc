@@ -20,6 +20,6 @@ multi-order coordinate (MOC) HEALPix images (i.e. images with multiple pixel
 resolutions).
 """
 
-__version__ = '1.0a5'
+__version__ = '1.0a6'
 
 from .partial import PartialUniqSkymap as PartialUniqSkymap
