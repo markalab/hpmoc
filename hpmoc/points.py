@@ -20,20 +20,20 @@ from collections import OrderedDict
 from typing import NamedTuple, Union, List, Tuple, Optional
 from .utils import wcs2ang, uniq2nest_and_nside, monochrome_opacity_colormap
 
-PT_META_REGEX = re.compile('^PT([0-9A-Fa-f])_([0-9A-Fa-f]{2})(RA|DC|SG|ST)$')
-PT_META_KW_REGEX = re.compile('^PT([0-9A-Fa-f])_(MRK|LABEL)$')
-PT_META_COLOR_REGEX = re.compile('^PT([0-9A-Fa-f])_([RGBA])$')
+PT_META_REGEX = re.compile("^PT([0-9A-Fa-f])_([0-9A-Fa-f]{2})(RA|DC|SG|ST)$")
+PT_META_KW_REGEX = re.compile("^PT([0-9A-Fa-f])_(MRK|LABEL)$")
+PT_META_COLOR_REGEX = re.compile("^PT([0-9A-Fa-f])_([RGBA])$")
 PT_META_LUT = {
-    'RA': 0,
-    'DC': 1,
-    'SG': 2,
-    'ST': 3,
-    'MRK': 'marker',
-    'LABEL': 'label',
-    'R': 0,
-    'G': 1,
-    'B': 2,
-    'A': 3
+    "RA": 0,
+    "DC": 1,
+    "SG": 2,
+    "ST": 3,
+    "MRK": "marker",
+    "LABEL": "label",
+    "R": 0,
+    "G": 1,
+    "B": 2,
+    "A": 3,
 }
 
 
@@ -41,6 +41,7 @@ class Rgba(NamedTuple):
     """
     An RGBA color tuple. If ``alpha`` is omitted, set to ``1``.
     """
+
     red: Union[float, int]
     green: Union[float, int]
     blue: Union[float, int]
@@ -54,19 +55,21 @@ class Rgba(NamedTuple):
         new ``Rgba`` instance. Alpha can be omitted, in which case it is set to
         1.
         """
-        h = hexcolor.strip('#')
+        h = hexcolor.strip("#")
         l = len(h)
         if l not in (3, 4, 6, 8):
             raise ValueError(f"Unrecognized hex color format: {hexcolor}")
         c = 1 if l in (3, 4) else 2
-        return cls(*(int(h[i:i+c], 16)/(16**c-1) for i in range(0, l, c)))
+        return cls(
+            *(int(h[i : i + c], 16) / (16**c - 1) for i in range(0, l, c))
+        )
 
     def to_hex(self, include_alpha=True):
         """
         Get a hex string of the form ``#rrggbbaa`` for this ``Rgba`` tuple.
         """
         cs = self if include_alpha else self[:-1]
-        return "#"+("{:02x}"*len(cs)).format(*(int(255*c) for c in cs))
+        return "#" + ("{:02x}" * len(cs)).format(*(int(255 * c) for c in cs))
 
 
 def _vecs_for_repr_(maxlen, *vecs):
@@ -74,13 +77,17 @@ def _vecs_for_repr_(maxlen, *vecs):
     if len(l) > 1:
         raise ValueError("Vecs must have the same length.")
     l = l.pop()
-    vˡ, uˡ = zip(*((v.value, v.unit) if hasattr(v, 'value') else (v, None)
-                    for v in vecs))
+    vˡ, uˡ = zip(
+        *(
+            (v.value, v.unit) if hasattr(v, "value") else (v, None)
+            for v in vecs
+        )
+    )
     if l <= maxlen:
         return vˡ, uˡ
-    e = maxlen//2
-    s = maxlen-e-1
-    return [[*d[:s], '...', *d[-e:]] for d in vˡ], uˡ
+    e = maxlen // 2
+    s = maxlen - e - 1
+    return [[*d[:s], "...", *d[-e:]] for d in vˡ], uˡ
 
 
 class NoDisks(ValueError):
@@ -94,22 +101,25 @@ class PointsTuple(NamedTuple):
     """
     A collection of points for scatterplots.
     """
+
     points: List[Tuple[float, float, Optional[float], Optional[str]]]
-    rgba: Rgba = Rgba.from_hex('#0F7F12')
-    marker: str = 'x'
+    rgba: Rgba = Rgba.from_hex("#0F7F12")
+    marker: str = "x"
     label: str = None
 
     def _repr_html_(self):
         pts = _vecs_for_repr_(20, *zip(*self.points))[0]
         rowa = []
         for i, [r, d, *σs] in enumerate(zip(*pts)):
-            σ = '--' if len(σs) == 0 else σs[0]
-            s = '--' if len(σs) < 2 else σs[1]
-            rowa.append(f'<tr><td>{s or i}</td><td>{r}</td><td>{d}</td>'
-                        f'<td>{σ}</td></tr>')
+            σ = "--" if len(σs) == 0 else σs[0]
+            s = "--" if len(σs) < 2 else σs[1]
+            rowa.append(
+                f"<tr><td>{s or i}</td><td>{r}</td><td>{d}</td>"
+                f"<td>{σ}</td></tr>"
+            )
         rows = "\n".join(rowa)
         bgcolor = Rgba(*self.rgba).to_hex()
-        return f'''
+        return f"""
             <table>
                 <thead>
                     <tr style="background-color: {bgcolor};">
@@ -129,7 +139,7 @@ class PointsTuple(NamedTuple):
                 </thead>
                 {rows}
             </table>
-        '''
+        """
 
     def scale_sigma(self, factor, **kwargs):
         """
@@ -140,12 +150,13 @@ class PointsTuple(NamedTuple):
         """
         kw = dict(zip(self._fields, self))
         kw.update(kwargs)
-        kw['points'] = [(r, d) + ((2*s[0],) if s else ())
-                        for r, d, *s in self.points]
+        kw["points"] = [
+            (r, d) + ((2 * s[0],) if s else ()) for r, d, *s in self.points
+        ]
         return type(self)(**kw)
 
     @classmethod
-    def meta_read(cls, meta: dict) -> List['__class__']:
+    def meta_read(cls, meta: dict) -> List["__class__"]:
         f"""
         Read points following the regular expression {PT_META_REGEX}
         from a dictionary ``meta`` into a ``PointsTuple``. Specify ``PTRGBAi``,
@@ -158,32 +169,48 @@ class PointsTuple(NamedTuple):
         PointsTuple.meta_dict
         """
         d = cls.__new__.__defaults__
-        pts = [*zip(*sum([[((int(a, 16), int(b, 16)), PT_META_LUT[c], meta[k])
-                           for a, b, c in PT_META_REGEX.findall(k)]
-                          for k in meta], []))]
+        pts = [
+            *zip(
+                *sum(
+                    [
+                        [
+                            ((int(a, 16), int(b, 16)), PT_META_LUT[c], meta[k])
+                            for a, b, c in PT_META_REGEX.findall(k)
+                        ]
+                        for k in meta
+                    ],
+                    [],
+                )
+            )
+        ]
         if not pts:
             return
         uniq_pts = set(pts[0])
-        kws = {lst: {'points': {}, 'rgba': [*d[0]], 'marker': d[1],
-                     'label': d[2]}
-               for lst, _ in uniq_pts}
+        kws = {
+            lst: {"points": {}, "rgba": [*d[0]], "marker": d[1], "label": d[2]}
+            for lst, _ in uniq_pts
+        }
         for lst, pt in uniq_pts:
-            kws[lst]['points'][pt] = [None, None, None, None]
+            kws[lst]["points"][pt] = [None, None, None, None]
         for [lst, pt], pos, val in zip(*pts):
-            kws[lst]['points'][pt][pos] = val
+            kws[lst]["points"][pt][pos] = val
         for k in meta:
-            m = [(PT_META_LUT[b], int(a, 16))
-                 for a, b in PT_META_KW_REGEX.findall(k)]
+            m = [
+                (PT_META_LUT[b], int(a, 16))
+                for a, b in PT_META_KW_REGEX.findall(k)
+            ]
             if m:
                 kws[m[0][1]][m[0][0]] = meta[k]
-            m = [(PT_META_LUT[b], int(a, 16))
-                 for a, b in PT_META_COLOR_REGEX.findall(k)]
+            m = [
+                (PT_META_LUT[b], int(a, 16))
+                for a, b in PT_META_COLOR_REGEX.findall(k)
+            ]
             if m:
-                kws[m[0][1]]['rgba'][m[0][0]] = meta[k]
+                kws[m[0][1]]["rgba"][m[0][0]] = meta[k]
         kws = [*kws.values()]
         for lst in kws:
-            lst['points'] = [*lst['points'].values()]
-            lst['rgba'] = Rgba(*lst['rgba'])
+            lst["points"] = [*lst["points"].values()]
+            lst["rgba"] = Rgba(*lst["rgba"])
         return [cls(**kw) for kw in kws]
 
     def meta_dict(*pts, start=0) -> dict:
@@ -197,23 +224,27 @@ class PointsTuple(NamedTuple):
         """
         res = OrderedDict()
         if len(pts) > 16:
-            raise ValueError("Can only save up to 16 point lists to meta. "
-                             "Use tables for large numbers of point sources.")
+            raise ValueError(
+                "Can only save up to 16 point lists to meta. "
+                "Use tables for large numbers of point sources."
+            )
         for i, [pt, rgba, m, l] in enumerate(pts):
             if len(pt) > 256:
-                raise ValueError("Can only save up to 256 points per list to "
-                                 "meta. Use tables for large numbers of point "
-                                 "sources.")
+                raise ValueError(
+                    "Can only save up to 256 points per list to "
+                    "meta. Use tables for large numbers of point "
+                    "sources."
+                )
             pre = f"PT{i+start:X}_"
             if l is not None:
-                res[pre+'LABEL'] = l
+                res[pre + "LABEL"] = l
             if m is not None:
-                res[pre+'MRK'] = m
-            for k, c in zip('RGBA', rgba):
+                res[pre + "MRK"] = m
+            for k, c in zip("RGBA", rgba):
                 if c is not None:
-                    res[pre+k] = c
+                    res[pre + k] = c
             for j, p in enumerate(pt):
-                for k, v in zip(('RA', 'DC', 'SG', 'ST'), p):
+                for k, v in zip(("RA", "DC", "SG", "ST"), p):
                     if v is not None:
                         res[f"{pre}{j:02X}{k}"] = v
         return res
@@ -232,7 +263,7 @@ class PointsTuple(NamedTuple):
                 unique.append(pt)
         return unique
 
-    def render(self, u⃗ᵒ, extent=1.):
+    def render(self, u⃗ᵒ, extent=1.0):
         """
         Similar to ``hpmoc.PartialUniqSkymap.render``, but for support disks
         specified by the input points' sigma parameters. Will raise
@@ -283,8 +314,13 @@ class PointsTuple(NamedTuple):
         from .healpy import healpy as hp
 
         # get the disks to be plotted, raising ``NoDisks`` if none match
-        p, t, s = np.radians([(r, d, s[0]) for (r, d, *s) in self.points
-                              if len(s) > 0 and s[0] > 0]).T
+        p, t, s = np.radians(
+            [
+                (r, d, s[0])
+                for (r, d, *s) in self.points
+                if len(s) > 0 and s[0] > 0
+            ]
+        ).T
         if p.size == 0:
             raise NoDisks()
         a = self.rgba.alpha
@@ -300,21 +336,22 @@ class PointsTuple(NamedTuple):
 
         # get the coordinates to plot to and convert them to vectors
         if isinstance(u⃗ᵒ, WCS):
-            valid, tp, pp  = wcs2ang(u⃗ᵒ, lonlat=False)
+            valid, tp, pp = wcs2ang(u⃗ᵒ, lonlat=False)
             tp = tp.to(rad).value
             pp = pp.to(rad).value
         else:
             valid = None
-            tp, pp = hp.pix2ang(*uniq2nest_and_nside(u⃗ᵒ)[::-1], nest=True,
-                                 lonlat=False)
+            tp, pp = hp.pix2ang(
+                *uniq2nest_and_nside(u⃗ᵒ)[::-1], nest=True, lonlat=False
+            )
         plot = hp.ang2vec(tp, pp, lonlat=False)
         del tp, pp
 
         # take dot products and sum overlaps of each pixel before applying
         # alpha
-        m = (plot@points>s).sum(axis=1, dtype=d)
+        m = (plot @ points > s).sum(axis=1, dtype=d)
         del plot, points
-        np.power(1-a, m, out=m)
+        np.power(1 - a, m, out=m)
         np.subtract(1, m, out=m)
 
         # fill the output with rendered values if necessary and return
@@ -324,7 +361,6 @@ class PointsTuple(NamedTuple):
         o[valid] = m
         return o
 
-
     def cmap(self):
         """
         Returns
@@ -333,4 +369,6 @@ class PointsTuple(NamedTuple):
             A color map to be used as the ``cmap`` argument to ``imshow``
             alongside the return value of ``render``.
         """
-        return monochrome_opacity_colormap(self.rgba.to_hex()[:-2], self.rgba[:-1])
+        return monochrome_opacity_colormap(
+            self.rgba.to_hex()[:-2], self.rgba[:-1]
+        )

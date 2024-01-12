@@ -49,12 +49,12 @@ HSPACE = 0.2
 WSPACE = 0.04
 NCOLS = 2
 TITLE_OUTLINE_STROKE = 2  # thickness of outline surrounding plot titles
-LEFT_SHIFT_COEFF = 1/20.  # quadratic curve dec labels away from meridian
+LEFT_SHIFT_COEFF = 1 / 20.0  # quadratic curve dec labels away from meridian
 LEFT_SHIFT_BASE = -20  # baseline shift from leftmost meridian [deg]
 XMARGIN = 0.4  # additional margin in x (make sure text fits) [inches]
 TOPMARGIN = -0.0  # additional margin at top [inches]
 BOTTOMMARGIN = -0.0  # additional margin at bottom [inches]
-NEUTRINO_COLOR = 'green'
+NEUTRINO_COLOR = "green"
 
 
 DEC_X_OFFSET = -0.37  # [inches]
@@ -62,15 +62,15 @@ DEC_Y_OFFSET = -0.02  # [inches]
 RA_X_OFFSET = 0  # [inches]
 RA_Y_OFFSET = 0.06  # [inches]
 MIN_GRAT = 3
-_DELTA_HIGHRES = tuple(v*.1**i for i in range(20) for v in (5, 2, 1))
-DELTA_PARALLELS = (15.,)+_DELTA_HIGHRES     # space btwn graticule parallels
-DELTA_MERIDIANS = (30., 10.)+_DELTA_HIGHRES #   and meridians [deg]
+_DELTA_HIGHRES = tuple(v * 0.1**i for i in range(20) for v in (5, 2, 1))
+DELTA_PARALLELS = (15.0,) + _DELTA_HIGHRES  # space btwn graticule parallels
+DELTA_MERIDIANS = (30.0, 10.0) + _DELTA_HIGHRES  #   and meridians [deg]
 GRATICULE_COLOR = "#B0B0B0"
 GRATICULE_LABEL_COLOR = (0.2, 0.2, 0.2)
 TITLES = (
-    '1-detector Skymap (LHO)',
-    '2-detector Skymap (LHO, LLO)',
-    '3-detector Skymap (LHO, LLO, Virgo)',
+    "1-detector Skymap (LHO)",
+    "2-detector Skymap (LHO, LLO)",
+    "3-detector Skymap (LHO, LLO, Virgo)",
 )
 DEFAULT_SCATTER_MARKER = "$\\bigodot$"  # bullseye hides less GW density
 MERIDIAN_FONT_SIZE = 11
@@ -82,18 +82,18 @@ def _proj_grat_label(ax, ras, decs, vals, trans, δ, **kwargs):
     import numpy as np
 
     for ra, dec, val in zip(ras, decs, vals):
-        if val%1:
-            fmt = f'{{:1.{int(-np.floor(np.log10(δ)))}f}}'
+        if val % 1:
+            fmt = f"{{:1.{int(-np.floor(np.log10(δ)))}f}}"
         else:
-            fmt = '{}'
+            fmt = "{}"
             val = int(val)
         ax.projtext(
             ra,
             dec,
-            fmt.format(val)+r'$\degree$',
-            #f'{val}{prec}$\\degree$',
+            fmt.format(val) + r"$\degree$",
+            # f'{val}{prec}$\\degree$',
             transform=trans,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -117,12 +117,23 @@ def get_hp_ax_img_shape(ax):
     for i in ax.get_children():
         if isinstance(i, AxesImage):
             return i.get_array().shape
-    raise ValueError('`ax` contains no `AxesImage` instances. '
-                     f'Children: {ax.get_children()}')
+    raise ValueError(
+        "`ax` contains no `AxesImage` instances. "
+        f"Children: {ax.get_children()}"
+    )
 
 
-def layer_plot(s⃗, ax=None, vmin=None, vmax=None, cmap=None, zorder=0,
-               shape=None, nest=True, θϕm=None):
+def layer_plot(
+    s⃗,
+    ax=None,
+    vmin=None,
+    vmax=None,
+    cmap=None,
+    zorder=0,
+    shape=None,
+    nest=True,
+    θϕm=None,
+):
     """
     Show a new plot on top of an existing ``healpy`` axes instance.
 
@@ -171,8 +182,7 @@ def layer_plot(s⃗, ax=None, vmin=None, vmax=None, cmap=None, zorder=0,
     del θ, ϕ
 
     if isinstance(s⃗, AbstractPartialUniqSkymap):
-        s⃗ = s⃗.value.render(nest2uniq(s⃗̇, nˢ, in_place=True),
-                           pad=hp.UNSEEN)
+        s⃗ = s⃗.value.render(nest2uniq(s⃗̇, nˢ, in_place=True), pad=hp.UNSEEN)
     else:
         if isinstance(s⃗, Qty):
             s⃗ = s⃗.value
@@ -181,12 +191,20 @@ def layer_plot(s⃗, ax=None, vmin=None, vmax=None, cmap=None, zorder=0,
 
     img = unmask_partial_image(s⃗, m, shape)
     del m
-    ax.imshow(img, vmin=vmin, vmax=vmax, origin='lower', cmap=cmap,
-              extent=ax.proj.get_extent(), zorder=zorder)
+    ax.imshow(
+        img,
+        vmin=vmin,
+        vmax=vmax,
+        origin="lower",
+        cmap=cmap,
+        extent=ax.proj.get_extent(),
+        zorder=zorder,
+    )
 
 
-def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
-              shape=None, θϕm=None):
+def add_disks(
+    disks, rgba, ax=None, sigma=1, degrees=True, zorder=1, shape=None, θϕm=None
+):
     """
     disks : Iterable[Tuple[float, float, float]]
         A list of ``(ra, dec, σ)`` tuples where ``ra`` is the right ascension,
@@ -222,38 +240,45 @@ def add_disks(disks, rgba, ax=None, sigma=1, degrees=True, zorder=1,
 
     *rgb, a = rgba
     rgbhex = Rgba(*rgb, a).to_hex()[:-2]
-    cmap = monochrome_opacity_colormap(rgbhex, rgb)     # set color
+    cmap = monochrome_opacity_colormap(rgbhex, rgb)  # set color
     ax = ax or plt.gca()
     shape = shape or get_hp_ax_img_shape(ax)
     d = np.float32 if len(disks) < 16777216 else np.float64
 
     # get angles of the disks as well as the max dot-product via σ
     ϕ̃, θ̃, σ = (np.radians(disks) if degrees else np.array(disks, copy=True)).T
-    np.multiply(σ, sigma, out=σ)                        # scale disk by sigma
-    np.cos(σ, out=σ)                                    # min dot product
-    np.subtract(np.radians(90), θ̃, out=θ̃)               # ra/dec (rad) -> ϕ̃/θ̃
-    disks = hp.ang2vec(θ̃, ϕ̃).T                          # rows are r̂ᵢ = x, y, z
+    np.multiply(σ, sigma, out=σ)  # scale disk by sigma
+    np.cos(σ, out=σ)  # min dot product
+    np.subtract(np.radians(90), θ̃, out=θ̃)  # ra/dec (rad) -> ϕ̃/θ̃
+    disks = hp.ang2vec(θ̃, ϕ̃).T  # rows are r̂ᵢ = x, y, z
 
     # get the angles of the plot pixels; overwrite θ/ϕ
-    θ, ϕ, m = θϕm or get_ax_angles(ax, shape=shape)     # θ/ϕ of pixels
-    plot = hp.ang2vec(θ, ϕ)                             # cols are x, y, z
+    θ, ϕ, m = θϕm or get_ax_angles(ax, shape=shape)  # θ/ϕ of pixels
+    plot = hp.ang2vec(θ, ϕ)  # cols are x, y, z
     del θ, ϕ
 
     # take dot products and sum overlaps of each pixel
-    s⃗ = (plot@disks>σ).sum(axis=1, dtype=d)             # slow for many disks
+    s⃗ = (plot @ disks > σ).sum(axis=1, dtype=d)  # slow for many disks
     del plot, disks
-    np.power(1-a, s⃗, out=s⃗)                             # compute layered alpha
+    np.power(1 - a, s⃗, out=s⃗)  # compute layered alpha
     np.subtract(1, s⃗, out=s⃗)
 
     img = unmask_partial_image(s⃗, m, shape)
     del m, s⃗
-    ax.imshow(img, vmin=0, vmax=1, origin='lower', cmap=cmap,
-              extent=ax.proj.get_extent(), zorder=zorder)
+    ax.imshow(
+        img,
+        vmin=0,
+        vmax=1,
+        origin="lower",
+        cmap=cmap,
+        extent=ax.proj.get_extent(),
+        zorder=zorder,
+    )
 
 
 def get_ax_nside(ax, shape=None):
     shape = shape or get_hp_ax_img_shape(ax)
-    return resol2nside(ax.proj.get_fov()/max(shape), degrees=False)
+    return resol2nside(ax.proj.get_fov() / max(shape), degrees=False)
 
 
 def get_ax_angles(ax, shape=None, lonlat=False):
@@ -270,7 +295,7 @@ def get_ax_angles(ax, shape=None, lonlat=False):
         i, j = [a.ravel() for a in np.indices(shape, dtype=np.int16)]
         xm, ym = p.ij2xy(i, j)
     if any(isinstance(a, np.ma.MaskedArray) for a in (xm, ym)):
-        assert np.all(xm.mask==ym.mask)
+        assert np.all(xm.mask == ym.mask)
         m = ~xm.mask
         if np.iterable(m):
             return (*p.xy2ang(xm.data[m], ym.data[m], lonlat=lonlat), m)
@@ -286,7 +311,7 @@ def unmask_partial_image(partial_image, mask, shape):
     import healpy as hp
 
     if mask is not None:
-        #img = np.zeros(mask.shape, dtype=partial_image.dtype)
+        # img = np.zeros(mask.shape, dtype=partial_image.dtype)
         img = np.full(mask.shape, -np.inf, dtype=partial_image.dtype)
         img[mask] = partial_image
     else:
@@ -294,8 +319,9 @@ def unmask_partial_image(partial_image, mask, shape):
     return hp.ma(img.reshape(shape), copy=False)
 
 
-def label_graticule(ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=None,
-                    **kwargs):
+def label_graticule(
+    ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=None, **kwargs
+):
     """
     Add text labels to a graticule.
     """
@@ -310,26 +336,28 @@ def label_graticule(ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=Non
     )
 
     # https://matplotlib.org/3.1.1/tutorials/advanced/transforms_tutorial.html
-    dectrans = ax.transData + ScaledTranslation(DEC_X_OFFSET, DEC_Y_OFFSET,
-                                                ax.figure.dpi_scale_trans)
-    ratrans = ax.transData + ScaledTranslation(RA_X_OFFSET, RA_Y_OFFSET,
-                                               ax.figure.dpi_scale_trans)
+    dectrans = ax.transData + ScaledTranslation(
+        DEC_X_OFFSET, DEC_Y_OFFSET, ax.figure.dpi_scale_trans
+    )
+    ratrans = ax.transData + ScaledTranslation(
+        RA_X_OFFSET, RA_Y_OFFSET, ax.figure.dpi_scale_trans
+    )
     # common kwargs
     ra_kwargs = {
-        'path_effects': [outline_effect()],
-        'color': GRATICULE_LABEL_COLOR,
-        'lonlat': True,
+        "path_effects": [outline_effect()],
+        "color": GRATICULE_LABEL_COLOR,
+        "lonlat": True,
     }
     dec_kwargs = ra_kwargs.copy()
 
     # base ra kwargs
-    ra_kwargs['fontsize'] = MERIDIAN_FONT_SIZE
-    ra_kwargs['horizontalalignment'] = 'center'
-    ra_kwargs['verticalalignment'] = 'bottom'
+    ra_kwargs["fontsize"] = MERIDIAN_FONT_SIZE
+    ra_kwargs["horizontalalignment"] = "center"
+    ra_kwargs["verticalalignment"] = "bottom"
 
     # base dec kwargs
-    dec_kwargs['horizontalalignment'] = 'right'
-    dec_kwargs['verticalalignment'] = 'center'
+    dec_kwargs["horizontalalignment"] = "right"
+    dec_kwargs["verticalalignment"] = "center"
 
     ra4dec = np.full_like(decs, LEFT_SHIFT_BASE)
     dec4dec = decs
@@ -338,34 +366,35 @@ def label_graticule(ax, ras, decs, δr, δd, rot, ra_window=None, dec_window=Non
 
     if isinstance(ax, HpxMollweideAxes):
         # curve dec labels away from leftmost meridian
-        ra4dec = (rot[0]+165)%360 + (decs*LEFT_SHIFT_COEFF)**2
+        ra4dec = (rot[0] + 165) % 360 + (decs * LEFT_SHIFT_COEFF) ** 2
     elif isinstance(ax, (HpxCartesianAxes, HpxAzimuthalAxes)):
-        [xax_ra, xax_dec], [yax_ra, yax_dec] = kwargs['ac']
+        [xax_ra, xax_dec], [yax_ra, yax_dec] = kwargs["ac"]
         yax_pos = (yax_dec > np.roll(yax_dec, 1))[1:]
-        yax = np.floor(yax_dec/δd)
+        yax = np.floor(yax_dec / δd)
         yax_change = (yax != np.roll(yax, 1))[1:]
-        yax_loc = (yax_change&yax_pos)|np.roll(yax_change&(~yax_pos), -1)
-        decs = δd*yax[1:][yax_loc]
+        yax_loc = (yax_change & yax_pos) | np.roll(yax_change & (~yax_pos), -1)
+        decs = δd * yax[1:][yax_loc]
         ra4dec = yax_ra[1:][yax_loc]
         dec4dec = yax_dec[1:][yax_loc]
         if isinstance(ax, HpxAzimuthalAxes):
-            xax = xax_ra//δr
+            xax = xax_ra // δr
             xax_loc = (xax != np.roll(xax, -1))[:-1]
-            ras = δr*xax[:-1][xax_loc]
+            ras = δr * xax[:-1][xax_loc]
             ra4ra = xax_ra[:-1][xax_loc]
             dec4ra = xax_dec[:-1][xax_loc]
             ratrans = ax.transData
             dectrans = ax.transData
-            #if kwargs['lat'] >= 0:
-            ra_kwargs['verticalalignment'] = 'top'
+            # if kwargs['lat'] >= 0:
+            ra_kwargs["verticalalignment"] = "top"
         else:
             dectrans = ax.transData + ScaledTranslation(
-                DEC_X_OFFSET/3, DEC_Y_OFFSET, ax.figure.dpi_scale_trans)
+                DEC_X_OFFSET / 3, DEC_Y_OFFSET, ax.figure.dpi_scale_trans
+            )
     elif isinstance(ax, HpxOrthographicAxes):
         # ra4dec -= 100
         # ra4dec += (decs*LEFT_SHIFT_COEFF)**2
         decs = dec4dec = ra4dec = np.array([])
-        ra_kwargs['rotation'] = 'vertical'
+        ra_kwargs["rotation"] = "vertical"
     elif isinstance(ax, HpxGnomonicAxes):
         return
     else:
@@ -390,52 +419,58 @@ def graticule(ax, **kwargs):
         HpxAzimuthalAxes,
     )
 
-    d = (-90, 90)       # declination range
-    r = (-180, 180)     # right-ascension range
-    kw = {}             # keyword args passed to label plotter
+    d = (-90, 90)  # declination range
+    r = (-180, 180)  # right-ascension range
+    kw = {}  # keyword args passed to label plotter
 
     if isinstance(ax, HpxMollweideAxes):
         r = (0, 360)
     elif isinstance(ax, HpxGnomonicAxes):
-        Δθ = ax.proj.arrayinfo['reso']/2/60
-        xsize = ax.proj.arrayinfo['xsize']
-        ysize = ax.proj.arrayinfo['ysize']
-        lon, lat = np.around(ax.proj.get_center(lonlat=True),
-                             ax._coordprec)
-        d = (lat-ysize*Δθ, lat+ysize*Δθ)
-        r = (lon-xsize*Δθ, lon+xsize*Δθ)
+        Δθ = ax.proj.arrayinfo["reso"] / 2 / 60
+        xsize = ax.proj.arrayinfo["xsize"]
+        ysize = ax.proj.arrayinfo["ysize"]
+        lon, lat = np.around(ax.proj.get_center(lonlat=True), ax._coordprec)
+        d = (lat - ysize * Δθ, lat + ysize * Δθ)
+        r = (lon - xsize * Δθ, lon + xsize * Δθ)
     elif isinstance(ax, (HpxCartesianAxes, HpxAzimuthalAxes)):
-        axinds = [np.arange(ax.proj.arrayinfo[i]) for i in ['xsize', 'ysize']]
+        axinds = [np.arange(ax.proj.arrayinfo[i]) for i in ["xsize", "ysize"]]
         xaxi = 0
-        kw['lon'], kw['lat'] = ax.proj.get_center(lonlat=True)
+        kw["lon"], kw["lat"] = ax.proj.get_center(lonlat=True)
         if isinstance(ax, HpxAzimuthalAxes):
-            if kw['lat'] < 0:
+            if kw["lat"] < 0:
                 xaxi = axinds[1][-1]
-        ac = [ax.proj.xy2ang(ax.proj.ij2xy(*ii), lonlat=True)
-              for ii in ((np.full_like(axinds[0], xaxi), axinds[0]),
-                         (axinds[1], np.full_like(axinds[1], 1)))]
+        ac = [
+            ax.proj.xy2ang(ax.proj.ij2xy(*ii), lonlat=True)
+            for ii in (
+                (np.full_like(axinds[0], xaxi), axinds[0]),
+                (axinds[1], np.full_like(axinds[1], 1)),
+            )
+        ]
         ac[0][0] %= 360
         ac[1][0] %= 360
-        kw['ac'] = ac
+        kw["ac"] = ac
         if isinstance(ax, HpxAzimuthalAxes):
             r, d = [(a.min(), a.max()) for a in (ac[0][0], ac[1][1])]
         else:
-            r, d = [ax.proj.arrayinfo[i] for i in ('lonra', 'latra')]
-            r = r+kw['lon']  # DO NOT DO IN-PLACE; mutates ax state
+            r, d = [ax.proj.arrayinfo[i] for i in ("lonra", "latra")]
+            r = r + kw["lon"]  # DO NOT DO IN-PLACE; mutates ax state
     elif isinstance(ax, HpxOrthographicAxes):
-        r = r+ax.proj.get_center(lonlat=True)[0]+90  # DO NOT DO IN-PLACE
+        r = r + ax.proj.get_center(lonlat=True)[0] + 90  # DO NOT DO IN-PLACE
 
-    δd = [δ for δ in DELTA_PARALLELS if δ<(d[1]-d[0])/MIN_GRAT][0]
-    δr = [δ for δ in DELTA_MERIDIANS if δ<(r[1]-r[0])/MIN_GRAT][0]
-    di = δd*(d[0]//δd)  # rounded initial dec window
-    ri = δr*(r[0]//δr)  # rounded initial ra window
-    decs = di+δd*np.arange(1, np.ceil((d[1]-di)/δd))
-    ras = (ri+δr*np.arange(1, np.ceil((r[1]-ri)/δr)))%360  # ras -> (0, 360)
-    decs = decs[(decs>-90)&(decs<90)]  # keep decs in range
+    δd = [δ for δ in DELTA_PARALLELS if δ < (d[1] - d[0]) / MIN_GRAT][0]
+    δr = [δ for δ in DELTA_MERIDIANS if δ < (r[1] - r[0]) / MIN_GRAT][0]
+    di = δd * (d[0] // δd)  # rounded initial dec window
+    ri = δr * (r[0] // δr)  # rounded initial ra window
+    decs = di + δd * np.arange(1, np.ceil((d[1] - di) / δd))
+    ras = (
+        ri + δr * np.arange(1, np.ceil((r[1] - ri) / δr))
+    ) % 360  # ras -> (0, 360)
+    decs = decs[(decs > -90) & (decs < 90)]  # keep decs in range
     ax.graticule(δd, δr, color=GRATICULE_COLOR)
 
-    label_graticule(ax, ras, decs, δr, δd, kwargs['rot'], ra_window=r,
-                    dec_window=d, **kw)
+    label_graticule(
+        ax, ras, decs, δr, δd, kwargs["rot"], ra_window=r, dec_window=d, **kw
+    )
 
 
 def visufunc(**default_kwargs):
@@ -458,11 +493,14 @@ def visufunc(**default_kwargs):
 
     def decorator(func):
         "The actual visufunc decorator with ``graticule`` as a closure."
-        preamble = dedent(f"""
+        preamble = dedent(
+            f"""
             Make a ``healpy.visufunc.{func.__name__}`` plot using LLAMA default
             styling with point sources optionally plotted on the sky.
-        """)
-        doc = dedent(f"""
+        """
+        )
+        doc = dedent(
+            f"""
             Parameters
             ----------
             s⃗ : array-like or astropy.units.Quantity
@@ -517,7 +555,8 @@ def visufunc(**default_kwargs):
             See Also
             --------
             healpy.visufunc.{func.__name__}
-        """)
+        """
+        )
 
         @functools.wraps(func)
         def wrapper(s⃗, *scatter, sigmas=1, graticule=graticule, **kwargs):
@@ -525,53 +564,72 @@ def visufunc(**default_kwargs):
             from healpy import visufunc as vf, UNSEEN
             from matplotlib import pyplot as plt
 
-            s⃗, scatter, kwargs = visufunc_defaults(s⃗, default_kwargs, *scatter,
-                                                   sigmas=sigmas,
-                                                   graticule=graticule,
-                                                   **kwargs)
-            sigmas = kwargs.pop('sigmas')
-            graticule = kwargs.pop('graticule')
-            vmin, vmax = kwargs['min'], kwargs['max']
-            figsize, dpi = kwargs.pop('figsize'), kwargs.pop('dpi')
+            s⃗, scatter, kwargs = visufunc_defaults(
+                s⃗,
+                default_kwargs,
+                *scatter,
+                sigmas=sigmas,
+                graticule=graticule,
+                **kwargs,
+            )
+            sigmas = kwargs.pop("sigmas")
+            graticule = kwargs.pop("graticule")
+            vmin, vmax = kwargs["min"], kwargs["max"]
+            figsize, dpi = kwargs.pop("figsize"), kwargs.pop("dpi")
 
-            plt.rcParams['font.size'] = FONT_SIZE
+            plt.rcParams["font.size"] = FONT_SIZE
             pltr = functools.partial(vars(vf)[func.__name__], **kwargs)
             disks = [(c, [p[:3] for p in p⃗ if p[2]]) for p⃗, c, *_ in scatter]
 
-            if not kwargs.get('hold'):
-                plt.figure(figsize=figsize, dpi=dpi, facecolor='w',
-                           edgecolor='k')
-                kwargs['hold'] = True
+            if not kwargs.get("hold"):
+                plt.figure(
+                    figsize=figsize, dpi=dpi, facecolor="w", edgecolor="k"
+                )
+                kwargs["hold"] = True
 
             pltr(np.full((12,), UNSEEN), min=vmin, max=vmax)
-            ax = plt.gca()                          # plotted figure
+            ax = plt.gca()  # plotted figure
             shape = get_hp_ax_img_shape(ax)
             θϕm = get_ax_angles(ax, shape=shape)
-            layer_plot(s⃗, ax, vmin, vmax, cmap=kwargs['cmap'], θϕm=θϕm,
-                       zorder=0.5, nest=kwargs['nest'])
+            layer_plot(
+                s⃗,
+                ax,
+                vmin,
+                vmax,
+                cmap=kwargs["cmap"],
+                θϕm=θϕm,
+                zorder=0.5,
+                nest=kwargs["nest"],
+            )
 
-            for σ in sigmas:                            # plot source areas
-                for c, p⃗ in disks:                      #   w/ σ defined
-                    add_disks(p⃗, c, ax, sigma=σ, degrees=True, zorder=1,
-                              θϕm=θϕm)
+            for σ in sigmas:  # plot source areas
+                for c, p⃗ in disks:  #   w/ σ defined
+                    add_disks(
+                        p⃗, c, ax, sigma=σ, degrees=True, zorder=1, θϕm=θϕm
+                    )
             del θϕm
 
             if graticule is not None:
-                graticule(ax, **kwargs)                 # graticule (if given)
+                graticule(ax, **kwargs)  # graticule (if given)
 
-            for p⃗, c, mrk, _ in scatter:                # point source centers
-                *p, _, l = zip(*[[*p]+[None]*(4-len(p)) for p in p⃗])
+            for p⃗, c, mrk, _ in scatter:  # point source centers
+                *p, _, l = zip(*[[*p] + [None] * (4 - len(p)) for p in p⃗])
                 if mrk is not None:
                     *hs, v = rgb_to_hsv(*c[:3])
-                    add_scatterplot(ax, *p, marker=mrk, pt_labels=l,
-                                    color=hsv_to_rgb(*hs, v*0.4))
+                    add_scatterplot(
+                        ax,
+                        *p,
+                        marker=mrk,
+                        pt_labels=l,
+                        color=hsv_to_rgb(*hs, v * 0.4),
+                    )
 
-            func(s⃗, *scatter, **kwargs)                 # finalize in wrapped
+            func(s⃗, *scatter, **kwargs)  # finalize in wrapped
 
             return ax
 
         wrapper.__doc__ = f"{preamble}\n{dedent(wrapper.__doc__ or '')}\n{doc}"
-        wrapper.__doc__ = re.sub(r'\n\n\n*', '\n\n', wrapper.__doc__)
+        wrapper.__doc__ = re.sub(r"\n\n\n*", "\n\n", wrapper.__doc__)
 
         return wrapper
 
@@ -609,22 +667,22 @@ def mollview(s⃗, *scatter, unit=None, cmap=None, rot=DEFAULT_ROT, **kwargs):
 
 
 def multiplot(
-        *s⃗ₗ,
-        transform: Optional[Callable] = None,
-        plotters: List[Union[Callable, str]] = (mollview,),
-        scatters: Optional[List[List[PointsTuple]]] = None,
-        # fig args
-        subplot_height: float = HEIGHT,
-        suptitle: Optional[str] = None,
-        dpi: float = DPI,
-        # fig.add_gridspec args
-        ncols: int = NCOLS,
-        widths: Optional[List[float]] = None,
-        hspace: float = HSPACE,
-        wspace: float = WSPACE,
-        # plotter args
-        subplot_kwargs: Optional[List[Optional[List[dict]]]] = None,
-        **kwargs
+    *s⃗ₗ,
+    transform: Optional[Callable] = None,
+    plotters: List[Union[Callable, str]] = (mollview,),
+    scatters: Optional[List[List[PointsTuple]]] = None,
+    # fig args
+    subplot_height: float = HEIGHT,
+    suptitle: Optional[str] = None,
+    dpi: float = DPI,
+    # fig.add_gridspec args
+    ncols: int = NCOLS,
+    widths: Optional[List[float]] = None,
+    hspace: float = HSPACE,
+    wspace: float = WSPACE,
+    # plotter args
+    subplot_kwargs: Optional[List[Optional[List[dict]]]] = None,
+    **kwargs,
 ):
     """
     Make a grid plot of multiple skymaps (optionally with scatterplots for
@@ -718,46 +776,52 @@ def multiplot(
     from matplotlib.pyplot import figure
 
     nᵖ = len(plotters)  # number of plotters per skymap
-    nᶜ = len(s⃗ₗ)       # number of cells, i.e. skymaps
-    nˢ = nᶜ*nᵖ          # number of true subplots in fig
-    nʳ = nᵖ*ncols       # number of true subplots per row
-    widths = widths or [WIDTH/HEIGHT]*nᵖ
-    scatters = scatters or [[]]*nᶜ
-    subplot_kwargs = subplot_kwargs or [None]*nᵖ
+    nᶜ = len(s⃗ₗ)  # number of cells, i.e. skymaps
+    nˢ = nᶜ * nᵖ  # number of true subplots in fig
+    nʳ = nᵖ * ncols  # number of true subplots per row
+    widths = widths or [WIDTH / HEIGHT] * nᵖ
+    scatters = scatters or [[]] * nᶜ
+    subplot_kwargs = subplot_kwargs or [None] * nᵖ
     plotters = [globals()[p] if isinstance(p, str) else p for p in plotters]
     transform = transform or (lambda x: x)
-    nrows = ceil(nᶜ/ncols)
+    nrows = ceil(nᶜ / ncols)
 
     if len(widths) != nᵖ:
-        raise ValueError(f"widths {widths} must have same len as "
-                         f"plotters {plotters}")
+        raise ValueError(
+            f"widths {widths} must have same len as " f"plotters {plotters}"
+        )
     if len(scatters) != nᶜ:
-        raise ValueError(f"scatters {scatters} must have same len as s⃗ₗ "
-                         f"{s⃗ₗ}")
+        raise ValueError(
+            f"scatters {scatters} must have same len as s⃗ₗ " f"{s⃗ₗ}"
+        )
     if len(subplot_kwargs) != nᵖ:
-        raise ValueError(f"subplot_kwargs {subplot_kwargs} must have same "
-                         f"len as plotters{plotters}")
+        raise ValueError(
+            f"subplot_kwargs {subplot_kwargs} must have same "
+            f"len as plotters{plotters}"
+        )
     for i in range(len(subplot_kwargs)):
         kw = subplot_kwargs[i]
         if kw is None:
-            subplot_kwargs[i] = [{}]*nᶜ
-        elif len(kw) !=nᶜ:
-            raise ValueError(f"{i}-th element of subplot_kwargs {kw} must have"
-                             f" same len as s⃗ₗ {s⃗ₗ} or else be omitted.")
+            subplot_kwargs[i] = [{}] * nᶜ
+        elif len(kw) != nᶜ:
+            raise ValueError(
+                f"{i}-th element of subplot_kwargs {kw} must have"
+                f" same len as s⃗ₗ {s⃗ₗ} or else be omitted."
+            )
 
     # from https://matplotlib.org/tutorials/intermediate/gridspec.html
-    width_ratios = widths*ncols
+    width_ratios = widths * ncols
     fig = figure(
-        #constrained_layout=True,
-        figsize=(subplot_height*sum(width_ratios), subplot_height*nrows),
+        # constrained_layout=True,
+        figsize=(subplot_height * sum(width_ratios), subplot_height * nrows),
         dpi=dpi,
-        facecolor='w',
-        edgecolor='k',
+        facecolor="w",
+        edgecolor="k",
     )
 
     gs = fig.add_gridspec(
         nrows=nrows,
-        ncols=nᵖ*ncols,
+        ncols=nᵖ * ncols,
         width_ratios=width_ratios,
         hspace=hspace,
         wspace=wspace,
@@ -772,25 +836,25 @@ def multiplot(
         for iᵖ, p in enumerate(plotters):
             kw = kwargs.copy()
             kw.update()
-            fig.add_subplot(gs[divmod(iᶜ*nᵖ+iᵖ, nʳ)])
+            fig.add_subplot(gs[divmod(iᶜ * nᵖ + iᵖ, nʳ)])
             p(sᵗ, *scatters[iᶜ], hold=True, **kw)
 
     if suptitle is not None:
-        fig.suptitle(suptitle, y=1.1, fontsize=FONT_SIZE*1.5)
+        fig.suptitle(suptitle, y=1.1, fontsize=FONT_SIZE * 1.5)
 
     return fig
 
 
 # pylint: disable=too-many-arguments
 def add_scatterplot(
-        ax,
-        right_ascensions,
-        declinations,
-        marker=DEFAULT_SCATTER_MARKER,
-        color=NEUTRINO_COLOR,
-        pt_labels=None,
-        zorder=1000,
-        **kwargs
+    ax,
+    right_ascensions,
+    declinations,
+    marker=DEFAULT_SCATTER_MARKER,
+    color=NEUTRINO_COLOR,
+    pt_labels=None,
+    zorder=1000,
+    **kwargs,
 ):
     """Add a scatterplot to the current HEALpy axis. Useful for plotting
     neutrinos etc.; remaining ``kwargs`` are passed to
@@ -801,49 +865,51 @@ def add_scatterplot(
     from matplotlib import pyplot as plt
 
     # make the fonts bigger than the default 10pt
-    plt.rcParams['font.size'] = FONT_SIZE
+    plt.rcParams["font.size"] = FONT_SIZE
     events = np.array([right_ascensions, declinations])
-    pt_labels = pt_labels or [None]*len(right_ascensions)
+    pt_labels = pt_labels or [None] * len(right_ascensions)
     # canonicalize input colors as RGBA
     color = ColorConverter.to_rgba(color)
 
     ainfo = ax.proj.arrayinfo
-    if 'xsize' in ainfo and 'ysize' in ainfo:
-        i, j = ax.proj.xy2ij(ax.proj.ang2xy(right_ascensions,
-                                            declinations, lonlat=True))
-        include = np.array((i>=0)&(i<ainfo['ysize'])&
-                           (j>=0)&(j<ainfo['xsize'])).reshape((-1,))
+    if "xsize" in ainfo and "ysize" in ainfo:
+        i, j = ax.proj.xy2ij(
+            ax.proj.ang2xy(right_ascensions, declinations, lonlat=True)
+        )
+        include = np.array(
+            (i >= 0) & (i < ainfo["ysize"]) & (j >= 0) & (j < ainfo["xsize"])
+        ).reshape((-1,))
         pt_labels = [p for p, i in zip(pt_labels, include) if i]
         events = events[:, include]
-
 
     # add an 'x' at each event location
     ax.projscatter(
         events,
         lonlat=True,
         # https://stackoverflow.com/questions/50706901
-        edgecolor='white',
+        edgecolor="white",
         linewidth=OUTLINE_STROKE,
         facecolor=color,
         rasterized=False,
         marker=marker,
-        s=(2*plt.rcParams['lines.markersize']) ** 2,  # double default size
+        s=(2 * plt.rcParams["lines.markersize"]) ** 2,  # double default size
         zorder=zorder,
-        **kwargs
+        **kwargs,
     )
     # Make a matplotlib translation to offset text labels by a bit so that
     # they don't cover up the scatter plot markers they are labeling. See:
     # https://matplotlib.org/users/transforms_tutorial.html
     transdata = ax.transData
-    ntrans = transdata + ScaledTranslation(N_X_OFFSET, N_Y_OFFSET,
-                                           ax.figure.dpi_scale_trans)
+    ntrans = transdata + ScaledTranslation(
+        N_X_OFFSET, N_Y_OFFSET, ax.figure.dpi_scale_trans
+    )
 
     # label events
     for i, event in enumerate(events.transpose()):
         ax.projtext(
             event[0],
             event[1],
-            pt_labels[i] or str(i+1),
+            pt_labels[i] or str(i + 1),
             lonlat=True,
             color=color,
             transform=ntrans,
@@ -853,8 +919,9 @@ def add_scatterplot(
     return ax.figure
 
 
-def visufunc_defaults(s⃗, default_kwargs, *scatter, sigmas=1,
-                      graticule=graticule, **kwargs):
+def visufunc_defaults(
+    s⃗, default_kwargs, *scatter, sigmas=1, graticule=graticule, **kwargs
+):
     """
     Get default arguments for ``visufunc`` wrapped functions.
 
@@ -885,59 +952,59 @@ def visufunc_defaults(s⃗, default_kwargs, *scatter, sigmas=1,
 
     if not np.iterable(sigmas):
         sigmas = [sigmas]
-    kwargs['sigmas'] = sigmas
-    kwargs['graticule'] = graticule
+    kwargs["sigmas"] = sigmas
+    kwargs["graticule"] = graticule
 
-    if 'fig' in kwargs:
+    if "fig" in kwargs:
         raise ValueError("`fig` argument not yet supported.")
 
     # handle partial skymaps
     if isinstance(s⃗, AbstractPartialUniqSkymap):
         scatter = [*s⃗.point_sources, *scatter]
 
-    if 'min' not in kwargs or 'max' not in kwargs:
+    if "min" not in kwargs or "max" not in kwargs:
         if isinstance(s⃗, AbstractPartialUniqSkymap):
             val = s⃗.value.s
         elif isinstance(s⃗, Qty):
             val = s⃗.value
         else:
             val = s⃗
-        val = val[val!=UNSEEN]
+        val = val[val != UNSEEN]
         try:
-            kwargs['min'] = kwargs.get('min', val.min())
-            kwargs['max'] = kwargs.get('max', val.max())
+            kwargs["min"] = kwargs.get("min", val.min())
+            kwargs["max"] = kwargs.get("max", val.max())
         except ValueError as err:
-            if not str(err).startswith('zero-size array to reduction'):
+            if not str(err).startswith("zero-size array to reduction"):
                 raise
-            kwargs['min'] = kwargs['max'] = 0
+            kwargs["min"] = kwargs["max"] = 0
         del val
 
     # set some LLAMA default keyword arguments
-    kwargs['nest'] = kwargs.get('nest', True)
-    kwargs['cmap'] = kwargs.get('cmap') or default_cmap()
-    kwargs['unit'] = kwargs.get('unit') or getattr(s⃗, 'unit', None)
+    kwargs["nest"] = kwargs.get("nest", True)
+    kwargs["cmap"] = kwargs.get("cmap") or default_cmap()
+    kwargs["unit"] = kwargs.get("unit") or getattr(s⃗, "unit", None)
     one_pt = len(scatter) == 1 and len(scatter[0][0]) == 1
-    if kwargs.get('rot') is None:
+    if kwargs.get("rot") is None:
         if one_pt:
-            kwargs['rot'] = (*scatter[0][0][0][:2], 0)
-            default_xsize = default_kwargs.pop('xsize', None)
+            kwargs["rot"] = (*scatter[0][0][0][:2], 0)
+            default_xsize = default_kwargs.pop("xsize", None)
             if default_xsize:
                 sig = scatter[0][0][0][2]
                 if sig:
-                    size = kwargs.get('xsize', default_xsize)
-                    size = min(kwargs.get('ysize', size), size)
-                    kwargs['reso'] = 60*4*max(sigmas)*sig/size
+                    size = kwargs.get("xsize", default_xsize)
+                    size = min(kwargs.get("ysize", size), size)
+                    kwargs["reso"] = 60 * 4 * max(sigmas) * sig / size
         else:
-            kwargs['rot'] = DEFAULT_ROT
+            kwargs["rot"] = DEFAULT_ROT
 
     # if default figure settings are given, pass them through
-    kwargs['dpi'] = kwargs.get('dpi', DPI)
-    kwargs['figsize'] = kwargs.get('figsize', (WIDTH, HEIGHT))
+    kwargs["dpi"] = kwargs.get("dpi", DPI)
+    kwargs["figsize"] = kwargs.get("figsize", (WIDTH, HEIGHT))
 
     # apply any default kwargs for the wrapped function
     for key, value in default_kwargs.items():
         kwargs[key] = kwargs.get(key, value)
 
-    kwargs['return_projected_map'] = False
+    kwargs["return_projected_map"] = False
 
     return s⃗, scatter, kwargs

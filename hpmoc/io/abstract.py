@@ -22,11 +22,13 @@ from typing import Optional, Union, IO, ClassVar
 from ..partial import PartialUniqSkymap
 from numpy.typing import ArrayLike
 
+
 class IoStrategy:
     """
     Methods for reading and writing ``PartialUniqSkymap`` instances from/to
     file.
     """
+
     @classmethod
     def read(
         cls,
@@ -34,9 +36,9 @@ class IoStrategy:
         file: Union[IO, str],
         *args,
         name: Optional[str] = None,
-        uname: str = 'UNIQ',
-        empty = None,
-        **kwargs
+        uname: str = "UNIQ",
+        empty=None,
+        **kwargs,
     ) -> PartialUniqSkymap:
         raise NotImplementedError("read")
 
@@ -46,24 +48,28 @@ class IoStrategy:
         skymap: PartialUniqSkymap,
         file: Union[IO, str],
         name: Optional[str] = None,
-        uname: Optional[str] = 'UNIQ',
+        uname: Optional[str] = "UNIQ",
         *args,
-        **kwargs
+        **kwargs,
     ):
         raise NotImplementedError("write")
+
 
 class StubIo(IoStrategy):
     """
     A placeholder for an IO strategy that is included with ``HPMOC`` but
     requires dependencies that are not currently installed.
     """
+
     qualname: ClassVar[str]
     requirements: ClassVar[str]
 
     @classmethod
     def read(cls, *args, **kwargs):
-        raise ImportError(f"This is a stub for {cls.qualname}. You need to "
-                          f"install {cls.requirements} to be able to use it.")
+        raise ImportError(
+            f"This is a stub for {cls.qualname}. You need to "
+            f"install {cls.requirements} to be able to use it."
+        )
 
     write = read
 

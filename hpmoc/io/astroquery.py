@@ -37,6 +37,7 @@ if importlib.util.find_spec("astroquery") is None:
         ``astroquery`` if you want to be able to directly read
         ``hpmoc.partial.PartialUniqSkymap`` instances from ``astroquery``.
         """
+
         qualname = "hpmoc.io.astroquery.AstroqueryIo"
         requirements = "astroquery"
 
@@ -75,8 +76,8 @@ else:
             hdulistlist = SkyView.get_images(*args, **kwargs)
             if len(hdulistlist) != 1:
                 raise ValueError("Got more than one image")
-            hdu: PrimaryHDU = hdulistlist[0][0] # type: ignore
+            hdu: PrimaryHDU = hdulistlist[0][0]  # type: ignore
             # TODO handle multiple returned results and multiple constituent
             # skymaps more gracefully, ideally by making IoStrategy.read return
             # a generator over loaded skymaps.
-            return PartialUniqSkymap(hdu.data[0][0], WCS(hdu.header)) # type: ignore
+            return PartialUniqSkymap(hdu.data[0][0], WCS(hdu.header))  # type: ignore

@@ -14,6 +14,7 @@ def test_nside2order():
         return
     import numpy as np
     from hpmoc.healpy import nside2order
+
     try:
         import healpy as real_hp
     except ImportError:
@@ -29,8 +30,8 @@ def test_installed_nside2order():
     from hpmoc.healpy import healpy as hp
 
     for o in range(30):
-        assert hp.nside2order(1<<o) == o
-    for bad in [-1, 256., 33, 1<<30]:
+        assert hp.nside2order(1 << o) == o
+    for bad in [-1, 256.0, 33, 1 << 30]:
         try:
             hp.nside2order(bad)
             assert False
@@ -47,6 +48,7 @@ def test_pix2xyf():
         return
     import numpy as np
     from hpmoc.healpy import pix2xyf
+
     try:
         import healpy as real_hp
     except ImportError:
@@ -54,21 +56,30 @@ def test_pix2xyf():
 
     np.random.seed(0)
     for order in range(30):
-        nside = 1<<order
-        npix = 12*nside*nside
+        nside = 1 << order
+        npix = 12 * nside * nside
         # test collections of pixels
-        i = np.arange(npix) if npix < MAX else np.random.randint(0, npix, MAX,
-                                                                 np.int64)
+        i = (
+            np.arange(npix)
+            if npix < MAX
+            else np.random.randint(0, npix, MAX, np.int64)
+        )
+
         def eq(*a):
             return all(map(lambda x: np.all(np.equal(*x)), zip(*a)))
+
         for nest in [True, False]:
-            assert eq(pix2xyf(nside, i, nest=nest),
-                      real_hp.pix2xyf(nside, i, nest=nest))
+            assert eq(
+                pix2xyf(nside, i, nest=nest),
+                real_hp.pix2xyf(nside, i, nest=nest),
+            )
         assert eq(pix2xyf(nside, i), real_hp.pix2xyf(nside, i))
-        for s in [0, np.random.randint(0, npix), npix-1]:
+        for s in [0, np.random.randint(0, npix), npix - 1]:
             for nest in [True, False]:
-                assert eq(pix2xyf(nside, s, nest=nest),
-                          real_hp.pix2xyf(nside, s, nest=nest))
+                assert eq(
+                    pix2xyf(nside, s, nest=nest),
+                    real_hp.pix2xyf(nside, s, nest=nest),
+                )
             assert eq(pix2xyf(nside, s), real_hp.pix2xyf(nside, s))
 
 
@@ -81,6 +92,7 @@ def test_xyf2pix():
         return
     import numpy as np
     from hpmoc.healpy import xyf2pix
+
     try:
         import healpy as real_hp
     except ImportError:
@@ -88,24 +100,37 @@ def test_xyf2pix():
 
     np.random.seed(0)
     for order in range(30):
-        nside = 1<<order
+        nside = 1 << order
         count = min(MAX, nside)
         # test collections of pixels
         x = np.random.randint(0, nside, count, np.uint64)
         y = np.random.randint(0, nside, count, np.uint64)
         f = np.random.randint(0, 12, count, np.uint64)
         for nest in [True, False]:
-            assert (xyf2pix(nside, x, y, f, nest=nest) ==
-                    real_hp.xyf2pix(nside, x.astype(np.int64),
-                                    y.astype(np.int64), f.astype(np.int64),
-                                    nest=nest)).all()
-        assert (xyf2pix(nside, x, y, f) ==
-                real_hp.xyf2pix(nside, x.astype(np.int64), y.astype(np.int64),
-                                f.astype(np.int64))).all()
-        for s in [0, np.random.randint(0, nside, dtype=np.int64), nside-1]:
+            assert (
+                xyf2pix(nside, x, y, f, nest=nest)
+                == real_hp.xyf2pix(
+                    nside,
+                    x.astype(np.int64),
+                    y.astype(np.int64),
+                    f.astype(np.int64),
+                    nest=nest,
+                )
+            ).all()
+        assert (
+            xyf2pix(nside, x, y, f)
+            == real_hp.xyf2pix(
+                nside,
+                x.astype(np.int64),
+                y.astype(np.int64),
+                f.astype(np.int64),
+            )
+        ).all()
+        for s in [0, np.random.randint(0, nside, dtype=np.int64), nside - 1]:
             for nest in [True, False]:
-                assert (xyf2pix(nside, s, s, 0, nest=nest) ==
-                        real_hp.xyf2pix(nside, s, s, 0, nest=nest))
+                assert xyf2pix(nside, s, s, 0, nest=nest) == real_hp.xyf2pix(
+                    nside, s, s, 0, nest=nest
+                )
             assert xyf2pix(nside, s, s, 0) == real_hp.xyf2pix(nside, s, s, 0)
 
 
@@ -119,18 +144,25 @@ def test_installed_pix2xyf_xyf2pix():
 
     np.random.seed(0)
     for order in range(30):
-        nside = 1<<order
-        npix = 12*nside*nside
+        nside = 1 << order
+        npix = 12 * nside * nside
         # test collections of pixels
-        i = np.arange(npix) if npix < MAX else np.random.randint(0, npix, MAX,
-                                                                 np.int64)
+        i = (
+            np.arange(npix)
+            if npix < MAX
+            else np.random.randint(0, npix, MAX, np.int64)
+        )
         for nest in [True, False]:
-            converted = xyf2pix(nside, *pix2xyf(nside, i, nest=nest), nest=nest)
+            converted = xyf2pix(
+                nside, *pix2xyf(nside, i, nest=nest), nest=nest
+            )
             assert np.issubdtype(converted.dtype, np.uint64)
             assert np.all(converted == i)
         assert (xyf2pix(nside, *pix2xyf(nside, i)) == i).all()
-        for s in [0, np.random.randint(0, npix, dtype=np.int64), npix-1]:
+        for s in [0, np.random.randint(0, npix, dtype=np.int64), npix - 1]:
             for nest in [True, False]:
-                assert (xyf2pix(nside, *pix2xyf(nside, s, nest=nest),
-                                nest=nest) == s)
+                assert (
+                    xyf2pix(nside, *pix2xyf(nside, s, nest=nest), nest=nest)
+                    == s
+                )
             assert xyf2pix(nside, *pix2xyf(nside, s)) == s

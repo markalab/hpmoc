@@ -31,7 +31,10 @@ from .ligo import LigoIo
 from ..partial import PartialUniqSkymap
 from numpy.typing import ArrayLike
 
-if not TYPE_CHECKING and (importlib.util.find_spec("ligo") is None or importlib.util.find_spec("ligo.gracedb") is None):
+if not TYPE_CHECKING and (
+    importlib.util.find_spec("ligo") is None
+    or importlib.util.find_spec("ligo.gracedb") is None
+):
 
     class GracedbIo(StubIo):
         """
@@ -41,11 +44,11 @@ if not TYPE_CHECKING and (importlib.util.find_spec("ligo") is None or importlib.
 
         .. _GraceDB: https://gracedb.ligo.org
         """
+
         qualname = "hpmoc.io.gracedb.GracedbIo"
         requirements = "ligo-gracedb"
 
 else:
-
     if TYPE_CHECKING:
         import ligo.gracedb.rest
 
@@ -65,8 +68,8 @@ else:
             file: Union[IO, str],
             *args,
             graceid: str,
-            client: Optional['ligo.gracedb.rest.GraceDb'] = None,
-            **kwargs
+            client: Optional["ligo.gracedb.rest.GraceDb"] = None,
+            **kwargs,
         ):
             """
             Load a file from GraceDB_ in the format used by LIGO/Virgo/KAGRA
@@ -109,10 +112,12 @@ else:
             # Unfortunately GraceDb responses don't work for streaming reads.
             # Not sure why, but defaulting to a single read operation seems
             # safest.
-            buf = BytesIO(client.files(graceid, file).read()) # type: ignore
+            buf = BytesIO(client.files(graceid, file).read())  # type: ignore
             return LigoIo.read(skymap, buf, *args, **kwargs)
 
         @classmethod
         def write(cls, *args, **kwargs):
-            raise NotImplementedError("Not yet implemented. Might never be "
-                                      "implemented. Requires auth.")
+            raise NotImplementedError(
+                "Not yet implemented. Might never be "
+                "implemented. Requires auth."
+            )

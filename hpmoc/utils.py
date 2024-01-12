@@ -30,8 +30,16 @@ import os
 from operator import eq
 from numbers import Integral
 from typing import (
-    Optional, TypeVar, Union, IO, Any,
-    Tuple, Callable, Protocol, TYPE_CHECKING, overload
+    Optional,
+    TypeVar,
+    Union,
+    IO,
+    Any,
+    Tuple,
+    Callable,
+    Protocol,
+    TYPE_CHECKING,
+    overload,
 )
 from typing_extensions import TypeGuard
 import functools
@@ -49,8 +57,8 @@ from .arraysetops import intersect1d
 import numpy as np
 from numpy.typing import NDArray, ArrayLike, DTypeLike
 
-Int = Union[int, 'np.integer[Any]']
-IntArray = NDArray['np.integer[Any]']
+Int = Union[int, "np.integer[Any]"]
+IntArray = NDArray["np.integer[Any]"]
 
 if TYPE_CHECKING:
     from astropy.wcs import wcs
@@ -62,8 +70,8 @@ PIX_READ = 4**8
 OP_CHUNKSIZE = 10**6
 PIXEL_CONSISTENCY_ERROR = 1e-9
 MAX_ORDER = 30
-UINT_RANGES = {(0, 2**(8*2**i)): f'uint{8*2**i}' for i in range(4)}
-INT_RANGES = {(-i//2, i//2): v[1:] for [_, i], v in UINT_RANGES.items()}
+UINT_RANGES = {(0, 2 ** (8 * 2**i)): f"uint{8*2**i}" for i in range(4)}
+INT_RANGES = {(-i // 2, i // 2): v[1:] for [_, i], v in UINT_RANGES.items()}
 OUTLINE_STROKE = 2.2  # thickness of outline surrounding text
 OUTLINE_COLOR = (1, 1, 1, 1)  # outlines of text and neutrino markers
 FONT_SIZE = 14  # matplotlib font size
@@ -71,21 +79,24 @@ N_X_OFFSET = 0.08  # [inches]
 N_Y_OFFSET = 0.08  # [inches]
 
 
-def max_uint_type(largest: Int) -> 'np.dtype':
-
+def max_uint_type(largest: Int) -> "np.dtype":
     if largest < 0:
         raise ValueError(f"Positive values only: {largest}")
-    for dt in ('u1', 'u2', 'u4', 'u8'):
+    for dt in ("u1", "u2", "u4", "u8"):
         if ~np.array(0, dt) > largest:
             return np.dtype(dt)
-    raise ValueError("You didn't pass an integer representable in less than "
-                     "64 bits: {largest}")
+    raise ValueError(
+        "You didn't pass an integer representable in less than "
+        "64 bits: {largest}"
+    )
 
 
 class EmptyStream(OSError):
     "Raised when a file stream returns no further content."
 
-_IntDType = TypeVar('_IntDType', bound='np.integer[Any]')
+
+_IntDType = TypeVar("_IntDType", bound="np.integer[Any]")
+
 
 # TODO test this much more
 def uniq2xyf_nside(u):
@@ -100,10 +111,10 @@ def uniq2xyf_nside(u):
     xyf_nside2uniq
     """
     i, nside = uniq2nest_and_nside(u)
-    nside2 = nside*nside
-    f = (u//nside2)-4
-    i -= f*nside2
-    return alt_compress(i), alt_compress(i>>1, True), f, nside
+    nside2 = nside * nside
+    f = (u // nside2) - 4
+    i -= f * nside2
+    return alt_compress(i), alt_compress(i >> 1, True), f, nside
 
 
 # TODO test this much more
@@ -118,7 +129,7 @@ def xyf_nside2uniq(x, y, f, nside):
     --------
     uniq2xyf_nside
     """
-    return alt_expand(x) + (alt_expand(y)<<1) + (f+4)*nside*nside
+    return alt_expand(x) + (alt_expand(y) << 1) + (f + 4) * nside * nside
 
 
 def min_int_dtype(vmin, vmax):
@@ -139,7 +150,8 @@ def min_int_dtype(vmin, vmax):
 def sky_area():
     """Get the area of the entire sky as an ``Astropy.units.Quantity``."""
     from astropy.units import Quantity
-    return Quantity(4*pi, "rad2")
+
+    return Quantity(4 * pi, "rad2")
 
 
 def sky_area_deg():
@@ -170,11 +182,11 @@ def nest2ang(n, nside):
     from astropy.units import degree  # pylint: disable=no-name-in-module
 
     nside = np.full(n.shape, nside) if isinstance(nside, Integral) else nside
-    ra_dec = np.ndarray((2, len(n)))                    # pre-allocate results
-    for ns in np.unique(nside):                            # iterate NSIDE values
+    ra_dec = np.ndarray((2, len(n)))  # pre-allocate results
+    for ns in np.unique(nside):  # iterate NSIDE values
         i = np.nonzero(nside == ns)[0]
         ra_dec[:, i] = np.array(hp.pix2ang(ns, n[i], nest=True, lonlat=True))
-    return ra_dec*degree
+    return ra_dec * degree
 
 
 def resol2nside(res, coarse=False, degrees=True):
@@ -193,9 +205,9 @@ def resol2nside(res, coarse=False, degrees=True):
         are assumed.
     """
 
-    r = hp.nside2resol(2**np.arange(MAX_ORDER))[::-1]
+    r = hp.nside2resol(2 ** np.arange(MAX_ORDER))[::-1]
     r = np.degrees(r) if degrees else r
-    side = 'left' if coarse else 'right'
+    side = "left" if coarse else "right"
     return 1 << MAX_ORDER - np.searchsorted(r, res, side=side)
 
 
@@ -264,14 +276,17 @@ def nest2dangle(n, nside, ra, dec, degrees=True, in_place=False):
     n = np.array(n, copy=False)
     if in_place and n.dtype != np.float64:
         raise ValueError("Can't operate in-place on a non-float array: %s" % n)
-    Ω = [θ.to(deg).value if isinstance(θ, Quantity) else
-         (θ if degrees else np.degrees(θ))
-         for θ in (ra, dec)]
+    Ω = [
+        θ.to(deg).value
+        if isinstance(θ, Quantity)
+        else (θ if degrees else np.degrees(θ))
+        for θ in (ra, dec)
+    ]
     x0, y0, z0 = hp.ang2vec(*Ω, lonlat=True)
     x, y, z = [np.ndarray((min(len(n), OP_CHUNKSIZE),)) for _ in range(3)]
     dots = n if in_place else np.ndarray(n.shape)
     for i in range(0, len(n), OP_CHUNKSIZE):
-        nⁱ = n[i:i+OP_CHUNKSIZE].astype(int, copy=False)
+        nⁱ = n[i : i + OP_CHUNKSIZE].astype(int, copy=False)
         N = len(nⁱ)
         x[:N], y[:N], z[:N] = hp.pix2vec(nside, nⁱ, nest=True)
         x *= x0
@@ -279,7 +294,7 @@ def nest2dangle(n, nside, ra, dec, degrees=True, in_place=False):
         z *= z0
         x += y
         x += z
-        dots[i:i+N] = x[:N]
+        dots[i : i + N] = x[:N]
     return Quantity(np.arccos(dots, out=dots), rad, copy=False)
 
 
@@ -306,13 +321,16 @@ def uniq2dangle(u, ra, dec, degrees=True):
     --------
     nest2dangle
     """
-    [uˢ], _, o⃗, _, [v⃗], [u̇ˢ] = nside_slices(u, return_inverse=True,
-                                            dtype=float)
-    nsides = 1 << o⃗                                     # NSIDE for each view
-    for nside, v⃗ⁱ in zip(nsides, v⃗):                       # views into uˢ
-        v⃗ⁱ -= 4*nside**2                               # convert to nest in-place
-        u = nest2dangle(v⃗ⁱ, nside, ra, dec, degrees=degrees, in_place=True).unit
-    return uˢ[u̇ˢ]*u                                 # unsort results in uˢ*
+    [uˢ], _, o⃗, _, [v⃗], [u̇ˢ] = nside_slices(
+        u, return_inverse=True, dtype=float
+    )
+    nsides = 1 << o⃗  # NSIDE for each view
+    for nside, v⃗ⁱ in zip(nsides, v⃗):  # views into uˢ
+        v⃗ⁱ -= 4 * nside**2  # convert to nest in-place
+        u = nest2dangle(
+            v⃗ⁱ, nside, ra, dec, degrees=degrees, in_place=True
+        ).unit
+    return uˢ[u̇ˢ] * u  # unsort results in uˢ*
 
 
 def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
@@ -353,18 +371,31 @@ def dangle_rad(ra, dec, mapra, mapdec):  # pylint: disable=invalid-name
     array([0. , 1. , 0.5, 0.5, 0.5])
     """
     delta_ra = mapra - ra
-    dot_prod = (np.sin(mapdec)*np.sin(dec) +
-                np.cos(mapdec)*np.cos(dec)*np.cos(delta_ra))
+    dot_prod = np.sin(mapdec) * np.sin(dec) + np.cos(mapdec) * np.cos(
+        dec
+    ) * np.cos(delta_ra)
     return np.arccos(dot_prod)
 
 
 @overload
-def nest2uniq(indices: Int, nside: Int, in_place: bool = ...) -> Int: ...
+def nest2uniq(indices: Int, nside: Int, in_place: bool = ...) -> Int:
+    ...
+
 
 @overload
-def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_place: bool = ...) -> IntArray: ...
+def nest2uniq(
+    indices: Union[Int, IntArray],
+    nside: Union[Int, IntArray],
+    in_place: bool = ...,
+) -> IntArray:
+    ...
 
-def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_place: bool = False): # type: ignore
+
+def nest2uniq(
+    indices: Union[Int, IntArray],
+    nside: Union[Int, IntArray],
+    in_place: bool = False,
+):  # type: ignore
     """Return the NUNIQ pixel indices for nested ``indices`` with
     NSIDE=``nside``.
 
@@ -397,18 +428,19 @@ def nest2uniq(indices: Union[Int, IntArray], nside: Union[Int, IntArray], in_pla
     """
 
     check_valid_nside(nside)
-    add = 4*nside*nside
+    add = 4 * nside * nside
     if in_place:
-        indices += add # type: ignore
+        indices += add  # type: ignore
     else:
         indices = indices + add
     return np.int64(indices)
 
 
-def is_int_array(a: 'NDArray[Any]') -> TypeGuard[IntArray]:
+def is_int_array(a: "NDArray[Any]") -> TypeGuard[IntArray]:
     return issubclass(a.dtype.type, np.integer)
 
-def check_valid_nside(nside: 'ArrayLike'):
+
+def check_valid_nside(nside: "ArrayLike"):
     """Checks whether ``nside`` is a valid HEALPix NSIDE value.
 
     Parameters
@@ -446,22 +478,30 @@ def check_valid_nside(nside: 'ArrayLike'):
     nside = np.atleast_1d(nside)
     if not is_int_array(nside):
         raise TypeError(
-            f"NSIDE must be an integer type! Got '{nside.dtype.name}'")
+            f"NSIDE must be an integer type! Got '{nside.dtype.name}'"
+        )
 
-    if np.any(nside & (nside-1)):
+    if np.any(nside & (nside - 1)):
         raise ValueError("Not a valid NSIDE value: {}".format(nside))
 
 
 RAD_TO_DEG = 180 * pi
 SR_TO_DEG2 = RAD_TO_DEG * RAD_TO_DEG
 
-@overload
-def nside2pixarea(nside: Int, degrees: bool = ...) -> 'np.floating[Any]': ...
 
 @overload
-def nside2pixarea(nside: IntArray, degrees: bool = ...) -> 'NDArray[np.floating[Any]]': ...
+def nside2pixarea(nside: Int, degrees: bool = ...) -> "np.floating[Any]":
+    ...
 
-def nside2pixarea(nside: Union[Int, IntArray], degrees = False):
+
+@overload
+def nside2pixarea(
+    nside: IntArray, degrees: bool = ...
+) -> "NDArray[np.floating[Any]]":
+    ...
+
+
+def nside2pixarea(nside: Union[Int, IntArray], degrees=False):
     """
     Get the area per-pixel at ``nside``. ``nside`` can also be a HEALPix array
     here.
@@ -504,14 +544,14 @@ def nside2pixarea(nside: Union[Int, IntArray], degrees = False):
     """
 
     check_valid_nside(nside)
-    result = pi/3/nside/nside
+    result = pi / 3 / nside / nside
 
     if degrees:
         return result * SR_TO_DEG2
     return result
 
 
-def check_valid_nuniq(indices: 'ArrayLike') -> None:
+def check_valid_nuniq(indices: "ArrayLike") -> None:
     """Checks that ``indices`` are valid NUNIQ indices.
 
     Raises
@@ -531,12 +571,16 @@ def check_valid_nuniq(indices: 'ArrayLike') -> None:
 
 
 @overload
-def uniq2order(indices: 'np.number') -> 'np.int64': ...
+def uniq2order(indices: "np.number") -> "np.int64":
+    ...
+
 
 @overload
-def uniq2order(indices: 'NDArray[np.number]') -> 'NDArray[np.int64]': ...
+def uniq2order(indices: "NDArray[np.number]") -> "NDArray[np.int64]":
+    ...
 
-def uniq2order(indices): # type: ignore
+
+def uniq2order(indices):  # type: ignore
     """
     Get the HEALPix order of the given NUNIQ-ordered indices.
 
@@ -547,14 +591,18 @@ def uniq2order(indices): # type: ignore
         greater than 3.
     """
     check_valid_nuniq(indices)
-    return np.int64(np.log2(indices)/2 - 1)
+    return np.int64(np.log2(indices) / 2 - 1)
 
 
 @overload
-def uniq2nside(indices: 'np.number') -> 'np.int64': ...
+def uniq2nside(indices: "np.number") -> "np.int64":
+    ...
+
 
 @overload
-def uniq2nside(indices: 'NDArray[np.number]') -> 'NDArray[np.int64]': ...
+def uniq2nside(indices: "NDArray[np.number]") -> "NDArray[np.int64]":
+    ...
+
 
 def uniq2nside(indices):
     """
@@ -571,12 +619,22 @@ def uniq2nside(indices):
 
 
 @overload
-def uniq2nest_and_nside(indices: '_IntDType', in_place: bool = ...) -> Tuple['_IntDType', 'np.int64']: ...
+def uniq2nest_and_nside(
+    indices: "_IntDType", in_place: bool = ...
+) -> Tuple["_IntDType", "np.int64"]:
+    ...
+
 
 @overload
-def uniq2nest_and_nside(indices: 'NDArray[_IntDType]', in_place: bool = ...) -> Tuple['NDArray[_IntDType]', 'np.int64']: ...
+def uniq2nest_and_nside(
+    indices: "NDArray[_IntDType]", in_place: bool = ...
+) -> Tuple["NDArray[_IntDType]", "np.int64"]:
+    ...
 
-def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_place: bool = False):
+
+def uniq2nest_and_nside(
+    indices: Union["_IntDType", "NDArray[_IntDType]"], in_place: bool = False
+):
     """
     Parameters
     ----------
@@ -608,68 +666,68 @@ def uniq2nest_and_nside(indices: Union['_IntDType', 'NDArray[_IntDType]'], in_pl
     >>> all(nest2uniq(*uniq2nest_and_nside(nuniq)) == nuniq)
     True
     """
-    
+
     # uniq2nside implicitly checks whether the indices are valid NUNIQ indices
     nside = uniq2nside(indices)
-    sub = 4*nside*nside
+    sub = 4 * nside * nside
 
     # We can safely ignore type checking here because every element of sub
     # will be less than indices
     if in_place:
-        indices -= sub # type: ignore
+        indices -= sub  # type: ignore
     else:
-        indices = indices - sub # type: ignore
+        indices = indices - sub  # type: ignore
     return indices, nside
 
 
 # def uniq_sample(uniq, skymap, quantiles):
-    # """
-    # Do a probability-weighted random sample of locations in a skymap based on
-    # quantile. Follows *ascending* density order, just like
-    # ``nside_quantile_indices``.
+# """
+# Do a probability-weighted random sample of locations in a skymap based on
+# quantile. Follows *ascending* density order, just like
+# ``nside_quantile_indices``.
 
-    # Parameters
-    # ----------
-    # uniq : array-like
-    #     NUNIQ indices of the skymap to be sampled.
-    # skymap : array-like
-    #     Probability density at each of the pixels in ``uniq``.
-    # quantiles : array-like
-    #     Values in the interval ``[0, 1]`` specifying which quantile to select
-    #     from the skymap. For example, ``[0.5, 0.9]`` will select locations from
-    #     within the pixels for which the integral of all
-    #     higher-probability-density regions are 0.5 and 0.1, respectively.
+# Parameters
+# ----------
+# uniq : array-like
+#     NUNIQ indices of the skymap to be sampled.
+# skymap : array-like
+#     Probability density at each of the pixels in ``uniq``.
+# quantiles : array-like
+#     Values in the interval ``[0, 1]`` specifying which quantile to select
+#     from the skymap. For example, ``[0.5, 0.9]`` will select locations from
+#     within the pixels for which the integral of all
+#     higher-probability-density regions are 0.5 and 0.1, respectively.
 
-    # Returns
-    # -------
-    # locations : array
-    #     Max-resolution (order = 30) NUNIQ indices drawn from the PDF defined by
-    #     ``uniq`` and ``skymap`` at the specified ``quantiles`` assuming that
-    #     each pixel in ``skymap`` has a uniform PDF within its borders. The
-    #     difference between successive values in the density-ordered CDF of
-    #     ``skymap`` will be used to select subpixels in NEST ordering from the
-    #     pixel in ``uniq`` with the greatest CDF value lower than the
-    #     corresponding quantile, allowing for reproducible results. The returned
-    #     values have the same order as the input ``quantiles``. You can use
-    #     ``healpy.pix2ang(*uniq2nest_and_nside(locations)[::-1], nest=True)`` to
-    #     recover the angles corresponding to the recovered locations.
+# Returns
+# -------
+# locations : array
+#     Max-resolution (order = 30) NUNIQ indices drawn from the PDF defined by
+#     ``uniq`` and ``skymap`` at the specified ``quantiles`` assuming that
+#     each pixel in ``skymap`` has a uniform PDF within its borders. The
+#     difference between successive values in the density-ordered CDF of
+#     ``skymap`` will be used to select subpixels in NEST ordering from the
+#     pixel in ``uniq`` with the greatest CDF value lower than the
+#     corresponding quantile, allowing for reproducible results. The returned
+#     values have the same order as the input ``quantiles``. You can use
+#     ``healpy.pix2ang(*uniq2nest_and_nside(locations)[::-1], nest=True)`` to
+#     recover the angles corresponding to the recovered locations.
 
-    # See Also
-    # --------
-    # nside_quantile_indices
-    # uniq2nest_and_nside
-    # healpy.pix2ang
-    # """
+# See Also
+# --------
+# nside_quantile_indices
+# uniq2nest_and_nside
+# healpy.pix2ang
+# """
 
-    # orders = uniq2order(uniq)
-    # nside = hp.order2nside(orders)
-    # [inds], levels, norm = nside_quantile_indices(nside, skymap, [0, 1])
-    # cdf = hp.nside2pixarea(nside[inds])
-    # cdf *= skymap[inds]
-    # np.cumsum(cdf, out=cdf)
-    # rough_loc = cdf.searchsorted(quantiles)
-    # i_loc = rough_loc.argsort()
-    # TODO finish
+# orders = uniq2order(uniq)
+# nside = hp.order2nside(orders)
+# [inds], levels, norm = nside_quantile_indices(nside, skymap, [0, 1])
+# cdf = hp.nside2pixarea(nside[inds])
+# cdf *= skymap[inds]
+# np.cumsum(cdf, out=cdf)
+# rough_loc = cdf.searchsorted(quantiles)
+# i_loc = rough_loc.argsort()
+# TODO finish
 
 
 def nside_quantile_indices(nside, skymap, quantiles):
@@ -800,8 +858,10 @@ def nside_quantile_indices(nside, skymap, quantiles):
 
     q = np.asarray(quantiles, dtype=float)
     if np.ndim(q) != 1:
-        raise ValueError(f"quantiles ({quantiles}) must be a 1-D list of "
-                         "partition boundaries")
+        raise ValueError(
+            f"quantiles ({quantiles}) must be a 1-D list of "
+            "partition boundaries"
+        )
     if len(q) < 2:
         raise ValueError(f"must provide at least 2 quantiles ({quantiles})")
     if not (q[1:] >= q[:-1]).all():
@@ -812,7 +872,7 @@ def nside_quantile_indices(nside, skymap, quantiles):
         raise ValueError(f"skymap ({skymap}) must be strictly nonnegative")
     q[q == 1] += 0.1  # make it closed on the right
     i = skymap.argsort()
-    r = (skymap/(nside*nside))[i].cumsum()
+    r = (skymap / (nside * nside))[i].cumsum()
     norm = r[-1]
     if norm == 0:
         raise ValueError(f"skymap ({skymap}) has total integral of 0")
@@ -820,10 +880,16 @@ def nside_quantile_indices(nside, skymap, quantiles):
     j = r.searchsorted(q)
     l = j.copy()
     l[l >= len(i)] = len(i) - 1
-    return ((i[ll:u] for ll, u in zip(j[:-1], j[1:])), skymap[i[l]],
-            norm*np.pi/3)
+    return (
+        (i[ll:u] for ll, u in zip(j[:-1], j[1:])),
+        skymap[i[l]],
+        norm * np.pi / 3,
+    )
 
-def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, IntArray]:
+
+def uniq_intersection(
+    u1: IntArray, u2: IntArray
+) -> Tuple[IntArray, IntArray, IntArray]:
     """Downselect the pixel indices given in ``u1`` to the set that
     overlaps with pixels in ``u2`` and return pairs of indices into
     both of the input index lists showing which pixel in ``u2`` each
@@ -892,32 +958,42 @@ def uniq_intersection(u1: IntArray, u2: IntArray) -> Tuple[IntArray, IntArray, I
         raise ValueError("`u2` must be unique and non-overlapping.")
 
     ζ = 0
-    i⃗ᶠ = [np.ndarray((len(uˢ[0])+len(uˢ[1]),), dtype=int) for _ in [0, 1]]
+    i⃗ᶠ = [np.ndarray((len(uˢ[0]) + len(uˢ[1]),), dtype=int) for _ in [0, 1]]
     δo = np.zeros_like(i⃗ᶠ[0], dtype=int)
 
     for s in reversed(range(len(s⃗[0]))):  # pylint: disable=invalid-name
-        _, *e = intersect1d(v⃗[0][s], v⃗[1][s], return_indices=True, assume_unique=(True, True))
-        for i in (0, 1):                 
-            i⃗ᶠ[i][ζ:ζ+len(e[i])] = e[i] + s⃗[i][s].start # offset by slice start and put in result array
-            if s < len(s⃗[0])-1:                          # coarsen high res
-                uˢ[i][s⃗[i][s].stop:] >>= 2*(o⃗[s+1]-o⃗[s])
+        _, *e = intersect1d(
+            v⃗[0][s], v⃗[1][s], return_indices=True, assume_unique=(True, True)
+        )
+        for i in (0, 1):
+            i⃗ᶠ[i][ζ : ζ + len(e[i])] = (
+                e[i] + s⃗[i][s].start
+            )  # offset by slice start and put in result array
+            if s < len(s⃗[0]) - 1:  # coarsen high res
+                uˢ[i][s⃗[i][s].stop :] >>= 2 * (o⃗[s + 1] - o⃗[s])
         ζ += len(e[0])  # offset for array insertions
         for i, j in [(0, 1), (1, 0)]:
-            ρ⃗ = intersect1d(v⃗[i][s], uˢ[i][s⃗[i][s].stop:], assume_unique=(True, False))
+            ρ⃗ = intersect1d(
+                v⃗[i][s], uˢ[i][s⃗[i][s].stop :], assume_unique=(True, False)
+            )
             if len(ρ⃗):  # pylint: disable=len-as-condition
-                raise ValueError(f"`i⃗{i}` has pixels overlapping with "
-                                 f"themselves at NUNIQ pixel indices {ρ⃗}")
+                raise ValueError(
+                    f"`i⃗{i}` has pixels overlapping with "
+                    f"themselves at NUNIQ pixel indices {ρ⃗}"
+                )
             if len(v⃗[i][s]) == 0:  # pylint: disable=len-as-condition
-                continue                                # skip empty same res
-            for sⱼ in reversed(range(s+1, len(s⃗[0]))):
+                continue  # skip empty same res
+            for sⱼ in reversed(range(s + 1, len(s⃗[0]))):
                 ϵ⃗ʲ = np.searchsorted(v⃗[i][s], v⃗[j][sⱼ])
-                i⃗ᵋ = np.nonzero(np.take(v⃗[i][s], ϵ⃗ʲ, mode='clip')==v⃗[j][sⱼ])[0]
+                i⃗ᵋ = np.nonzero(np.take(v⃗[i][s], ϵ⃗ʲ, mode="clip") == v⃗[j][sⱼ])[
+                    0
+                ]
                 𝓁ᵋ = len(i⃗ᵋ)
-                i⃗ᶠ[i][ζ:ζ+𝓁ᵋ] = s⃗[i][s].start
-                i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] = s⃗[j][sⱼ].start
-                i⃗ᶠ[i][ζ:ζ+𝓁ᵋ] += ϵ⃗ʲ[i⃗ᵋ]
-                i⃗ᶠ[j][ζ:ζ+𝓁ᵋ] += i⃗ᵋ
-                δo[ζ:ζ+𝓁ᵋ] = (j-i)*(o⃗[sⱼ]-o⃗[s])  # pylint: disable=E1137
+                i⃗ᶠ[i][ζ : ζ + 𝓁ᵋ] = s⃗[i][s].start
+                i⃗ᶠ[j][ζ : ζ + 𝓁ᵋ] = s⃗[j][sⱼ].start
+                i⃗ᶠ[i][ζ : ζ + 𝓁ᵋ] += ϵ⃗ʲ[i⃗ᵋ]
+                i⃗ᶠ[j][ζ : ζ + 𝓁ᵋ] += i⃗ᵋ
+                δo[ζ : ζ + 𝓁ᵋ] = (j - i) * (o⃗[sⱼ] - o⃗[s])  # pylint: disable=E1137
                 ζ += 𝓁ᵋ
 
     return u̇[0][i⃗ᶠ[0][:ζ]], u̇[1][i⃗ᶠ[1][:ζ]], δo[:ζ]
@@ -1056,20 +1132,22 @@ def uniq2nest(u, nside, nest=True):
     check_valid_nuniq(u)
 
     o⃗, [𝓁⃗], [v⃗] = nside_slices(u)[2:5]
-    δo⃗ = hp.nside2order(nside) - o⃗                 # change in order -> final
-    ρ⃗ = np.ceil(4.**δo⃗).astype(int)             # repititions for each pixel
+    δo⃗ = hp.nside2order(nside) - o⃗  # change in order -> final
+    ρ⃗ = np.ceil(4.0**δo⃗).astype(int)  # repititions for each pixel
 
-    i⃗ˢᶠ = np.cumsum(np.concatenate(([0], ρ⃗*𝓁⃗)))         # output slices
-    u_out = np.ndarray((i⃗ˢᶠ[-1],), dtype=np.int64)         # result array
-    v⃗ᶠ = [u_out[i⃗ˢᶠ[i]:i⃗ˢᶠ[i+1]] for i in range(len(v⃗))]   # output slice views
+    i⃗ˢᶠ = np.cumsum(np.concatenate(([0], ρ⃗ * 𝓁⃗)))  # output slices
+    u_out = np.ndarray((i⃗ˢᶠ[-1],), dtype=np.int64)  # result array
+    v⃗ᶠ = [
+        u_out[i⃗ˢᶠ[i] : i⃗ˢᶠ[i + 1]] for i in range(len(v⃗))
+    ]  # output slice views
 
-    for i in range(max(0, δo⃗[0]), len(v⃗)):      # decimate highres and sameres
+    for i in range(max(0, δo⃗[0]), len(v⃗)):  # decimate highres and sameres
         v⃗ᶠ[i][:] = v⃗[i]
-        v⃗ᶠ[i] >>= 2*-δo⃗[i]  # in-place, avoid and extra array-copy
+        v⃗ᶠ[i] >>= 2 * -δo⃗[i]  # in-place, avoid and extra array-copy
 
-    for i in range(min(len(v⃗), δo⃗[0])):     # split lowres pix into higher res
+    for i in range(min(len(v⃗), δo⃗[0])):  # split lowres pix into higher res
         v⃗ᶠ[i][:] = np.repeat(v⃗[i], ρ⃗[i])
-        v⃗ᶠ[i] <<= 2*δo⃗[i]  # in-place
+        v⃗ᶠ[i] <<= 2 * δo⃗[i]  # in-place
         vᶠⁱ = v⃗ᶠ[i].reshape((-1, ρ⃗[i]))
         vᶠⁱ += np.arange(ρ⃗[i]).reshape((1, ρ⃗[i]))
 
@@ -1109,9 +1187,9 @@ def fill(u, x, nside, pad=None):
         missing values filled by ``pad``.
     """
 
-    u_out0 = 4*nside**2                               # output offset
-    u_out = np.arange(u_out0, 4*u_out0)                  # output NUNIQ indices
-    pad = hp.UNSEEN if pad is None else pad        # default pad value
+    u_out0 = 4 * nside**2  # output offset
+    u_out = np.arange(u_out0, 4 * u_out0)  # output NUNIQ indices
+    pad = hp.UNSEEN if pad is None else pad  # default pad value
     return reraster(u, x, u_out, pad=pad)
 
 
@@ -1176,8 +1254,8 @@ def nest_reres(nest, nside_in, nside_out):
     if d == 0:
         return nest, True
     if d > 0:
-        return (4**d*nest.reshape((-1, 1))+np.arange(4**d)).ravel(), True
-    i, ct = np.unique(nest//4**(-d), return_counts=True)
+        return (4**d * nest.reshape((-1, 1)) + np.arange(4**d)).ravel(), True
+    i, ct = np.unique(nest // 4 ** (-d), return_counts=True)
     return i, ct == 4
 
 
@@ -1209,25 +1287,34 @@ def wcs2nest(wcs, nside=None, order_delta=None):
         raise ValueError("Can only specify one of nside or order_delta.")
     valid, ra, dec = wcs2ang(wcs)
     # coarse search to not miss pixels
-    ns = resol2nside(wcs2resol(wcs).to('rad').value,
-                     degrees=False, coarse=True) >> 1
-    nest = np.unique(hp.ang2pix(ns, ra.to('deg').value, dec.to('deg').value,
-                                lonlat=True, nest=True))
+    ns = (
+        resol2nside(wcs2resol(wcs).to("rad").value, degrees=False, coarse=True)
+        >> 1
+    )
+    nest = np.unique(
+        hp.ang2pix(
+            ns, ra.to("deg").value, dec.to("deg").value, lonlat=True, nest=True
+        )
+    )
     del ra, dec
     nside = nside or ns
     if order_delta is not None:
         d = order_delta  # undo search coarsening
         nside = nside << d if d > 0 else nside >> -d
     nest = nest_reres(nest, ns, nside)[0]
-    co = SkyCoord(*(a*deg for a in hp.pix2ang(nside, nest, nest=True,
-                                              lonlat=True)), frame='icrs')
+    co = SkyCoord(
+        *(a * deg for a in hp.pix2ang(nside, nest, nest=True, lonlat=True)),
+        frame="icrs",
+    )
     x, y = wcs.world_to_pixel(co)
     xm, ym = wcs.pixel_shape
-    include = (~np.isnan(x)) & ((x<xm-.5) & (x>-.5) & (y<ym-.5) & (y>-.5))
+    include = (~np.isnan(x)) & (
+        (x < xm - 0.5) & (x > -0.5) & (y < ym - 0.5) & (y > -0.5)
+    )
     return nside, nest[include], x[include], y[include]
 
 
-def wcs2resol(wcs: 'wcs.WCS'):
+def wcs2resol(wcs: "wcs.WCS"):
     """
     Get the resolution of an ``astropy.wcs.WCS`` coordinate system, i.e. the
     smallest inter-pixel distance, as an ``astropy.units.Quantity`` with
@@ -1235,14 +1322,12 @@ def wcs2resol(wcs: 'wcs.WCS'):
     """
     from astropy.units import Unit
 
-    return min(abs(d)*Unit(u) for d, u in zip(wcs.wcs.cdelt, wcs.wcs.cunit))
+    return min(abs(d) * Unit(u) for d, u in zip(wcs.wcs.cdelt, wcs.wcs.cunit))
 
 
-def wcs2ang(wcs: 'wcs.WCS', lonlat=True) -> tuple[
-    'NDArray[np.bool_]',
-    'Quantity',
-    'Quantity'
-]:
+def wcs2ang(
+    wcs: "wcs.WCS", lonlat=True
+) -> tuple["NDArray[np.bool_]", "Quantity", "Quantity"]:
     """
     Convert an ``astropy.wcs.WCS`` world coordinate system's pixels into ICRS
     coordinate angles.
@@ -1271,8 +1356,9 @@ def wcs2ang(wcs: 'wcs.WCS', lonlat=True) -> tuple[
     """
     from astropy.units import deg, Quantity
 
-    sk = wcs.pixel_to_world(*np.meshgrid(*map(np.arange, wcs.pixel_shape),
-                                         sparse=True)).icrs
+    sk = wcs.pixel_to_world(
+        *np.meshgrid(*map(np.arange, wcs.pixel_shape), sparse=True)
+    ).icrs
     ra = Quantity(sk.ra)
     dec = Quantity(sk.dec)
     del sk
@@ -1280,28 +1366,36 @@ def wcs2ang(wcs: 'wcs.WCS', lonlat=True) -> tuple[
     assert np.all(valid == ~np.isnan(dec))
     if lonlat:
         return valid, ra[valid], dec[valid]
-    return valid, 90*deg-dec[valid], ra[valid]
+    return valid, 90 * deg - dec[valid], ra[valid]
 
 
-def wcs2mask_and_uniq(wcs: 'wcs.WCS'):
+def wcs2mask_and_uniq(wcs: "wcs.WCS"):
     """
     Convert an ``astropy.wcs.WCS`` world coordinate system's pixels into NUNIQ
     indices for HEALPix pixels of approximately the same size.
     """
     valid, ra, dec = wcs2ang(wcs, lonlat=True)
-    nside = resol2nside(wcs2resol(wcs).to('rad').value, degrees=False)
+    nside = resol2nside(wcs2resol(wcs).to("rad").value, degrees=False)
     return valid, nest2uniq(
-        hp.ang2pix(nside, ra.to('deg').value, dec.to('deg').value,
-                   lonlat=True, nest=True),
+        hp.ang2pix(
+            nside,
+            ra.to("deg").value,
+            dec.to("deg").value,
+            lonlat=True,
+            nest=True,
+        ),
         nside,
-        in_place=True
+        in_place=True,
     )
 
-_DType = TypeVar('_DType', covariant=True, bound='np.generic')
+
+_DType = TypeVar("_DType", covariant=True, bound="np.generic")
+
+
 def interp_wcs_nn(
-        wcs: 'wcs.WCS',
-        data: 'NDArray[_DType]',
-) -> Tuple[IntArray, 'NDArray[_DType]']:
+    wcs: "wcs.WCS",
+    data: "NDArray[_DType]",
+) -> Tuple[IntArray, "NDArray[_DType]"]:
     """
     Do a nearest-neighbor interpolation of ``data`` with coordinates
     specified by ``wcs`` FITS world coordinate system.
@@ -1338,23 +1432,23 @@ def interp_wcs_nn(
 
 
 def interp_wcs(
-        wcs: 'wcs.WCS',
-        data: 'NDArray[_DType]',
-        interp: Union[
-            str,
-            Tuple[
-                int,
-                Callable[
-                    [
-                        'NDArray[np.floating]',
-                        'NDArray[np.floating]',
-                        'NDArray[_DType]'
-                    ],
-                    'NDArray[_DType]'
-                ]
+    wcs: "wcs.WCS",
+    data: "NDArray[_DType]",
+    interp: Union[
+        str,
+        Tuple[
+            int,
+            Callable[
+                [
+                    "NDArray[np.floating]",
+                    "NDArray[np.floating]",
+                    "NDArray[_DType]",
+                ],
+                "NDArray[_DType]",
             ],
-        ] = 'nearest'
-) -> Tuple[IntArray, 'NDArray[_DType]']:
+        ],
+    ] = "nearest",
+) -> Tuple[IntArray, "NDArray[_DType]"]:
     """
     Interpolate ``data`` with coordinates specified by ``wcs`` FITS
     world coordinate system into a HEALPix NUNIQ skymap.
@@ -1399,9 +1493,9 @@ def interp_wcs(
     hpmoc.partial.PartialUniqSkymap
     astropy.wcs.WCS
     """
-    if interp == 'nearest':
+    if interp == "nearest":
         return interp_wcs_nn(wcs, data)
-    if interp == 'bilinear':
+    if interp == "bilinear":
         raise NotImplementedError()
     if isinstance(interp, str):
         raise ValueError(f"Unrecognized interpolation strategy: {interp}")
@@ -1504,7 +1598,9 @@ def render(u, x, u_out, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗�
             raise ValueError("valid must be None if u_out is WCS.")
         valid, u_out = wcs2mask_and_uniq(u_out)
     uᵘ, u̇ᵘ = np.unique(u_out, return_inverse=True)
-    s⃗ = reraster(u, x, uᵘ, pad=pad, mask_missing=mask_missing, intersection=Iᵢ⃗ⁱ⃗ᵒ)[u̇ᵘ]
+    s⃗ = reraster(
+        u, x, uᵘ, pad=pad, mask_missing=mask_missing, intersection=Iᵢ⃗ⁱ⃗ᵒ
+    )[u̇ᵘ]
     if valid is None:  # for both mask_missing True and False
         return s⃗
     s⃗ₒ = np.full(valid.shape, np.nan)
@@ -1514,9 +1610,16 @@ def render(u, x, u_out, pad=None, valid=None, mask_missing=False, Iᵢ⃗ⁱ⃗�
     return s⃗ₒ
 
 
-def reraster(u, x, u_out,
-             check_missing=True, pad=None, mask_missing=False,
-             intersection=None, method='average'):
+def reraster(
+    u,
+    x,
+    u_out,
+    check_missing=True,
+    pad=None,
+    mask_missing=False,
+    intersection=None,
+    method="average",
+):
     """
     Rasterize skymap pixel values ``x`` with NUNIQ indices ``u`` to match
     pixels ``u_out``, discarding sky areas excluded by ``u_out`` and (optionally)
@@ -1633,22 +1736,29 @@ def reraster(u, x, u_out,
     """
     from astropy.units import Quantity as Qty
 
-    u̇, u̇ᵒ, δo = intersection or uniq_intersection(u, u_out)  # indices into u, u_out
+    u̇, u̇ᵒ, δo = intersection or uniq_intersection(
+        u, u_out
+    )  # indices into u, u_out
 
     m = None
     u̇ₘᵒ = None
     if check_missing:
-        u̇ₘᵒ = np.setdiff1d(np.arange(len(u_out)), u̇ᵒ)  # u_out pixels missing from u
+        u̇ₘᵒ = np.setdiff1d(
+            np.arange(len(u_out)), u̇ᵒ
+        )  # u_out pixels missing from u
 
         if mask_missing:
             m = np.zeros(u_out.shape, dtype=bool)
             if u̇ₘᵒ.size != 0:
                 m[u̇ₘᵒ] = True
         elif u̇ₘᵒ.size != 0 and pad is None:
-            raise ValueError(f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}")
+            raise ValueError(
+                f"u ({u}) missing pixels in u_out ({u_out}): {u̇ₘᵒ}"
+            )
     elif pad is not None or mask_missing:
-        raise ValueError("check_missing=False is not compatible with pad or mask_missing")
-
+        raise ValueError(
+            "check_missing=False is not compatible with pad or mask_missing"
+        )
 
     dtype_out = np.float64
     if method == "average" and not np.issubdtype(dtype_out, np.floating):
@@ -1656,27 +1766,29 @@ def reraster(u, x, u_out,
 
     x_out = x_out_raw = np.zeros(u_out.shape, dtype=dtype_out)  # pixel values
     unit = None
-    if isinstance(x, Qty):                          # include units for
+    if isinstance(x, Qty):  # include units for
         unit = x.unit
-        x = x.value                                 #   astropy.Quantity
+        x = x.value  #   astropy.Quantity
         x_out = Qty(x_out, copy=False, unit=unit, dtype=dtype_out)
 
     if u̇ₘᵒ is not None and pad is not None:
-        x_out_raw[u̇ₘᵒ] = pad                        # pad missing if u̇ₘᵒ
+        x_out_raw[u̇ₘᵒ] = pad  # pad missing if u̇ₘᵒ
 
-    if method == 'average':
-        δ⃗ = 4.**-δo                                    # NUNIQ slice offset tmp
-        n_out = np.zeros(u_out.shape, dtype=np.float64) # normalization for pix avg
+    if method == "average":
+        δ⃗ = 4.0**-δo  # NUNIQ slice offset tmp
+        n_out = np.zeros(
+            u_out.shape, dtype=np.float64
+        )  # normalization for pix avg
         np.add.at(n_out, u̇ᵒ, δ⃗)
         if u̇ₘᵒ is not None:
-            n_out[u̇ₘᵒ] = 1.                             # pad missing if u̇ₘᵒ
+            n_out[u̇ₘᵒ] = 1.0  # pad missing if u̇ₘᵒ
 
-        δ⃗ *= x[u̇]                                      # subpixel contributions
+        δ⃗ *= x[u̇]  # subpixel contributions
         np.add.at(x_out_raw, u̇ᵒ, δ⃗)
-        x_out_raw /= n_out                              # normalize pixel values
-    elif method == 'sum':
+        x_out_raw /= n_out  # normalize pixel values
+    elif method == "sum":
         np.add.at(x_out_raw, u̇ᵒ, x[u̇])
-    elif method == 'copy':
+    elif method == "copy":
         x_out_raw[u̇ᵒ] = x[u̇]
     else:
         raise ValueError(f"Unknown method '{method}'.")
@@ -1754,38 +1866,49 @@ def uniq_coarsen(u, orders):
     u[i] >>= 2 * (o[i] - oout)
     return np.unique(u)
 
+
 class _Test(Protocol):
-    def __call__(self, x: Any, y: Any, /) -> Any: ...
+    def __call__(self, x: Any, y: Any, /) -> Any:
+        ...
+
 
 class _Combine(Protocol):
-    def __call__(self, x: 'NDArray[_DType]', i: 'NDArray[np.bool_]') -> 'NDArray[_DType]': ...
+    def __call__(
+        self, x: "NDArray[_DType]", i: "NDArray[np.bool_]"
+    ) -> "NDArray[_DType]":
+        ...
+
 
 # TODO: Consider changing return signature to return
 # Tuple[IntArray, Tuple[NDArray[Any], ...]]
 # instead
 
-@overload
-def uniq_minimize(
-    u: IntArray,
-    x: 'NDArray[_DType]', /, *,
-    test: _Test = ...,
-    combine: _Combine = ...
-) -> Tuple[IntArray, 'NDArray[_DType]']: ...
 
 @overload
 def uniq_minimize(
     u: IntArray,
-    *x: 'NDArray[Any]',
+    x: "NDArray[_DType]",
+    /,
+    *,
     test: _Test = ...,
-    combine: _Combine = ...
-) -> Tuple['NDArray[Any]', ...]: ...
-    
+    combine: _Combine = ...,
+) -> Tuple[IntArray, "NDArray[_DType]"]:
+    ...
+
+
+@overload
+def uniq_minimize(
+    u: IntArray, *x: "NDArray[Any]", test: _Test = ..., combine: _Combine = ...
+) -> Tuple["NDArray[Any]", ...]:
+    ...
+
+
 def uniq_minimize(
     u: IntArray,
-    *x: 'NDArray[Any]',
+    *x: "NDArray[Any]",
     test: _Test = eq,
-    combine: _Combine = lambda x, i: x[i]
-) -> Tuple['NDArray[Any]', ...]:
+    combine: _Combine = lambda x, i: x[i],
+) -> Tuple["NDArray[Any]", ...]:
     """
     Take a set of HEALPix NUNIQ indices ``u`` (and, optionally, pixel values
     ``x``) and find the shortest equivalent multi-order pixelation by combining
@@ -1887,29 +2010,32 @@ def uniq_minimize(
     x = tuple(xx[isort] for xx in x)
     us = []
     xs = [[] for _ in x]
-    orders = np.arange(uniq2order(u[-1])+1, -1, -1)
-    bounds = np.searchsorted(u, nest2uniq(np.zeros_like(orders),
-                                             hp.order2nside(orders)))
+    orders = np.arange(uniq2order(u[-1]) + 1, -1, -1)
+    bounds = np.searchsorted(
+        u, nest2uniq(np.zeros_like(orders), hp.order2nside(orders))
+    )
     for xx in x:
         if len(xx) != len(u):
             raise ValueError("Indices and values must have same length.")
-    for i in range(len(bounds)-2):
-        last, first = bounds[i:i+2]
+    for i in range(len(bounds) - 2):
+        last, first = bounds[i : i + 2]
         # there can be no redundancy with fewer than 4 pixels
         if last - first < 4:
             us.append(u[first:last])
             for xxs, xx in zip(xs, x):
                 xxs.append(xx[first:last])
             continue
-        uu = u[first:last-3].copy()
+        uu = u[first : last - 3].copy()
         # find 0th pixels from matching quartets
-        m = np.zeros((last-first,), dtype=bool)
+        m = np.zeros((last - first,), dtype=bool)
         m[:-3] = uu % 4 == 0
         for j in range(3):
-            uu += 1 # type: ignore causes issues with numpy number precision handling
-            m[:-3] &= uu == u[first+1+j:last-2+j]
+            uu += 1  # type: ignore causes issues with numpy number precision handling
+            m[:-3] &= uu == u[first + 1 + j : last - 2 + j]
             for xx in x:
-                m[:-3] &= test(xx[first:last-3], xx[first+1+j:last-2+j])
+                m[:-3] &= test(
+                    xx[first : last - 3], xx[first + 1 + j : last - 2 + j]
+                )
         # now find skipped indices
         s = m.copy()
         # do not mutate and compare simultaneously
@@ -1923,21 +2049,23 @@ def uniq_minimize(
         # combine pixels and put into existing buf adjacent next lowest order
         combined = u[first:last][m] // 4
         nc = len(combined)
-        u[first:first+nc] = combined
+        u[first : first + nc] = combined
         del combined
         for xx in x:
-            xx[first:first+nc] = combine(xx[first:last], m)
+            xx[first : first + nc] = combine(xx[first:last], m)
         assert 4 * nc + len(us[-1]) == last - first
         # absorb combined pixels by modifying the next lowest order's bounds
-        bounds[i+1] += nc
+        bounds[i + 1] += nc
         # now re-sort the next lowest order
-        next_last, next_first = bounds[i+1:i+3]
+        next_last, next_first = bounds[i + 1 : i + 3]
         isort = u[next_first:next_last].argsort()
         u[next_first:next_last] = u[next_first:next_last][isort]
         for xx in x:
             xx[next_first:next_last] = xx[next_first:next_last][isort]
-    return tuple(np.concatenate([y[:bounds[-2]], *ys[::-1]])
-            for y, ys in zip([u, *x], [us, *xs]))
+    return tuple(
+        np.concatenate([y[: bounds[-2]], *ys[::-1]])
+        for y, ys in zip([u, *x], [us, *xs])
+    )
 
 
 def uniq_diadic(f, us, xs, pad=None, coarse=False, reraster_method=None):
@@ -2021,50 +2149,57 @@ def uniq_diadic(f, us, xs, pad=None, coarse=False, reraster_method=None):
     """
 
     if reraster_method is None:
-        reraster_method = 'average' if coarse else 'copy'
+        reraster_method = "average" if coarse else "copy"
 
-    tmp = np.array(uniq_intersection(*us))          # inds into uⁱ & changes in
-    *u̇ᵢ, δo = tmp[:, tmp[2].argsort()]              # order δo, sorted on δo
-    del tmp                                         # mark for GC
+    tmp = np.array(uniq_intersection(*us))  # inds into uⁱ & changes in
+    *u̇ᵢ, δo = tmp[:, tmp[2].argsort()]  # order δo, sorted on δo
+    del tmp  # mark for GC
 
-    bound_down, bound_up = δo.searchsorted([0, 1]) 
+    bound_down, bound_up = δo.searchsorted([0, 1])
     slice_down = slice(0, bound_down)
     slice_same = slice(bound_down, bound_up)
-    slice_up   = slice(bound_up, len(δo))
+    slice_up = slice(bound_up, len(δo))
 
-    uʸⁱ = [us[0][u̇ᵢ[0][slice_same]]]                       # calc, store same-res
-    y⃗ⁱ = [f(xs[0][u̇ᵢ[0][slice_same]], xs[1][u̇ᵢ[1][slice_same]])] # in results list
-    assert np.all(uʸⁱ[0] == us[1][u̇ᵢ[1][slice_same]]), f'indices do not correspond'
+    uʸⁱ = [us[0][u̇ᵢ[0][slice_same]]]  # calc, store same-res
+    y⃗ⁱ = [
+        f(xs[0][u̇ᵢ[0][slice_same]], xs[1][u̇ᵢ[1][slice_same]])
+    ]  # in results list
+    assert np.all(
+        uʸⁱ[0] == us[1][u̇ᵢ[1][slice_same]]
+    ), f"indices do not correspond"
 
     for j, sl in ((0, slice_down), (1, slice_up)):  # j=0: downres; j=1: upres
         if sl.start == sl.stop:
-            continue # empty slice
+            continue  # empty slice
 
-        i = (j+coarse) % 2                          # target pixelization ind
-        u̇ᵁ, u̇ᵁ̇ = np.unique(u̇ᵢ[i][sl], return_inverse=True)        # target
-        u̇ˈᵁ, u̇ˈᵁ̇ = np.unique(u̇ᵢ[i-1][sl], return_inverse=True)    # reraster
-        u_out = us[i][u̇ᵁ]                       # put NUNIQ inds in result
+        i = (j + coarse) % 2  # target pixelization ind
+        u̇ᵁ, u̇ᵁ̇ = np.unique(u̇ᵢ[i][sl], return_inverse=True)  # target
+        u̇ˈᵁ, u̇ˈᵁ̇ = np.unique(u̇ᵢ[i - 1][sl], return_inverse=True)  # reraster
+        u_out = us[i][u̇ᵁ]  # put NUNIQ inds in result
         uʸⁱ.append(u_out)
 
         t = xs[i][u̇ᵁ]
-        r = reraster(us[i-1][u̇ˈᵁ], xs[i-1][u̇ˈᵁ], u_out,
-                        intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2*j-1)*δo[sl]),
-                        check_missing=False,
-                        method=reraster_method)
+        r = reraster(
+            us[i - 1][u̇ˈᵁ],
+            xs[i - 1][u̇ˈᵁ],
+            u_out,
+            intersection=(u̇ˈᵁ̇, u̇ᵁ̇, (2 * j - 1) * δo[sl]),
+            check_missing=False,
+            method=reraster_method,
+        )
 
         # calculate result, order depending on if down or up res
         y⃗ⁱ.append(f(t, r) if j else f(r, t))
-        
 
-    if pad is not None:                             # include non-overlapping
-        for j in (0, 1):                            # regions if pad provided
+    if pad is not None:  # include non-overlapping
+        for j in (0, 1):  # regions if pad provided
             uʸⁱ.append(us[j][np.setdiff1d(np.arange(len(us[j])), u̇ᵢ[j])])
             y⃗ⁱ.append(np.full(uʸⁱ[-1].shape, pad))
 
-    uʸ = np.concatenate(uʸⁱ)                        # concatenate result lists
+    uʸ = np.concatenate(uʸⁱ)  # concatenate result lists
     y⃗ = np.concatenate(y⃗ⁱ)
-    uʸ, i⃗ᵢᵒ = np.unique(uʸ, return_index=True)      # sort by NUNIQ index
-    assert len(i⃗ᵢᵒ) == len(y⃗)                       # inds and values same len
+    uʸ, i⃗ᵢᵒ = np.unique(uʸ, return_index=True)  # sort by NUNIQ index
+    assert len(i⃗ᵢᵒ) == len(y⃗)  # inds and values same len
     return uʸ, y⃗[i⃗ᵢᵒ]
 
 
@@ -2077,6 +2212,7 @@ class TmpGunzipFits:
     cannot be specified. Pass it a file name or a gzip file object that's
     already been opened in binary read ('rb') mode.
     """
+
     infile: Union[IO, str]
     filename = None
 
@@ -2088,7 +2224,7 @@ class TmpGunzipFits:
             buf = infile.read(GZIP_BUFFSIZE)
 
     def __enter__(self):
-        with NamedTemporaryFile('wb', suffix='.fits', delete=False) as tmp:
+        with NamedTemporaryFile("wb", suffix=".fits", delete=False) as tmp:
             if isinstance(self.infile, gzip.GzipFile):
                 self._gunzip(self.infile, tmp)
                 self.infile.seek(0)
@@ -2100,7 +2236,9 @@ class TmpGunzipFits:
 
     def __exit__(self, _type, _value, _traceback):
         if self.filename is None:
-            raise RuntimeError("self.filename is None. Was __exit__() called before __enter__()?")
+            raise RuntimeError(
+                "self.filename is None. Was __exit__() called before __enter__()?"
+            )
         if os.path.isfile(self.filename):
             os.unlink(self.filename)
 
@@ -2141,21 +2279,32 @@ def density_from_table(table, indices, nside, degrees=False):
         if any ``nside`` values are not valid.
     """
     from astropy.units import Unit
-    if 'PROBDENSITY' in table.colnames:
-        return table['PROBDENSITY'][indices].copy()
-    LOGGER.debug("PROBDENSITY not found in %s, trying to calculate it from "
-                 "PROB column and NSIDE %s", table, nside)
+
+    if "PROBDENSITY" in table.colnames:
+        return table["PROBDENSITY"][indices].copy()
+    LOGGER.debug(
+        "PROBDENSITY not found in %s, trying to calculate it from "
+        "PROB column and NSIDE %s",
+        table,
+        nside,
+    )
     # from ligo.skymap.io.read_sky_map
-    if 'PROBABILITY' in table.colnames:
-        LOGGER.debug("Column named PROBABILITY found. Renaming to PROB "
-                     "(Fermi GBM convention?)")
-        table.rename_column('PROBABILITY', 'PROB')
-    return (table['PROB'].ravel()[indices] /
-            nside2pixarea(nside, degrees=degrees) * Unit("pix / sr"))
+    if "PROBABILITY" in table.colnames:
+        LOGGER.debug(
+            "Column named PROBABILITY found. Renaming to PROB "
+            "(Fermi GBM convention?)"
+        )
+        table.rename_column("PROBABILITY", "PROB")
+    return (
+        table["PROB"].ravel()[indices]
+        / nside2pixarea(nside, degrees=degrees)
+        * Unit("pix / sr")
+    )
     raise ValueError(f"No PROBDENSITY or PROB column in skymap {infile}")
 
 
 StrOrPath = Union[str, os.PathLike]
+
 
 def is_gz(infile: Union[IO, StrOrPath]):
     """
@@ -2166,27 +2315,27 @@ def is_gz(infile: Union[IO, StrOrPath]):
         return True
     # from https://stackoverflow.com/a/47080739/3601493
     if isinstance(infile, str) or isinstance(infile, os.PathLike):
-        with open(infile, 'rb') as test_f:
+        with open(infile, "rb") as test_f:
             magic_number = binascii.hexlify(test_f.read(2))
     elif hasattr(infile, "read") and hasattr(infile, "seek"):
         magic_number = binascii.hexlify(infile.read(2))
         infile.seek(-2, 1)  # seek back before magic number read
     else:
         raise TypeError("infile must be file-like object or str")
-    return magic_number == b'1f8b'
+    return magic_number == b"1f8b"
 
 
 def set_partial_skymap_metadata(meta, mask, caller):
     """
     Write metadata to a partial skymap.
     """
-    meta['MOC'] = True
-    meta['PARTIAL'] = True
-    meta['ORDERING'] = 'NUNIQ'
-    history = meta.get('HISTORY', [])
+    meta["MOC"] = True
+    meta["PARTIAL"] = True
+    meta["ORDERING"] = "NUNIQ"
+    history = meta.get("HISTORY", [])
     if not isinstance(history, list):
         history = [history]
-    history += [''] + wrap(
+    history += [""] + wrap(
         dedent(
             f"""
             Pixels were downselected by the HPMOC library using {caller} to
@@ -2202,9 +2351,9 @@ def set_partial_skymap_metadata(meta, mask, caller):
             PROBDENSITY column.
             """
         ).format(mask=mask),
-        width=70
+        width=70,
     )
-    meta['HISTORY'] = history
+    meta["HISTORY"] = history
 
 
 def handle_compressed_infile(func):
@@ -2218,13 +2367,20 @@ def handle_compressed_infile(func):
         if is_gz(infile):
             try:
                 with TmpGunzipFits(infile) as tmp:
-                    LOGGER.debug("zipped skymap %s detected, attempting "
-                                 "to decompress to tempfile %s", infile, tmp)
+                    LOGGER.debug(
+                        "zipped skymap %s detected, attempting "
+                        "to decompress to tempfile %s",
+                        infile,
+                        tmp,
+                    )
                     return func(tmp, *args, **kwargs)
             except OSError as err:
-                if 'gzip' in str(err):
-                    LOGGER.error("OSError while attempting to decompress, "
-                                 "letting astropy try to read it: %s", err)
+                if "gzip" in str(err):
+                    LOGGER.error(
+                        "OSError while attempting to decompress, "
+                        "letting astropy try to read it: %s",
+                        err,
+                    )
                 else:
                     raise err
         return func(infile, *args, **kwargs)
@@ -2278,39 +2434,47 @@ def read_partial_skymap(infile: Union[IO, str], uniq, memmap=True):
     """
     from astropy.table import Table
 
-    T = Table.read(infile, format='fits', memmap=memmap)    # read skymap table
+    T = Table.read(infile, format="fits", memmap=memmap)  # read skymap table
     meta = T.meta.copy()
-    nside = T.meta.get('NSIDE', None)
-    ordering = T.meta['ORDERING']
+    nside = T.meta.get("NSIDE", None)
+    ordering = T.meta["ORDERING"]
     set_partial_skymap_metadata(meta, uniq, read_partial_skymap.__qualname__)
 
-    if ordering == 'NUNIQ':
-        s⃗̇ = np.concatenate([uniq_intersection(T['UNIQ'][i:i+PIX_READ], uniq)[0]+i
-                            for i in range(0, len(T), PIX_READ)])
-        uniq, s⃗̈ˢ = np.unique(T['UNIQ'][s⃗̇], return_index=True)
+    if ordering == "NUNIQ":
+        s⃗̇ = np.concatenate(
+            [
+                uniq_intersection(T["UNIQ"][i : i + PIX_READ], uniq)[0] + i
+                for i in range(0, len(T), PIX_READ)
+            ]
+        )
+        uniq, s⃗̈ˢ = np.unique(T["UNIQ"][s⃗̇], return_index=True)
         nside = uniq2nside(uniq)
     elif nside is None:
         raise ValueError(f"No NSIDE defined in header {meta} for {infile}")
     else:
-        uniq = np.sort(uniq2nest(uniq, nside, nest=False))           # rasterize
-        s⃗̇ = uniq2nest_and_nside(uniq)[0]                       # nest still sorted
-        if ordering == 'RING':                              # sorted RING inds
+        uniq = np.sort(uniq2nest(uniq, nside, nest=False))  # rasterize
+        s⃗̇ = uniq2nest_and_nside(uniq)[0]  # nest still sorted
+        if ordering == "RING":  # sorted RING inds
             s⃗̇, s⃗̈ˢ = np.unique(hp.nest2ring(nside, s⃗̇), return_inverse=True)
-        elif ordering == 'NESTED':                           # keep nest inds
-            s⃗̈ˢ = slice(None)                              # keep order
+        elif ordering == "NESTED":  # keep nest inds
+            s⃗̈ˢ = slice(None)  # keep order
         else:
             raise ValueError(f"Unexpected ORDERING in {infile}: {ordering}")
-    #return Table(np.array([u, density_from_table(T, s⃗̇, nside)[s⃗̈ˢ]]).T,
+    # return Table(np.array([u, density_from_table(T, s⃗̇, nside)[s⃗̈ˢ]]).T,
     #             names=['UNIQ', 'PROBDENSITY'], meta=meta)
-    return Table({'UNIQ': uniq,
-                  'PROBDENSITY': density_from_table(T, s⃗̇, nside)[s⃗̈ˢ]},
-                 meta=meta)
+    return Table(
+        {"UNIQ": uniq, "PROBDENSITY": density_from_table(T, s⃗̇, nside)[s⃗̈ˢ]},
+        meta=meta,
+    )
 
 
-def nside_slices(*u: IntArray, include_empty: bool = False,
-                 return_index: bool = False,
-                 return_inverse: bool = False,
-                 dtype: Optional[DTypeLike] = None):
+def nside_slices(
+    *u: IntArray,
+    include_empty: bool = False,
+    return_index: bool = False,
+    return_inverse: bool = False,
+    dtype: Optional[DTypeLike] = None,
+):
     """
     Sort and slice up a list of NUNIQ pixel index arrays, returning the sorted
     arrays as well as slice information for chunking them by NSIDE (pixel
@@ -2399,19 +2563,26 @@ def nside_slices(*u: IntArray, include_empty: bool = False,
     >>> [ii.astype(int) for ii in ius]
     [array([0, 5, 2, 1, 6, 3, 4]), array([2, 4, 0, 1, 5, 3])]
     """
-    return group_slices(*u, f=uniq2order,
-                        inv=lambda x: nest2uniq(0, hp.order2nside(x)),
-                        include_empty=include_empty, return_index=return_index,
-                        return_inverse=return_inverse, dtype=dtype)
+    return group_slices(
+        *u,
+        f=uniq2order,
+        inv=lambda x: nest2uniq(0, hp.order2nside(x)),
+        include_empty=include_empty,
+        return_index=return_index,
+        return_inverse=return_inverse,
+        dtype=dtype,
+    )
 
 
-def group_slices(*u: 'NDArray[_DType]',
-                 f: Callable[['NDArray[_DType]'], IntArray]=lambda x: x, # type: ignore
-                 inv: Callable[[IntArray], 'NDArray[_DType]']=lambda x: x,
-                 include_empty: bool = False,
-                 return_index: bool = False,
-                 return_inverse: bool = False,
-                 dtype: Any = None):
+def group_slices(
+    *u: "NDArray[_DType]",
+    f: Callable[["NDArray[_DType]"], IntArray] = lambda x: x,  # type: ignore
+    inv: Callable[[IntArray], "NDArray[_DType]"] = lambda x: x,
+    include_empty: bool = False,
+    return_index: bool = False,
+    return_inverse: bool = False,
+    dtype: Any = None,
+):
     """
     Group elements of ``u`` inputs using some sort of monotonic step function
     ``f: u.dtype -> int`` codomain and a pseudo-inverse ``inv`` mapping to the
@@ -2429,18 +2600,37 @@ def group_slices(*u: 'NDArray[_DType]',
     """
 
     u = tuple(np.array(u, dtype=dtype, copy=False) for u in u)
-    uˢ, u̇_u̇ˢ = [np.unique(u, return_index=return_index, # type: ignore
-                          return_inverse=return_inverse) for u in u], [] # type: ignore
+    uˢ, u̇_u̇ˢ = (
+        [
+            np.unique(
+                u,
+                return_index=return_index,  # type: ignore
+                return_inverse=return_inverse,
+            )
+            for u in u
+        ],
+        [],
+    )  # type: ignore
     if return_index or return_inverse:
         uˢ, *u̇_u̇ˢ = zip(*uˢ)
     s, e = [[uⁱ[i] for uⁱ in uˢ if len(uⁱ)] for i in (0, -1)]
     if not s and not e:
-        return tuple([uˢ, [[]]*len(u), np.array([]), [], [[]]*len(u)]+u̇_u̇ˢ)
-    o⃗ = np.arange(f(min(s)), f(max(e))+2)
+        return tuple(
+            [uˢ, [[]] * len(u), np.array([]), [], [[]] * len(u)] + u̇_u̇ˢ
+        )
+    o⃗ = np.arange(f(min(s)), f(max(e)) + 2)
     # o⃗ = np.arange(f(min(uⁱ[0] for uⁱ in uˢ)), f(max(uⁱ[-1] for uⁱ in uˢ))+2)
     i⃗ₛ = [np.searchsorted(uⁱ, inv(o⃗)) for uⁱ in uˢ]
-    𝓁⃗ = [i⃗ₛⁱ[1:]-i⃗ₛⁱ[:-1] for i⃗ₛⁱ in i⃗ₛ]
+    𝓁⃗ = [i⃗ₛⁱ[1:] - i⃗ₛⁱ[:-1] for i⃗ₛⁱ in i⃗ₛ]
     i⃗ᴱ̸ = np.arange(len(𝓁⃗[0])) if include_empty else np.nonzero(sum(𝓁⃗))[0]
-    s⃗ = [[slice(i⃗ₛⁱ[j], i⃗ₛⁱ[j+1]) for j in i⃗ᴱ̸] for i⃗ₛⁱ in i⃗ₛ]
-    return tuple([uˢ, s⃗, o⃗[i⃗ᴱ̸], [𝓁[i⃗ᴱ̸] for 𝓁 in 𝓁⃗],
-                  [[uˢ[i][s⃗ᵢⱼ] for s⃗ᵢⱼ in s⃗ᵢ] for i, s⃗ᵢ in enumerate(s⃗)]]+u̇_u̇ˢ)
+    s⃗ = [[slice(i⃗ₛⁱ[j], i⃗ₛⁱ[j + 1]) for j in i⃗ᴱ̸] for i⃗ₛⁱ in i⃗ₛ]
+    return tuple(
+        [
+            uˢ,
+            s⃗,
+            o⃗[i⃗ᴱ̸],
+            [𝓁[i⃗ᴱ̸] for 𝓁 in 𝓁⃗],
+            [[uˢ[i][s⃗ᵢⱼ] for s⃗ᵢⱼ in s⃗ᵢ] for i, s⃗ᵢ in enumerate(s⃗)],
+        ]
+        + u̇_u̇ˢ
+    )

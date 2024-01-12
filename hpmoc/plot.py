@@ -216,8 +216,16 @@ from copy import deepcopy
 from functools import partial
 from warnings import warn
 from typing import (
-    Optional, Union, Tuple, Iterable, Callable,
-    Sequence, Mapping, Sized, Any, TYPE_CHECKING
+    Optional,
+    Union,
+    Tuple,
+    Iterable,
+    Callable,
+    Sequence,
+    Mapping,
+    Sized,
+    Any,
+    TYPE_CHECKING,
 )
 from textwrap import indent, wrap
 from .healpy import healpy as hp
@@ -246,8 +254,8 @@ if TYPE_CHECKING:
     from .partial import PartialUniqSkymap
 
 DEFAULT_CBAR_KWARGS = {
-    'orientation': 'horizontal',
-    'aspect': 40,
+    "orientation": "horizontal",
+    "aspect": 40,
 }
 EDGE_EXCLUSION = 80
 EXCLUSIONS_INITIALIZED = [False]
@@ -269,12 +277,12 @@ DEFAULT_NCOLS = 2
 BASE_FONT_SIZE = 10
 DEFAULT_C_KWARGS = {}
 DEFAULT_CLABEL_KWARGS = {
-    'inline': False,
-    'fontsize': BASE_FONT_SIZE,
+    "inline": False,
+    "fontsize": BASE_FONT_SIZE,
 }
-_DELTA_HIGHRES = tuple(v*.1**i for i in range(20) for v in (5, 2, 1))
-DELTA_PARALLELS = (15.,)+_DELTA_HIGHRES     # space btwn graticule parallels
-DELTA_MERIDIANS = (30., 10.)+_DELTA_HIGHRES #   and meridians [deg]
+_DELTA_HIGHRES = tuple(v * 0.1**i for i in range(20) for v in (5, 2, 1))
+DELTA_PARALLELS = (15.0,) + _DELTA_HIGHRES  # space btwn graticule parallels
+DELTA_MERIDIANS = (30.0, 10.0) + _DELTA_HIGHRES  #   and meridians [deg]
 MIN_GRAT = 3
 _WCS_HEADERS = dict()
 _WCS_FRAMES = dict()
@@ -282,12 +290,12 @@ _SHARED = {
     "NAXIS": 2,
     "NAXIS2": 180,
     "CRVAL1": 180.0,
-    "CTYPE1": 'RA---',
-    "CUNIT1": 'deg',
+    "CTYPE1": "RA---",
+    "CUNIT1": "deg",
     "CRVAL2": 0.0,
-    "CTYPE2": 'DEC--',
-    "CUNIT2": 'deg',
-    "COORDSYS": 'icrs'
+    "CTYPE2": "DEC--",
+    "CUNIT2": "deg",
+    "COORDSYS": "icrs",
 }
 _ALL_SKY = _SHARED.copy()
 _ALL_SKY["NAXIS1"] = 360.0
@@ -302,43 +310,91 @@ _PROJ_SETTINGS = {
     "allsky": (
         _ALL_SKY,
         {
-            'MOL': (('Mollweide', 'mollview', 'Homolographic', 'Homalographic',
-                     'Babinet', 'Elliptical'),
-                    {'CDELT1': AIT_MOL_CDELT_BASE,
-                     'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
-            'AIT': (('Hammer-Aitoff', 'Aitoff', 'Hammer', 'Aitov',
-                     'Hammer equal-area'),
-                    {'CDELT1': AIT_MOL_CDELT_BASE,
-                     'CDELT2': AIT_MOL_CDELT_BASE}, 'e'),
-            'CAR': (('Carée', 'Plate carée', 'Caree', 'Plate caree',
-                     'Cartesian', 'Tyre', 'cartview',
-                     'Equidistant cylindrical'),
-                    {'CDELT1': 1, 'CDELT2': 1}, 'r'),
-            'CEA': (('Cylindrical equal-area', 'Lambert equal area'),
-                    {'CDELT1': 1, 'CDELT2': CEA_CDELT2_BASE}, 'r'),
-            'SFL': (('Sanson-Flamsteed',),
-                    {'CDELT1': 1, 'CDELT2': 1}, 'p'),
-            'PAR': (('Parabolic', 'Craster'),
-                    {'CDELT1': 1, 'CDELT2': 1}, 'p'),
+            "MOL": (
+                (
+                    "Mollweide",
+                    "mollview",
+                    "Homolographic",
+                    "Homalographic",
+                    "Babinet",
+                    "Elliptical",
+                ),
+                {"CDELT1": AIT_MOL_CDELT_BASE, "CDELT2": AIT_MOL_CDELT_BASE},
+                "e",
+            ),
+            "AIT": (
+                (
+                    "Hammer-Aitoff",
+                    "Aitoff",
+                    "Hammer",
+                    "Aitov",
+                    "Hammer equal-area",
+                ),
+                {"CDELT1": AIT_MOL_CDELT_BASE, "CDELT2": AIT_MOL_CDELT_BASE},
+                "e",
+            ),
+            "CAR": (
+                (
+                    "Carée",
+                    "Plate carée",
+                    "Caree",
+                    "Plate caree",
+                    "Cartesian",
+                    "Tyre",
+                    "cartview",
+                    "Equidistant cylindrical",
+                ),
+                {"CDELT1": 1, "CDELT2": 1},
+                "r",
+            ),
+            "CEA": (
+                ("Cylindrical equal-area", "Lambert equal area"),
+                {"CDELT1": 1, "CDELT2": CEA_CDELT2_BASE},
+                "r",
+            ),
+            "SFL": (("Sanson-Flamsteed",), {"CDELT1": 1, "CDELT2": 1}, "p"),
+            "PAR": (("Parabolic", "Craster"), {"CDELT1": 1, "CDELT2": 1}, "p"),
         },
     ),
     "zenithal": (
         _ZENITHAL,
         {
             # NB: TAN is just AZP (zenithal perspective) with mu set to zero.
-            'TAN': (('gnomonic', 'gnomview', 'Central', 'zoom'),
-                    {'CDELT1': TAN_CDELT_BASE, 'CDELT2': TAN_CDELT_BASE}, 'r'),
-            'SIN': (('Slant Orthographic', 'Orthographic', 'Globe',
-                     'orthview'),
-                    {'CDELT1': SIN_CDELT_BASE, 'CDELT2': SIN_CDELT_BASE}, 'e'),
-            'ARC': (('Zenithal Equidistant', 'azimuthal equidistant',
-                     'azeqview', 'Postel', 'Equidistant', 'Globular'),
-                    {'CDELT1': ARC_CDELT_BASE, 'CDELT2': ARC_CDELT_BASE}, 'e'),
-            'ZEA': (('Zenithal Equal-area', 'Azimuthal equivalent',
-                     'polar azimuthal', 'Lambert azimuthal equivalent',
-                     'Lambert azimuthal equal-area',
-                     'Lambert polar azimuthal', 'Lambert'),
-                    {'CDELT1': ZEA_CDELT_BASE, 'CDELT2': ZEA_CDELT_BASE}, 'e'),
+            "TAN": (
+                ("gnomonic", "gnomview", "Central", "zoom"),
+                {"CDELT1": TAN_CDELT_BASE, "CDELT2": TAN_CDELT_BASE},
+                "r",
+            ),
+            "SIN": (
+                ("Slant Orthographic", "Orthographic", "Globe", "orthview"),
+                {"CDELT1": SIN_CDELT_BASE, "CDELT2": SIN_CDELT_BASE},
+                "e",
+            ),
+            "ARC": (
+                (
+                    "Zenithal Equidistant",
+                    "azimuthal equidistant",
+                    "azeqview",
+                    "Postel",
+                    "Equidistant",
+                    "Globular",
+                ),
+                {"CDELT1": ARC_CDELT_BASE, "CDELT2": ARC_CDELT_BASE},
+                "e",
+            ),
+            "ZEA": (
+                (
+                    "Zenithal Equal-area",
+                    "Azimuthal equivalent",
+                    "polar azimuthal",
+                    "Lambert azimuthal equivalent",
+                    "Lambert azimuthal equal-area",
+                    "Lambert polar azimuthal",
+                    "Lambert",
+                ),
+                {"CDELT1": ZEA_CDELT_BASE, "CDELT2": ZEA_CDELT_BASE},
+                "e",
+            ),
         },
     ),
 }
@@ -346,17 +402,23 @@ _PROJ_SETTINGS = {
 # WCS standard, and aliases as given in astro-ph/0207413
 for docname, (defaults, config) in _PROJ_SETTINGS.items():
     for proj, (aliases, projdefaults, frame) in config.items():
-        _docs[docname] += '        - ' + indent('\n'.join(
-            wrap(f"{proj}: *{', '.join(aliases)}*", 69)), ' '*10)[10:] + '\n'
+        _docs[docname] += (
+            "        - "
+            + indent(
+                "\n".join(wrap(f"{proj}: *{', '.join(aliases)}*", 69)),
+                " " * 10,
+            )[10:]
+            + "\n"
+        )
         _WCS_FRAMES[proj] = frame
         _WCS_HEADERS[proj] = defaults.copy()
-        _WCS_HEADERS[proj]['CTYPE1'] += proj
-        _WCS_HEADERS[proj]['CTYPE2'] += proj
+        _WCS_HEADERS[proj]["CTYPE1"] += proj
+        _WCS_HEADERS[proj]["CTYPE2"] += proj
         _WCS_HEADERS[proj].update(projdefaults)
         for alias in aliases:
             _WCS_HEADERS[alias.upper()] = _WCS_HEADERS[proj]
             _WCS_FRAMES[alias.upper()] = frame
-    _docs[docname] = _docs[docname].rstrip('\n')
+    _docs[docname] = _docs[docname].rstrip("\n")
 
 
 def _one_pt(scatter, rot):
@@ -364,34 +426,38 @@ def _one_pt(scatter, rot):
 
 
 def _set_delts(projection, hdelta, vdelta, scatter, sigmas):
-    return (projection in ['ARC', *_PROJ_SETTINGS['zenithal'][1]['ARC'][0]]
-            and hdelta is None and vdelta is None and sigmas
-            and len(scatter[0].points[0]) > 2)
+    return (
+        projection in ["ARC", *_PROJ_SETTINGS["zenithal"][1]["ARC"][0]]
+        and hdelta is None
+        and vdelta is None
+        and sigmas
+        and len(scatter[0].points[0]) > 2
+    )
 
 
 def get_frame_class(
-        projection: Union[
+    projection: Union[
+        str,
+        "WCS",
+        "astropy.io.fits.Header",
+    ] = "MOL",
+    frame_class: Optional[
+        Union[
             str,
-            'WCS',
-            'astropy.io.fits.Header',
-        ] = 'MOL',
-        frame_class: Optional[
-            Union[
-                str,
-                'astropy.visualization.wcsaxes.frame.BaseFrame',
-            ]
-        ] = None,
-        vdelta: Optional[float] = None,
-        hdelta: Optional[float] = None,
-        rot: Optional[
-            Union[
-                Tuple[float, float, float],
-                Tuple[float, float],
-            ]
-        ] = None,
-        scatter: Sequence[PointsTuple] = tuple(),
-        sigmas: Sequence[float] = (1,),
-) -> 'astropy.visualization.wcsaxes.frame.BaseFrame':
+            "astropy.visualization.wcsaxes.frame.BaseFrame",
+        ]
+    ] = None,
+    vdelta: Optional[float] = None,
+    hdelta: Optional[float] = None,
+    rot: Optional[
+        Union[
+            Tuple[float, float, float],
+            Tuple[float, float],
+        ]
+    ] = None,
+    scatter: Sequence[PointsTuple] = tuple(),
+    sigmas: Sequence[float] = (1,),
+) -> "astropy.visualization.wcsaxes.frame.BaseFrame":
     """
     Get the frame class associated with a given projection. If already given a
     ``frame_class``, returns it immediately, making this function idempotent.
@@ -427,52 +493,71 @@ def get_frame_class(
     """
     from astropy.visualization.wcsaxes import frame
 
-    if isinstance(frame_class, type) and \
-            issubclass(frame_class, frame.BaseFrame):
+    if isinstance(frame_class, type) and issubclass(
+        frame_class, frame.BaseFrame
+    ):
         return frame_class
     if isinstance(frame_class, str):
         return {
-            'ELLIPTICAL': frame.EllipticalFrame,
-            'RECTANGULAR': frame.RectangularFrame,
+            "ELLIPTICAL": frame.EllipticalFrame,
+            "RECTANGULAR": frame.RectangularFrame,
         }[frame_class.upper()]
     if {vdelta, hdelta} != {None} or not isinstance(projection, str):
         return frame.RectangularFrame
-    if _one_pt(scatter, rot) and _set_delts(projection, hdelta, vdelta,
-                                            scatter, sigmas):
+    if _one_pt(scatter, rot) and _set_delts(
+        projection, hdelta, vdelta, scatter, sigmas
+    ):
         return frame.RectangularFrame
     f = _WCS_FRAMES[projection.upper()]
-    if f == 'e':
+    if f == "e":
         return frame.EllipticalFrame
-    if f == 'r':
+    if f == "r":
         return frame.RectangularFrame
-    warn(f"Frame class for {projection} not yet available. Using default for "
-         "now; specify your own for a better-looking plot.", UserWarning)
+    warn(
+        f"Frame class for {projection} not yet available. Using default for "
+        "now; specify your own for a better-looking plot.",
+        UserWarning,
+    )
     return frame.RectangularFrame
 
 
-GET_FRAME_CLASS_KWARG_KEYS = ('frame_class', 'vdelta', 'hdelta', 'rot',
-                              'scatter', 'sigmas')
-GET_WCS_KWARG_KEYS = ('width', 'height', 'hdelta', 'vdelta', 'rot',
-                      'facing_sky', 'scatter', 'sigmas')
+GET_FRAME_CLASS_KWARG_KEYS = (
+    "frame_class",
+    "vdelta",
+    "hdelta",
+    "rot",
+    "scatter",
+    "sigmas",
+)
+GET_WCS_KWARG_KEYS = (
+    "width",
+    "height",
+    "hdelta",
+    "vdelta",
+    "rot",
+    "facing_sky",
+    "scatter",
+    "sigmas",
+)
 
 
 # TODO allow ICRS override
 def get_wcs(
-        projection: str,
-        width: Optional[int] = None,
-        height: int = DEFAULT_HEIGHT,
-        hdelta: Optional[float] = None,
-        vdelta: Optional[float] = None,
-        rot: Optional[
-            Union[
-                Tuple[float, float, float],
-                Tuple[float, float],
-            ]
-        ] = None,
-        facing_sky: bool = DEFAULT_FACING,
-        scatter: Sequence[PointsTuple] = tuple(),
-        sigmas: Sequence[float] = (),
-) -> 'WCS':
+    projection: str,
+    width: Optional[int] = None,
+    height: int = DEFAULT_HEIGHT,
+    hdelta: Optional[float] = None,
+    vdelta: Optional[float] = None,
+    rot: Optional[
+        Union[
+            Tuple[float, float, float],
+            Tuple[float, float],
+        ]
+    ] = None,
+    facing_sky: bool = DEFAULT_FACING,
+    scatter: Sequence[PointsTuple] = tuple(),
+    sigmas: Sequence[float] = (),
+) -> "WCS":
     """
     Get a ``WCS`` instance by name to match the given parameters.
 
@@ -551,44 +636,47 @@ def get_wcs(
     dec_dir = -1 if facing_sky else 1
     header = Header(_WCS_HEADERS[projection.upper()].copy())
     if width is not None:
-        header['CDELT1'] *= header['NAXIS1'] / width # type: ignore
-        header['NAXIS1'] = width # type: ignore
-    header['CRPIX1'] = header['NAXIS1'] / 2 + 0.5 # type: ignore
-    header['CDELT2'] *= header['NAXIS2'] / height # type: ignore
-    header['NAXIS2'] = height # type: ignore
-    header['CRPIX2'] = header['NAXIS2'] / 2 + 0.5 # type: ignore
+        header["CDELT1"] *= header["NAXIS1"] / width  # type: ignore
+        header["NAXIS1"] = width  # type: ignore
+    header["CRPIX1"] = header["NAXIS1"] / 2 + 0.5  # type: ignore
+    header["CDELT2"] *= header["NAXIS2"] / height  # type: ignore
+    header["NAXIS2"] = height  # type: ignore
+    header["CRPIX2"] = header["NAXIS2"] / 2 + 0.5  # type: ignore
     # rot set to point location if only one point present
     if _one_pt(scatter, rot):
         pt = scatter[0].points[0]
         rot = tuple(pt[:2])
         if _set_delts(projection, hdelta, vdelta, scatter, sigmas):
-            sig = 1.5 * max(sigmas) * pt[2] # type: ignore
-            header['CDELT1'] *= sig / 180
-            header['CDELT2'] *= sig / 180
+            sig = 1.5 * max(sigmas) * pt[2]  # type: ignore
+            header["CDELT1"] *= sig / 180
+            header["CDELT2"] *= sig / 180
     if rot:
-        header['CRVAL1'] = rot[0]
-        header['CRVAL2'] = rot[1]
+        header["CRVAL1"] = rot[0]
+        header["CRVAL2"] = rot[1]
         if len(rot) == 3:
-            header['LONPOLE'] = rot[2]
+            header["LONPOLE"] = rot[2]
         elif len(rot) == 2:
             if rot[1] < 0:
-                for name, (aliases, *_) in _PROJ_SETTINGS['allsky'][1].items():
-                    if projection.upper() in [n.upper()
-                                              for n in [name, *aliases]]:
-                        header['LONPOLE'] = 180
+                for name, (aliases, *_) in _PROJ_SETTINGS["allsky"][1].items():
+                    if projection.upper() in [
+                        n.upper() for n in [name, *aliases]
+                    ]:
+                        header["LONPOLE"] = 180
                         break
         else:
             raise ValueError(f"rot must have len 2 or 3; got {rot}")
     if hdelta is not None:
-        header['CDELT1'] = hdelta
+        header["CDELT1"] = hdelta
     if vdelta is not None:
-        header['CDELT2'] = vdelta
-    header['CDELT1'] *= dec_dir # type: ignore
+        header["CDELT2"] = vdelta
+    header["CDELT1"] *= dec_dir  # type: ignore
     return WCS(header)
 
 
-get_wcs.__doc__ = get_wcs.__doc__.format(allsky=_docs['allsky'], # type: ignore
-                                         zenithal=_docs['zenithal'])
+get_wcs.__doc__ = get_wcs.__doc__.format(
+    allsky=_docs["allsky"],  # type: ignore
+    zenithal=_docs["zenithal"],
+)
 
 
 def get_colormap(cmap, bad=None):
@@ -625,80 +713,77 @@ def get_projection(projection, *args, **kwargs):
 
 # TODO allow ICRS override
 def plot(
-        skymap: Union[
-            'PartialUniqSkymap',
+    skymap: Union[
+        "PartialUniqSkymap",
+        NDArray[Any],
+        Tuple[
             NDArray[Any],
-            Tuple[
-                NDArray[Any],
-                Optional[
-                    Union[
-                        NDArray['np.integer[Any]'],
-                        'WCS',
-                        str,
-                    ]
-                ],
+            Optional[
+                Union[
+                    NDArray["np.integer[Any]"],
+                    "WCS",
+                    str,
+                ]
             ],
         ],
-        *scatter: PointsTuple,
-        scatter_marker_size: float = BASE_FONT_SIZE*4,
-        scatter_label_size: float = BASE_FONT_SIZE,
-        vmin: Optional[float] = None,
-        vmax: Optional[float] = None,
-        cmap: Optional[
-            Union[str, 'matplotlib.colors.Colormap']
-        ] = 'gist_heat_r',
-        missing_color: Optional[Union[str, Tuple[int, int, int]]] = None,
-        nan_color: Optional[Union[str, Tuple[int, int, int]]] = None,
-        alpha: float = 1.,
-        sigmas: Sequence[float] = [],
-        outline_sigmas: Sequence[float] = [],
-        scatter_labels: Union[bool, dict] = True,
-        ax: Optional[Union[
-            'astropy.visualization.wcsaxes.WCSAxes',
-            'astropy.visualization.wcsaxes.WCSAxesSubplot'
-        ]] = None,
-        projection: Union[
-            str,
-            'WCS',
-            'astropy.io.fits.Header',
-        ] = 'Mollweide',
-        frame_class: Optional[
-            Union[
-                'astropy.visualization.wcsaxes.frame.BaseFrame',
-                str
-            ]
-        ] = None,
-        width: Optional[int] = None,
-        height: int = DEFAULT_HEIGHT,
-        hdelta: Optional[float] = None,
-        vdelta: Optional[float] = None,
-        rot: Optional[
-            Union[
-                Tuple[float, float, float],
-                Tuple[float, float],
-            ]
-        ] = None,
-        facing_sky: bool = DEFAULT_FACING,
-        fig: Optional[Union['matplotlib.figure.Figure', dict]] = None,
-        subplot: Optional[
-            Union[
-                Tuple[int, int, int],
-                'matplotlib.gridspec.SubplotSpec',
-            ]
-        ] = None,
-        cr: Iterable[float] = tuple(),
-        cr_format: Optional[Callable[[float, float], str]] = None,
-        cr_filled: bool = False,
-        cr_kwargs: Optional[dict] = None,
-        cr_label_kwargs: Optional[dict] = None,
-        pixels: Union[bool, dict] = False,
-        pixels_format: Optional[
-            Callable[['PartialUniqSkymap'], Iterable[str]]
-        ] = None,
-        cbar: Union[bool, dict] = False,
+    ],
+    *scatter: PointsTuple,
+    scatter_marker_size: float = BASE_FONT_SIZE * 4,
+    scatter_label_size: float = BASE_FONT_SIZE,
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    cmap: Optional[Union[str, "matplotlib.colors.Colormap"]] = "gist_heat_r",
+    missing_color: Optional[Union[str, Tuple[int, int, int]]] = None,
+    nan_color: Optional[Union[str, Tuple[int, int, int]]] = None,
+    alpha: float = 1.0,
+    sigmas: Sequence[float] = [],
+    outline_sigmas: Sequence[float] = [],
+    scatter_labels: Union[bool, dict] = True,
+    ax: Optional[
+        Union[
+            "astropy.visualization.wcsaxes.WCSAxes",
+            "astropy.visualization.wcsaxes.WCSAxesSubplot",
+        ]
+    ] = None,
+    projection: Union[
+        str,
+        "WCS",
+        "astropy.io.fits.Header",
+    ] = "Mollweide",
+    frame_class: Optional[
+        Union["astropy.visualization.wcsaxes.frame.BaseFrame", str]
+    ] = None,
+    width: Optional[int] = None,
+    height: int = DEFAULT_HEIGHT,
+    hdelta: Optional[float] = None,
+    vdelta: Optional[float] = None,
+    rot: Optional[
+        Union[
+            Tuple[float, float, float],
+            Tuple[float, float],
+        ]
+    ] = None,
+    facing_sky: bool = DEFAULT_FACING,
+    fig: Optional[Union["matplotlib.figure.Figure", dict]] = None,
+    subplot: Optional[
+        Union[
+            Tuple[int, int, int],
+            "matplotlib.gridspec.SubplotSpec",
+        ]
+    ] = None,
+    cr: Iterable[float] = tuple(),
+    cr_format: Optional[Callable[[float, float], str]] = None,
+    cr_filled: bool = False,
+    cr_kwargs: Optional[dict] = None,
+    cr_label_kwargs: Optional[dict] = None,
+    pixels: Union[bool, dict] = False,
+    pixels_format: Optional[
+        Callable[["PartialUniqSkymap"], Iterable[str]]
+    ] = None,
+    cbar: Union[bool, dict] = False,
 ) -> Union[
-    'astropy.visualization.wcsaxes.WCSAxes',
-    'astropy.visualization.wcsaxes.WCSAxesSubplot'
+    "astropy.visualization.wcsaxes.WCSAxes",
+    "astropy.visualization.wcsaxes.WCSAxesSubplot",
 ]:
     """
     Parameters
@@ -897,7 +982,7 @@ def plot(
             skymap = (skymap, None)
         skymap = PartialUniqSkymap(*skymap)
     ## rot set to point location if only one point present
-    #if len(scatter) == 1 and len(scatter[0].points) == 1 and rot is None:
+    # if len(scatter) == 1 and len(scatter[0].points) == 1 and rot is None:
     #    rot = tuple(scatter[0].points[0][:2])
 
     # initialize our axes if needed
@@ -906,24 +991,39 @@ def plot(
         if not isinstance(fig, Figure):
             fig = plt.figure(**(fig or {}))
         # initialize frame class
-        frame_class = get_frame_class(projection, frame_class, vdelta, hdelta,
-                                      rot, scatter, sigmas)
+        frame_class = get_frame_class(
+            projection, frame_class, vdelta, hdelta, rot, scatter, sigmas
+        )
         # initialize projection
-        projection = get_projection(projection, width=width, height=height,
-                                    hdelta=hdelta, vdelta=vdelta, rot=rot,
-                                    facing_sky=facing_sky, scatter=scatter,
-                                    sigmas=sigmas)
+        projection = get_projection(
+            projection,
+            width=width,
+            height=height,
+            hdelta=hdelta,
+            vdelta=vdelta,
+            rot=rot,
+            facing_sky=facing_sky,
+            scatter=scatter,
+            sigmas=sigmas,
+        )
         # initialize axes
         if subplot is None:
-            ax = WCSAxes(fig, rect=[0.1, 0.1, 0.9, 0.9], wcs=projection,
-                         frame_class=frame_class)
+            ax = WCSAxes(
+                fig,
+                rect=[0.1, 0.1, 0.9, 0.9],
+                wcs=projection,
+                frame_class=frame_class,
+            )
             fig.add_axes(ax)
         else:
             _subplot = subplot
             if isinstance(_subplot, SubplotSpec):
                 _subplot = (subplot,)
-            ax = fig.add_subplot(*_subplot, projection=projection, # type: ignore
-                                 frame_class=frame_class)
+            ax = fig.add_subplot(
+                *_subplot,
+                projection=projection,  # type: ignore
+                frame_class=frame_class,
+            )
     else:
         # initialize projection
         projection = ax.wcs
@@ -935,21 +1035,31 @@ def plot(
     # set default coordinate ticks and style
     outline = [outline_effect()]
     co_ra, co_dec = ax.coords
-    ra_ticks = get_ticks(ra.value+3, ra_exclusions(ax)+3,
-                         np.arange(30, 390, 30), 3, lambda x, d: x+d%360)
+    ra_ticks = get_ticks(
+        ra.value + 3,
+        ra_exclusions(ax) + 3,
+        np.arange(30, 390, 30),
+        3,
+        lambda x, d: x + d % 360,
+    )
     co_ra.set_major_formatter("dd")
     if len(ra_ticks) >= MIN_GRAT:
         co_ra.set_ticks(ra_ticks * deg)
-        #co_ra.set_ticks(spacing=30 * deg)
+        # co_ra.set_ticks(spacing=30 * deg)
     else:
         # use degree formatting by default
-        filled_arcmin = (np.histogram(ra, bins=360*120)[0] != 0).sum()
+        filled_arcmin = (np.histogram(ra, bins=360 * 120)[0] != 0).sum()
         if filled_arcmin < 10:
             co_ra.set_major_formatter("dd:mm:ss")
         elif filled_arcmin < 60 * 10:
             co_ra.set_major_formatter("dd:mm")
-    dec_ticks = get_ticks(dec.value, dec_exclusions(ax),
-                          np.arange(-75, 90, 15), 2, lambda x, _: x)
+    dec_ticks = get_ticks(
+        dec.value,
+        dec_exclusions(ax),
+        np.arange(-75, 90, 15),
+        2,
+        lambda x, _: x,
+    )
     if len(dec_ticks) >= MIN_GRAT:
         co_dec.set_major_formatter("dd")
         co_dec.set_ticks(dec_ticks * deg)
@@ -960,10 +1070,14 @@ def plot(
     co_ra.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
     co_dec.set_ticklabel(size=BASE_FONT_SIZE, path_effects=outline)
     # TODO override if not ICRS
-    co_ra.set_axislabel("Right ascension (ICRS) [deg]",
-                        size=BASE_FONT_SIZE, path_effects=outline)
-    co_dec.set_axislabel("Declination (ICRS) [deg]",
-                         size=BASE_FONT_SIZE, path_effects=outline)
+    co_ra.set_axislabel(
+        "Right ascension (ICRS) [deg]",
+        size=BASE_FONT_SIZE,
+        path_effects=outline,
+    )
+    co_dec.set_axislabel(
+        "Declination (ICRS) [deg]", size=BASE_FONT_SIZE, path_effects=outline
+    )
     ax.grid(True)
 
     # plot skymap
@@ -981,49 +1095,70 @@ def plot(
             ax.imshow(nans, vmin=0, vmax=1, cmap=ncmap, alpha=alpha)
         if cbar is not False:
             kw = DEFAULT_CBAR_KWARGS.copy()
-            label = skymap.name or ''
+            label = skymap.name or ""
             if skymap.unit is not None:
-                label += (' [{}]' if label else '{}').format(skymap.unit)
+                label += (" [{}]" if label else "{}").format(skymap.unit)
             if label:
-                kw['label'] = label
+                kw["label"] = label
             if cbar is not True:
                 kw.update(cbar)
             plt.colorbar(img, ax=ax, **kw)
 
     # plot scatterplots, layering sigma regions first
     # TODO do not scatter plot or label points that are off of the plot axes
-    transform = ax.get_transform('world')
-    label_transform = transform + ScaledTranslation(N_X_OFFSET/2, N_Y_OFFSET/2,
-                                                    ax.figure.dpi_scale_trans)
+    transform = ax.get_transform("world")
+    label_transform = transform + ScaledTranslation(
+        N_X_OFFSET / 2, N_Y_OFFSET / 2, ax.figure.dpi_scale_trans
+    )
     for pts in scatter:
         # Skip pts if it is empty, since you cannot have empty SkyCoords
         if not pts.points:
             continue
 
         # only include points in the visible region
-        pts_x, pts_y = ax.wcs.world_to_pixel(SkyCoord(
-            *[*zip(*((r, d) for r, d, *_ in pts.points))]*deg, frame='icrs'
-        ))
-        include = (pts_x < ax.wcs.pixel_shape[0]+.5) & (pts_x > .5)
-        include &= (pts_y < ax.wcs.pixel_shape[1]+.5) & (pts_y > .5)
+        pts_x, pts_y = ax.wcs.world_to_pixel(
+            SkyCoord(
+                *[*zip(*((r, d) for r, d, *_ in pts.points))] * deg,
+                frame="icrs",
+            )
+        )
+        include = (pts_x < ax.wcs.pixel_shape[0] + 0.5) & (pts_x > 0.5)
+        include &= (pts_y < ax.wcs.pixel_shape[1] + 0.5) & (pts_y > 0.5)
         col = pts.rgba.to_hex(False)
-        ax.scatter(pts_x[include], pts_y[include], c=col, marker=pts.marker,
-                   s=scatter_marker_size, label=pts.label, path_effects=outline,
-                   zorder=10)
+        ax.scatter(
+            pts_x[include],
+            pts_y[include],
+            c=col,
+            marker=pts.marker,
+            s=scatter_marker_size,
+            label=pts.label,
+            path_effects=outline,
+            zorder=10,
+        )
 
         # plot the shaded error circles, if needed
         cm = pts.cmap()
         for sigma in sigmas:
-            ax.imshow(pts.render(projection, extent=sigma), vmin=0, vmax=1,
-                      cmap=cm, zorder=5)
+            ax.imshow(
+                pts.render(projection, extent=sigma),
+                vmin=0,
+                vmax=1,
+                cmap=cm,
+                zorder=5,
+            )
 
         # plot the error circle outlines, if needed
         for outline_sigma in outline_sigmas:
             for ra, dec, sigma, _ in pts.points:
                 coord = SkyCoord(ra * deg, dec * deg)
-                s = SphericalCircle(coord, sigma * outline_sigma * deg,
-                    edgecolor=col, facecolor='none',
-                    transform=ax.get_transform('icrs'), zorder=5)
+                s = SphericalCircle(
+                    coord,
+                    sigma * outline_sigma * deg,
+                    edgecolor=col,
+                    facecolor="none",
+                    transform=ax.get_transform("icrs"),
+                    zorder=5,
+                )
                 ax.add_patch(s)
 
         # plot the scatter labels, if needed
@@ -1034,14 +1169,14 @@ def plot(
                 if len(sl) == 2:
                     pt_label = sl[1]
                 else:
-                    pt_label = str(i+1)
+                    pt_label = str(i + 1)
                 kw = {
-                    'fontsize': scatter_label_size,
-                    'path_effects': outline,
-                    'color': col,
-                    'va': 'bottom',
-                    'ha': 'left',
-                    'zorder': 15
+                    "fontsize": scatter_label_size,
+                    "path_effects": outline,
+                    "color": col,
+                    "va": "bottom",
+                    "ha": "left",
+                    "zorder": 15,
                 }
                 if not isinstance(scatter_labels, bool):
                     kw.update(scatter_labels)
@@ -1049,13 +1184,13 @@ def plot(
 
     # plot contours
     if cr.size > 1:
-        q = (1-cr)[::-1]
-        _, levels, _ = skymap.quantiles((1-cr[::-1]))
+        q = (1 - cr)[::-1]
+        _, levels, _ = skymap.quantiles((1 - cr[::-1]))
         levels = levels[1:]
         cr_lut = dict(
             zip(
                 levels.value if isinstance(levels, Quantity) else levels,
-                cr[-2::-1]
+                cr[-2::-1],
             )
         )
         ptrans = ax.get_transform(projection)
@@ -1070,67 +1205,71 @@ def plot(
             clabelkw = DEFAULT_CLABEL_KWARGS.copy()
             if cr_label_kwargs is not None:
                 clabelkw.update(cr_label_kwargs)
-            ax.clabel(cntrs, cntrs.levels, **clabelkw,
-                      fmt=lambda v: cr_format(cr_lut[v], v))
+            ax.clabel(
+                cntrs,
+                cntrs.levels,
+                **clabelkw,
+                fmt=lambda v: cr_format(cr_lut[v], v),
+            )
 
     return ax
 
 
 def gridplot(
-        *skymaps: Union[
-            'PartialUniqSkymap',
+    *skymaps: Union[
+        "PartialUniqSkymap",
+        NDArray[Any],
+        Tuple[
             NDArray[Any],
-            Tuple[
-                NDArray[Any],
-                Optional[
-                    Union[
-                        NDArray['np.integer[Any]'],
-                        'WCS',
-                        str,
-                    ]
-                ],
+            Optional[
+                Union[
+                    NDArray["np.integer[Any]"],
+                    "WCS",
+                    str,
+                ]
             ],
         ],
-        fig: Optional[
-            Union[
-                'matplotlib.figure.Figure',
-                'matplotlib.gridspec.GridSpec',
-                Mapping,
-            ]
-        ] = None,
-        projections: Sequence[
-            Union[
-                str,
-                'WCS',
-                'astropy.io.fits.Header',
-                Sequence[
-                    Union[
-                        str,
-                        'WCS',
-                        'astropy.io.fits.Header',
-                        'astropy.visualization.wcsaxes.WCSAxes',
-                    ]
-                ],
-            ]
-        ]= ('MOL',),
-        scatters: Optional[Sequence[Sequence[PointsTuple]]] = None,
-        # fig args
-        subplot_height: float = DEFAULT_GRID_ROW_HEIGHT,
-        # fig.add_gridspec args
-        ncols: int = DEFAULT_NCOLS,
-        hspace: float = DEFAULT_HSPACE,
-        wspace: float = DEFAULT_WSPACE,
-        wshrink: Union[float, Sequence[float]] = 1.,
-        # plotter args
-        subplot_kwargs: Optional[Sequence[Optional[Sequence[dict]]]] = None,
-        left=0.,
-        right=1.,
-        bottom=0.,
-        top=1.,
-        **kwargs
+    ],
+    fig: Optional[
+        Union[
+            "matplotlib.figure.Figure",
+            "matplotlib.gridspec.GridSpec",
+            Mapping,
+        ]
+    ] = None,
+    projections: Sequence[
+        Union[
+            str,
+            "WCS",
+            "astropy.io.fits.Header",
+            Sequence[
+                Union[
+                    str,
+                    "WCS",
+                    "astropy.io.fits.Header",
+                    "astropy.visualization.wcsaxes.WCSAxes",
+                ]
+            ],
+        ]
+    ] = ("MOL",),
+    scatters: Optional[Sequence[Sequence[PointsTuple]]] = None,
+    # fig args
+    subplot_height: float = DEFAULT_GRID_ROW_HEIGHT,
+    # fig.add_gridspec args
+    ncols: int = DEFAULT_NCOLS,
+    hspace: float = DEFAULT_HSPACE,
+    wspace: float = DEFAULT_WSPACE,
+    wshrink: Union[float, Sequence[float]] = 1.0,
+    # plotter args
+    subplot_kwargs: Optional[Sequence[Optional[Sequence[dict]]]] = None,
+    left=0.0,
+    right=1.0,
+    bottom=0.0,
+    top=1.0,
+    **kwargs,
 ) -> Tuple[
-        'matplotlib.gridspec.GridSpec',
-        Sequence[Sequence['astropy.visualization.wcsaxes.WCSAxes']]
+    "matplotlib.gridspec.GridSpec",
+    Sequence[Sequence["astropy.visualization.wcsaxes.WCSAxes"]],
 ]:
     """
     Make a grid plot of multiple skymaps (optionally with scatterplots for
@@ -1243,19 +1382,20 @@ def gridplot(
     from .partial import PartialUniqSkymap
 
     gs = fig if isinstance(fig, GridSpec) else None
-    fig = fig if gs is None else gs.figure # type: ignore
+    fig = fig if gs is None else gs.figure  # type: ignore
     projections = list(projections)
     nᵖ = len(projections)  # number of projections per skymap
-    nᶜ = len(skymaps)       # number of cells, i.e. skymaps
-    nˢ = nᶜ*nᵖ          # number of true subplots in fig
+    nᶜ = len(skymaps)  # number of cells, i.e. skymaps
+    nˢ = nᶜ * nᵖ  # number of true subplots in fig
     if gs is None:
-        nʳ = nᵖ*ncols       # number of true subplots per row
-        nrows = int(ceil(nᶜ/ncols))
+        nʳ = nᵖ * ncols  # number of true subplots per row
+        nrows = int(ceil(nᶜ / ncols))
     else:
         nʳ = gs.ncols
         if nʳ % nᵖ != 0:
-            raise ValueError(f"Cannot evenly fit {nᵖ} projections in "
-                             f"{nʳ} columns.")
+            raise ValueError(
+                f"Cannot evenly fit {nᵖ} projections in " f"{nʳ} columns."
+            )
         ncols = int(nʳ / nᵖ)
         nrows = gs.nrows
         if nrows * nʳ < nˢ:
@@ -1266,33 +1406,40 @@ def gridplot(
             s.point_sources if isinstance(s, PartialUniqSkymap) else []
             for s in skymaps
         ]
-    subplot_kwargs = subplot_kwargs or [None]*nᵖ
+    subplot_kwargs = subplot_kwargs or [None] * nᵖ
     if isinstance(wshrink, Sized):
         if len(wshrink) != nᵖ:
-            raise ValueError(f"Must provide one wshrink {wshrink} for "
-                             f"each projection {projections}")
+            raise ValueError(
+                f"Must provide one wshrink {wshrink} for "
+                f"each projection {projections}"
+            )
     else:
-        wshrink = [wshrink]*nᵖ
+        wshrink = [wshrink] * nᵖ
 
     if len(scatters) != nᶜ:
-        raise ValueError(f"scatters {scatters} must have same len as skymaps "
-                         f"{skymaps}")
+        raise ValueError(
+            f"scatters {scatters} must have same len as skymaps " f"{skymaps}"
+        )
     if len(subplot_kwargs) != nᵖ:
-        raise ValueError(f"subplot_kwargs {subplot_kwargs} must have same "
-                         f"len as projections {projections}")
+        raise ValueError(
+            f"subplot_kwargs {subplot_kwargs} must have same "
+            f"len as projections {projections}"
+        )
 
     # initialize kwargs
     for i in range(len(subplot_kwargs)):
         kw = subplot_kwargs[i]
         if kw is None:
-            subplot_kwargs[i] = [{}]*nᶜ # type: ignore
+            subplot_kwargs[i] = [{}] * nᶜ  # type: ignore
         elif len(kw) != nᶜ:
-            raise ValueError(f"{i}-th element of subplot_kwargs {kw} must "
-                             f"have same len as skymaps {skymaps} or else be "
-                             "omitted.")
+            raise ValueError(
+                f"{i}-th element of subplot_kwargs {kw} must "
+                f"have same len as skymaps {skymaps} or else be "
+                "omitted."
+            )
         del kw
         for j in range(nᶜ):
-            subplot_kwargs[i][j].update(kwargs) # type: ignore
+            subplot_kwargs[i][j].update(kwargs)  # type: ignore
 
     # initialize frame classes and projections
     frames = []
@@ -1301,20 +1448,32 @@ def gridplot(
         fa = []
         pa = []
         if isinstance(p, (str, WCS, Header)):
-            p = [p]*nᶜ
+            p = [p] * nᶜ
         for iᶜ, pp in enumerate(p):
-            kw = subplot_kwargs[iᵖ][iᶜ] # type: ignore
+            kw = subplot_kwargs[iᵖ][iᶜ]  # type: ignore
             if isinstance(pp, (str, WCS, Header)):
-                fa.append(get_frame_class(
-                    pp, scatter=scatters[iᶜ],
-                    **{k: v for k, v in kw.items()
-                       if k in GET_FRAME_CLASS_KWARG_KEYS}
-                ))
-                pa.append(get_projection(
-                    pp, scatter=scatters[iᶜ],
-                    **{k: v for k, v in kw.items()
-                       if k in GET_WCS_KWARG_KEYS}
-                ))
+                fa.append(
+                    get_frame_class(
+                        pp,
+                        scatter=scatters[iᶜ],
+                        **{
+                            k: v
+                            for k, v in kw.items()
+                            if k in GET_FRAME_CLASS_KWARG_KEYS
+                        },
+                    )
+                )
+                pa.append(
+                    get_projection(
+                        pp,
+                        scatter=scatters[iᶜ],
+                        **{
+                            k: v
+                            for k, v in kw.items()
+                            if k in GET_WCS_KWARG_KEYS
+                        },
+                    )
+                )
             else:
                 fa.append(pp.frame_class)
                 pa.append(pp.wcs)
@@ -1322,23 +1481,27 @@ def gridplot(
         frames.append(fa)
 
     # from https://matplotlib.org/tutorials/intermediate/gridspec.html
-    widths = [w * p[0].pixel_shape[0] / p[0].pixel_shape[1]
-              for w, p in zip(wshrink, projections)]
-    width_ratios = widths*ncols
-    nat_width, nat_height = (subplot_height*sum(width_ratios),
-                             subplot_height*nrows)
+    widths = [
+        w * p[0].pixel_shape[0] / p[0].pixel_shape[1]
+        for w, p in zip(wshrink, projections)
+    ]
+    width_ratios = widths * ncols
+    nat_width, nat_height = (
+        subplot_height * sum(width_ratios),
+        subplot_height * nrows,
+    )
     if not isinstance(fig, Figure):
         fkw = {
-            'figsize': (nat_width, nat_height),
-            'facecolor': 'w',
-            'edgecolor': 'k',
+            "figsize": (nat_width, nat_height),
+            "facecolor": "w",
+            "edgecolor": "k",
         }
-        fkw.update(**(fig or {})) # type: ignore
+        fkw.update(**(fig or {}))  # type: ignore
         fig = figure(**fkw)
     if gs is None:
         gs = fig.add_gridspec(
             nrows=nrows,
-            ncols=nᵖ*ncols,
+            ncols=nᵖ * ncols,
             width_ratios=width_ratios,
             hspace=hspace,
             wspace=wspace,
@@ -1352,15 +1515,22 @@ def gridplot(
     for iᵖ, (p, f, k) in enumerate(zip(projections, frames, subplot_kwargs)):
         axr = []
         for iᶜ, s in enumerate(skymaps):
-            row, col = divmod(iᶜ*nᵖ+iᵖ, nʳ)
-            ax = plot(s, *scatters[iᶜ], projection=p[iᶜ], fig=fig,
-                      subplot=gs[row, col], frame_class=f[iᶜ], **k[iᶜ])
+            row, col = divmod(iᶜ * nᵖ + iᵖ, nʳ)
+            ax = plot(
+                s,
+                *scatters[iᶜ],
+                projection=p[iᶜ],
+                fig=fig,
+                subplot=gs[row, col],
+                frame_class=f[iᶜ],
+                **k[iᶜ],
+            )
             # hide axis labels
             co_ra, co_dec = ax.coords
-            co_ra.set_axislabel_visibility_rule('labels')
-            co_dec.set_axislabel_visibility_rule('labels')
-            #co_ra.set_ticklabel_visible(row + 1 == nrows)
-            #co_dec.set_ticklabel_visible(False)
+            co_ra.set_axislabel_visibility_rule("labels")
+            co_dec.set_axislabel_visibility_rule("labels")
+            # co_ra.set_ticklabel_visible(row + 1 == nrows)
+            # co_dec.set_ticklabel_visible(False)
             axr.append(ax)
         axs.append(axr)
 
@@ -1374,10 +1544,12 @@ def _parametric_ra_exclusion(ra_height, w):
         *np.meshgrid(*map(np.arange, w.pixel_shape), sparse=True)
     ).icrs.ra.value[
         ra_height(w),
-        np.concatenate((
-            np.arange(int(w.pixel_shape[0])//EDGE_EXCLUSION),
-            -np.arange(1, int(w.pixel_shape[0])//EDGE_EXCLUSION),
-        ))
+        np.concatenate(
+            (
+                np.arange(int(w.pixel_shape[0]) // EDGE_EXCLUSION),
+                -np.arange(1, int(w.pixel_shape[0]) // EDGE_EXCLUSION),
+            )
+        ),
     ]
 
 
@@ -1385,12 +1557,14 @@ def _dec_exclusion(w):
     import numpy as np
 
     dec = w.pixel_to_world(
-            *np.meshgrid(*map(np.arange, w.pixel_shape), sparse=True)
-        ).icrs.dec.value[
-        np.concatenate((
-            np.arange(int(w.pixel_shape[1])//EDGE_EXCLUSION),
-            np.arange(1, int(w.pixel_shape[1])//EDGE_EXCLUSION),
-        ))
+        *np.meshgrid(*map(np.arange, w.pixel_shape), sparse=True)
+    ).icrs.dec.value[
+        np.concatenate(
+            (
+                np.arange(int(w.pixel_shape[1]) // EDGE_EXCLUSION),
+                np.arange(1, int(w.pixel_shape[1]) // EDGE_EXCLUSION),
+            )
+        )
     ]
     return dec[~np.isnan(dec)]
 
@@ -1419,14 +1593,17 @@ def _init_exclusions():
     from astropy.visualization.wcsaxes.frame import EllipticalFrame
 
     if not EXCLUSIONS_INITIALIZED[0]:
-        _RA_EXCLUSIONS[EllipticalFrame] = \
-            partial(_parametric_ra_exclusion,
-                    lambda w: int(w.pixel_shape[1])//2)
+        _RA_EXCLUSIONS[EllipticalFrame] = partial(
+            _parametric_ra_exclusion, lambda w: int(w.pixel_shape[1]) // 2
+        )
         EXCLUSIONS_INITIALIZED[0] = True
 
 
 _RA_EXCLUSIONS = {
-    object: partial(_parametric_ra_exclusion, lambda _: -1,),
+    object: partial(
+        _parametric_ra_exclusion,
+        lambda _: -1,
+    ),
 }
 _DEC_EXCLUSIONS = {
     object: _dec_exclusion,

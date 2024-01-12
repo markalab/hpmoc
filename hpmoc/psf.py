@@ -27,8 +27,9 @@ from .points import PointsTuple
 from .healpy import healpy as hp
 
 
-def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None,
-                 nside_factor=1, **kwargs):
+def psf_gaussian(
+    ra, dec, σ, cutoff=5, pt_label=None, nside=None, nside_factor=1, **kwargs
+):
     """
     Create a new Gaussian point-spread-function (PSF) ``PartialUniqSkymap``
     from the right-ascension ``ra``, declination ``dec``, and standard
@@ -63,18 +64,26 @@ def psf_gaussian(ra, dec, σ, cutoff=5, pt_label=None, nside=None,
     from astropy.units import deg, Quantity as Qnt  # pylint: disable=E0611
     from .partial import PartialUniqSkymap
 
-    Ω = [θ.to(deg) if isinstance(θ, Qnt) else θ*deg for θ in (ra, dec, σ)]
-    ra, dec, σ = Ω                              # store with dimensions
+    Ω = [θ.to(deg) if isinstance(θ, Qnt) else θ * deg for θ in (ra, dec, σ)]
+    ra, dec, σ = Ω  # store with dimensions
 
-    nˢ = nside or resol2nside(σ * nside_factor) # target NSIDE resolution
-    n⃗ = hp.query_disc(nˢ, hp.ang2vec(ra.value, dec.value, True),
-                      cutoff*σ.to('rad').value, nest=True)
-    inv2σsq = σ.to('rad')**-2/2                 # 1/2σ² factor
-    s⃗ = nest2dangle(n⃗, nˢ, ra, dec)             # distances from center
-    s⃗ *= s⃗                                      # in-place square exponent,
-    s⃗ *= -inv2σsq                               #   then const factor
-    np.exp(s⃗, out=s⃗)                            # in-place exponentiation
-    s⃗ *= inv2σsq/np.pi                          # final factor
+    nˢ = nside or resol2nside(σ * nside_factor)  # target NSIDE resolution
+    n⃗ = hp.query_disc(
+        nˢ,
+        hp.ang2vec(ra.value, dec.value, True),
+        cutoff * σ.to("rad").value,
+        nest=True,
+    )
+    inv2σsq = σ.to("rad") ** -2 / 2  # 1/2σ² factor
+    s⃗ = nest2dangle(n⃗, nˢ, ra, dec)  # distances from center
+    s⃗ *= s⃗  # in-place square exponent,
+    s⃗ *= -inv2σsq  #   then const factor
+    np.exp(s⃗, out=s⃗)  # in-place exponentiation
+    s⃗ *= inv2σsq / np.pi  # final factor
     pts = PointsTuple([(ra.value, dec.value, σ.value, pt_label)], **kwargs)
-    return PartialUniqSkymap(s⃗.to('sr-1'), nest2uniq(n⃗, nˢ, in_place=True),
-                             copy=False, point_sources=[pts])
+    return PartialUniqSkymap(
+        s⃗.to("sr-1"),
+        nest2uniq(n⃗, nˢ, in_place=True),
+        copy=False,
+        point_sources=[pts],
+    )
