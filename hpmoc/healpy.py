@@ -28,7 +28,6 @@ EXCEPTIONS = {}
 
 
 class LazyMod:
-
     def __init__(self, mod, defaults, exceptions=None):
         self._mod = mod
         self._defaults = defaults
@@ -46,20 +45,27 @@ class LazyMod:
                 raise ae
 
     def __dir__(self):
-        return sorted({*dir(importlib.import_module(self._mod)),
-                       *self._defaults.keys(), *self._exceptions.keys()})
+        return sorted(
+            {
+                *dir(importlib.import_module(self._mod)),
+                *self._defaults.keys(),
+                *self._exceptions.keys(),
+            }
+        )
 
 
 def nside2order(nside):
     """
     Drop-in replacement for healpy `~healpy.pixelfunc.nside2order`.
     """
-    if nside > 0 and nside < 1<<30:
-        res = len(f"{nside:b}")-1
-        if 1<<res == nside:
+    if nside > 0 and nside < 1 << 30:
+        res = len(f"{nside:b}") - 1
+        if 1 << res == nside:
             return res
-    raise ValueError(f"{nside} is not a valid nside parameter (must be an "
-                     "integral power of 2, less than 2**30)")
+    raise ValueError(
+        f"{nside} is not a valid nside parameter (must be an "
+        "integral power of 2, less than 2**30)"
+    )
 
 
 def pix2xyf(nside, ipix, nest=False):
@@ -71,16 +77,21 @@ def pix2xyf(nside, ipix, nest=False):
     scalar = np.isscalar(ipix)
     ipix = np.uint64(ipix) if scalar else ipix.astype(np.uint64)
     # Original healpy expects int64 only; uints cause problems here
-    ipix = ipix if nest else healpy\
-        .ring2nest(int(nside), ipix.astype(np.int64)).astype(np.uint64)
+    ipix = (
+        ipix
+        if nest
+        else healpy.ring2nest(int(nside), ipix.astype(np.int64)).astype(
+            np.uint64
+        )
+    )
     if scalar and not np.isscalar(ipix):
         ipix = ipix.ravel()[0]
     ipix = np.uint64(ipix) if scalar else ipix.astype(np.uint64)
-    nsq = nside*nside
-    f = ipix//nsq
-    #f = np.uint64(f) if scalar else f.astype(np.uint64)
-    i = ipix-f*nsq
-    return alt_compress(i), alt_compress(i>>np.uint64(1), True), f
+    nsq = nside * nside
+    f = ipix // nsq
+    # f = np.uint64(f) if scalar else f.astype(np.uint64)
+    i = ipix - f * nsq
+    return alt_compress(i), alt_compress(i >> np.uint64(1), True), f
 
 
 def xyf2pix(nside, x, y, face, nest=False):
@@ -92,18 +103,25 @@ def xyf2pix(nside, x, y, face, nest=False):
     # mixed int type products are cast to float; everything must be uint64
     nside = np.uint64(nside)
     face = np.uint64(face) if np.isscalar(face) else face.astype(np.uint64)
-    ipix = alt_expand(x) + (alt_expand(y) << np.uint64(1)) + face*nside*nside
+    ipix = (
+        alt_expand(x) + (alt_expand(y) << np.uint64(1)) + face * nside * nside
+    )
     assert isinstance(ipix, np.uint64) or np.issubdtype(ipix.dtype, np.uint64)
     # Original healpy expects int64 only; uints cause problems here.
-    ipix = ipix if nest else healpy\
-        .nest2ring(int(nside), ipix.astype(np.int64)).astype(np.uint64)
+    ipix = (
+        ipix
+        if nest
+        else healpy.nest2ring(int(nside), ipix.astype(np.int64)).astype(
+            np.uint64
+        )
+    )
     return ipix.ravel()[0] if scalar and not np.isscalar(ipix) else ipix
 
 
 if importlib.util.find_spec("healpy") is None:
-    ACTUAL_HP = 'astropy_healpix.healpy'
+    ACTUAL_HP = "astropy_healpix.healpy"
 else:
-    ACTUAL_HP = 'healpy'
+    ACTUAL_HP = "healpy"
 
 
 def ang2vec(theta, phi, lonlat=False):
@@ -154,16 +172,16 @@ def boundaries(nside, pix, step=1, nest=False):
     return ans.reshape((-1, 3, 4)) if _BOUNDARIES_SCALARIZED[0] else ans
 
 
-if ACTUAL_HP == 'astropy_healpix.healpy':
-    EXCEPTIONS['ang2vec'] = ang2vec
-    EXCEPTIONS['boundaries'] = boundaries
+if ACTUAL_HP == "astropy_healpix.healpy":
+    EXCEPTIONS["ang2vec"] = ang2vec
+    EXCEPTIONS["boundaries"] = boundaries
 
 
 HP_DEFAULTS = {
-    'UNSEEN': -1.6375e+30,
-    'nside2order': nside2order,
-    'pix2xyf': pix2xyf,
-    'xyf2pix': xyf2pix,
+    "UNSEEN": -1.6375e30,
+    "nside2order": nside2order,
+    "pix2xyf": pix2xyf,
+    "xyf2pix": xyf2pix,
 }
 
 healpy = LazyMod(ACTUAL_HP, HP_DEFAULTS, EXCEPTIONS)

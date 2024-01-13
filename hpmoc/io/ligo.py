@@ -19,7 +19,7 @@ Strategies for loading LIGO/Virgo/KAGRA skymaps into ``PartialUniqSkymap``
 instances.
 """
 
-from typing import Optional, Union, IO, TYPE_CHECKING
+from typing import Optional, Union, IO
 from hpmoc.io.abstract import IoStrategy
 from hpmoc.io.fits import load_ligo
 from hpmoc.partial import PartialUniqSkymap
@@ -27,6 +27,7 @@ from hpmoc.utils import uniq_coarsen, uniq_minimize
 
 import numpy as np
 from numpy.typing import ArrayLike
+
 
 class LigoIo(IoStrategy):
     """
@@ -41,7 +42,7 @@ class LigoIo(IoStrategy):
         *args,
         name: Optional[str] = None,
         coarsen: Optional[int] = None,
-        **kwargs
+        **kwargs,
     ):
         """
         Read a file saved in the format used by LIGO/Virgo for their skymaps.
@@ -63,11 +64,17 @@ class LigoIo(IoStrategy):
             Arguments to pass on to ``hpmoc.fits.load_ligo``.
         """
         if name is None:
-            name = 'PROBDENSITY'
+            name = "PROBDENSITY"
 
-        pt = skymap.point_sources if isinstance(skymap, PartialUniqSkymap) else []
+        pt = (
+            skymap.point_sources
+            if isinstance(skymap, PartialUniqSkymap)
+            else []
+        )
         if skymap is not None:
-            mask = skymap.u if isinstance(skymap, PartialUniqSkymap) else skymap
+            mask = (
+                skymap.u if isinstance(skymap, PartialUniqSkymap) else skymap
+            )
             mask = np.asarray(mask, dtype=np.int64)
             mask = uniq_coarsen(mask, coarsen) if coarsen is not None else mask
             mask = uniq_minimize(mask)[0]
@@ -83,7 +90,7 @@ class LigoIo(IoStrategy):
         file: Union[IO, str],
         name: Optional[str] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
         Write a skymap to file in the format used by LIGO/Virgo for their

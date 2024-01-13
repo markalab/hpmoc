@@ -18,14 +18,17 @@
 
 import numpy as np
 
-COMPRESS_MASKS = np.array([
-    0x5555555555555555,
-    0x3333333333333333,
-    0x0f0f0f0f0f0f0f0f,
-    0x00ff00ff00ff00ff,
-    0x0000ffff0000ffff,
-    0x00000000ffffffff,
-], dtype=np.uint64)
+COMPRESS_MASKS = np.array(
+    [
+        0x5555555555555555,
+        0x3333333333333333,
+        0x0F0F0F0F0F0F0F0F,
+        0x00FF00FF00FF00FF,
+        0x0000FFFF0000FFFF,
+        0x00000000FFFFFFFF,
+    ],
+    dtype=np.uint64,
+)
 
 
 def alt_compress(x, in_place=False):
@@ -56,9 +59,9 @@ def alt_compress(x, in_place=False):
         x = x.astype(np.uint64)
     x &= COMPRESS_MASKS[0]
     for i, m in enumerate(COMPRESS_MASKS[1:]):
-        hold = m&x
+        hold = m & x
         x &= ~m
-        x >>= np.uint64(1<<i)
+        x >>= np.uint64(1 << i)
         x |= hold
     return x
 
@@ -86,8 +89,8 @@ def alt_expand(x, in_place=False):
         x = x.astype(np.uint64)
     x &= COMPRESS_MASKS[-1]
     for i, m in enumerate(COMPRESS_MASKS[-2::-1]):
-        hold = m&x
+        hold = m & x
         x &= ~m
-        x <<= np.uint64(1<<(o-i-2))
+        x <<= np.uint64(1 << (o - i - 2))
         x |= hold
     return x

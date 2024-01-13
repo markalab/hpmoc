@@ -51,6 +51,7 @@
 import numpy as np
 from numpy.core.overrides import array_function_dispatch
 
+
 def unique_sorted(aux):
     """
     Faster version of ``np.unique`` that assumes a flat, sorted array
@@ -60,12 +61,12 @@ def unique_sorted(aux):
     mask[1:] = aux[1:] != aux[:-1]
     return aux[mask], np.arange(aux.size)[mask]
 
-def _intersect1d_dispatcher(
-        ar1, ar2, assume_unique=None, return_indices=None):
+
+def _intersect1d_dispatcher(ar1, ar2, assume_unique=None, return_indices=None):
     return (ar1, ar2)
 
 
-@array_function_dispatch(_intersect1d_dispatcher, module='numpy')
+@array_function_dispatch(_intersect1d_dispatcher, module="numpy")
 def intersect1d(ar1, ar2, assume_unique=(False, False), return_indices=False):
     """
     Find the intersection of two arrays.
@@ -139,18 +140,18 @@ def intersect1d(ar1, ar2, assume_unique=(False, False), return_indices=False):
 
     ar1 = ar1.ravel()
     if not assume_unique[0]:
-        ar1, ind1 = unique_sorted(np.sort(ar1, kind='stable'))
+        ar1, ind1 = unique_sorted(np.sort(ar1, kind="stable"))
 
     ar2 = ar2.ravel()
     if not assume_unique[1]:
-        ar2, ind2 = unique_sorted(np.sort(ar2, kind='stable'))
+        ar2, ind2 = unique_sorted(np.sort(ar2, kind="stable"))
 
     aux = np.concatenate((ar1, ar2))
     if return_indices:
-        aux_sort_indices = np.argsort(aux, kind='stable')
+        aux_sort_indices = np.argsort(aux, kind="stable")
         aux = aux[aux_sort_indices]
     else:
-        aux.sort(kind='stable')
+        aux.sort(kind="stable")
 
     mask = aux[1:] == aux[:-1]
     int1d = aux[:-1][mask]

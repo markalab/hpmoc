@@ -27,7 +27,6 @@ from ..points import PointsTuple
 from ..partial import PartialUniqSkymap
 from ..utils import uniq2order, read_partial_skymap
 
-import numpy as np
 from numpy.typing import ArrayLike
 
 
@@ -36,7 +35,7 @@ class BasicIo(IoStrategy):
     Read/write files saved in the default format used by ``PartialUniqSkymap``.
     """
 
-    #FIXME add mask
+    # FIXME add mask
     @classmethod
     def read(
         cls,
@@ -44,9 +43,9 @@ class BasicIo(IoStrategy):
         file: Union[IO, str],
         *args,
         name: Optional[str] = None,
-        uname: str = 'UNIQ',
-        empty = None,
-        **kwargs
+        uname: str = "UNIQ",
+        empty=None,
+        **kwargs,
     ) -> PartialUniqSkymap:
         """
         Read a file saved in the default format used by ``PartialUniqSkymap``.
@@ -83,10 +82,15 @@ class BasicIo(IoStrategy):
             if len(c) != 1:
                 raise ValueError(f"Ambiguous colname; pick from {c}")
             name = c[0]
-        #from IPython.core.debugger import set_trace; set_trace()
-        return PartialUniqSkymap(t[name], t[uname], name=name, empty=empty,
-                                 meta=t.meta,
-                                 point_sources=PointsTuple.meta_read(t.meta))
+        # from IPython.core.debugger import set_trace; set_trace()
+        return PartialUniqSkymap(
+            t[name],
+            t[uname],
+            name=name,
+            empty=empty,
+            meta=t.meta,
+            point_sources=PointsTuple.meta_read(t.meta),
+        )
 
     @classmethod
     def write(
@@ -95,8 +99,8 @@ class BasicIo(IoStrategy):
         file: Union[IO, str],
         *args,
         name: Optional[str] = None,
-        uname: str = 'UNIQ',
-        **kwargs
+        uname: str = "UNIQ",
+        **kwargs,
     ):
         """
         Read a file saved in the default format used by ``PartialUniqSkymap``.
@@ -134,7 +138,7 @@ class OldLigoIo(IoStrategy):
         name: Optional[str] = None,
         memmap: bool = True,
         coarsen: int = 0,
-        **kwargs
+        **kwargs,
     ):
         """
         Read a file saved in the format used by LIGO/Virgo for their skymaps.
@@ -165,19 +169,22 @@ class OldLigoIo(IoStrategy):
 
         if skymap is None:
             pt = []
-            m = np.arange(12)+4  # 12 base pixels = whole sky
+            m = np.arange(12) + 4  # 12 base pixels = whole sky
         elif isinstance(skymap, PartialUniqSkymap):
             pt = skymap.point_sources
             m = skymap.u
         else:
             pt = []
             m = np.asarray(skymap, dtype=np.int64)
-        m = np.unique(m >> (2*min(uniq2order(m.min()), coarsen)))
+        m = np.unique(m >> (2 * min(uniq2order(m.min()), coarsen)))
         p = read_partial_skymap(file, m, memmap=memmap)
-        return PartialUniqSkymap(np.squeeze(p[name]),
-                                 p['UNIQ'],
-                                 name=name, meta=p.meta,
-                                 point_sources=pt)
+        return PartialUniqSkymap(
+            np.squeeze(p[name]),
+            p["UNIQ"],
+            name=name,
+            meta=p.meta,
+            point_sources=pt,
+        )
 
     @classmethod
     def write(
@@ -186,7 +193,7 @@ class OldLigoIo(IoStrategy):
         file: Union[IO, str],
         name: Optional[str] = None,
         *args,
-        **kwargs
+        **kwargs,
     ):
         """
         Write a skymap to file in the format used by LIGO/Virgo for their
@@ -199,6 +206,7 @@ class IoRegistry:
     """
     Handle IO for ``PartialUniqSkymap`` instances.
     """
+
     basic = BasicIo
     ligo = LigoIo
     ligo_old = OldLigoIo

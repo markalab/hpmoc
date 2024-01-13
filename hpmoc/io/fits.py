@@ -35,7 +35,7 @@ from typing import (
     Optional,
     Iterable,
     cast,
-    TYPE_CHECKING
+    TYPE_CHECKING,
 )
 from ..healpy import healpy as hp
 from ..utils import (
@@ -50,16 +50,12 @@ from ..utils import (
 )
 
 if TYPE_CHECKING:
-    import numpy as np
+    from numpy import integer
     from numpy.typing import NDArray
 
-    UniqArray = NDArray['np.integer[Any]']
+    UniqArray = NDArray[integer[Any]]
 
-    from astropy.io.fits import (
-        Header,
-        BinTableHDU,
-        ColDefs
-    )
+    from astropy.io.fits import Header, BinTableHDU, ColDefs
     from astropy.io.fits.hdu.base import ExtensionHDU
     from astropy.units.quantity import Quantity
 
@@ -71,48 +67,50 @@ FITS_CARD_WIDTH = 80
 FITS_CARD_NAME_WIDTH = 8
 FITS_HEADER_LENGTH = FITS_BLOCKSIZE // FITS_CARD_WIDTH
 BINTABLE_TO_NUMPY_TYPES = {
-    'L': '?',    # boolean
+    "L": "?",  # boolean
     # 'X': bit, not supported for now.
-    'B': 'B',    # unsigned byte
-    'I': '>i2',  # 16-bit big-endian int
-    'J': '>i4',  # 32-bit big-endian int
-    'K': '>i8',  # 64-bit big-endian int
-    'A': 'b',    # char/signed byte
-    'E': '>f4',  # 32-bit big-endian floating point
-    'D': '>f8',  # 64-bit big-endian floating point
-    'C': '>c8',  # 64-bit big-endian complex floating point
-    'M': '>c16', # 128-bit big-endian complex floating point
+    "B": "B",  # unsigned byte
+    "I": ">i2",  # 16-bit big-endian int
+    "J": ">i4",  # 32-bit big-endian int
+    "K": ">i8",  # 64-bit big-endian int
+    "A": "b",  # char/signed byte
+    "E": ">f4",  # 32-bit big-endian floating point
+    "D": ">f8",  # 64-bit big-endian floating point
+    "C": ">c8",  # 64-bit big-endian complex floating point
+    "M": ">c16",  # 128-bit big-endian complex floating point
     # 'P': 32-bit array descriptor, not supported for now
     # 'Q': 64-bit array descriptor, not supported for now
 }
 HEADER_NON_META = re.compile(
     "|".join(
         (
-            'XTENSION',
-            'BITPIX',
-            'NAXIS[0-9]*',
-            'PCOUNT',
-            'GCOUNT',
-            'TFIELDS',
-            'TTYPE[0-9]*',
-            'TFORM[0-9]*',
-            'TUNIT[0-9]*',
+            "XTENSION",
+            "BITPIX",
+            "NAXIS[0-9]*",
+            "PCOUNT",
+            "GCOUNT",
+            "TFIELDS",
+            "TTYPE[0-9]*",
+            "TFORM[0-9]*",
+            "TUNIT[0-9]*",
         )
     )
 )
-TFORM = re.compile(r'([0-9]*)([LXBIJKAEDCMPQ])(.*)')
+TFORM = re.compile(r"([0-9]*)([LXBIJKAEDCMPQ])(.*)")
 BUFFER_ROWS = 4**8
 
 
 def calculate_max_rows_read(hdu, dtype, buf_rows):
     "Meant to handle BAYESTAR MOC and NEST + CWB skymaps."
     for name, coltype, *repeat in dtype:
-        if name in ('PROBDENSITY', 'PROB', 'PROBABILITY'):
+        if name in ("PROBDENSITY", "PROB", "PROBABILITY"):
             if repeat:
                 return buf_rows // repeat[0]
             return buf_rows
-    raise ValueError(f"Could not find a PROBABILITY column in {hdu.columns}, "
-                     "do not know how to proceed.")
+    raise ValueError(
+        f"Could not find a PROBABILITY column in {hdu.columns}, "
+        "do not know how to proceed."
+    )
 
 
 def extract_probdensity(hdu, chunk, offset):
@@ -123,11 +121,11 @@ def extract_probdensity(hdu, chunk, offset):
     # define up here for typing purposes
     nside = -1
 
-    ordering = hdu.header['ORDERING']
-    if ordering == 'NUNIQ':
-        u = chunk['UNIQ']
+    ordering = hdu.header["ORDERING"]
+    if ordering == "NUNIQ":
+        u = chunk["UNIQ"]
     else:
-        for probname in ('PROBDENSITY', 'PROBABILITY', 'PROB'):
+        for probname in ("PROBDENSITY", "PROBABILITY", "PROB"):
             if probname in hdu.columns.names:
                 fmt = cast(str, hdu.columns[probname].format)
                 m = TFORM.match(fmt)
@@ -136,67 +134,81 @@ def extract_probdensity(hdu, chunk, offset):
                 repeat = int(m[1]) if m[1] else 1
                 break
         else:
-            raise ValueError("Could not find a probability column in "
-                             f"HDU columns: {hdu.columns}")
-        nside = hdu.header['NSIDE']
-        inds = np.arange(repeat*offset, repeat*(offset+len(chunk)))
-        if ordering == 'RING':
+            raise ValueError(
+                "Could not find a probability column in "
+                f"HDU columns: {hdu.columns}"
+            )
+        nside = hdu.header["NSIDE"]
+        inds = np.arange(repeat * offset, repeat * (offset + len(chunk)))
+        if ordering == "RING":
             inds = hp.ring2nest(nside, inds)
-        elif ordering != 'NESTED':
+        elif ordering != "NESTED":
             raise ValueError(f"Unrecognized ordering: {ordering}")
         u = nest2uniq(inds, nside, in_place=True)
-    if 'PROBDENSITY' in hdu.columns.names:
-        return u, [Quantity(chunk['PROBDENSITY'], copy=False,
-                            unit=hdu.columns['PROBDENSITY'].unit)]
-    LOGGER.debug(f"PROBDENSITY not found in {hdu.columns}, trying to "
-                 f"calculate it from PROB column and NSIDE")
-    if 'PROBABILITY' in hdu.columns.names:
-        LOGGER.debug("Column named PROBABILITY found. Using for probability "
-                     "(Fermi GBM convention?)")
-        probname = 'PROBABILITY'
-    elif 'PROB' in hdu.columns.names:
-        probname = 'PROB'
+    if "PROBDENSITY" in hdu.columns.names:
+        return u, [
+            Quantity(
+                chunk["PROBDENSITY"],
+                copy=False,
+                unit=hdu.columns["PROBDENSITY"].unit,
+            )
+        ]
+    LOGGER.debug(
+        f"PROBDENSITY not found in {hdu.columns}, trying to "
+        f"calculate it from PROB column and NSIDE"
+    )
+    if "PROBABILITY" in hdu.columns.names:
+        LOGGER.debug(
+            "Column named PROBABILITY found. Using for probability "
+            "(Fermi GBM convention?)"
+        )
+        probname = "PROBABILITY"
+    elif "PROB" in hdu.columns.names:
+        probname = "PROB"
     else:
         raise ValueError(f"PROB not found in HDU columns: {hdu.columns}")
     probunit = hdu.columns[probname].unit
-    if not probunit == 'pix-1':
+    if not probunit == "pix-1":
         raise ValueError(f"Unexpected unit for {probname} column: {probunit}")
     prob = chunk[probname].ravel()  # handle CWB skymaps with repeated cols
-    if ordering == 'NUNIQ':
+    if ordering == "NUNIQ":
         nside = uniq2nside(u)
-    return u, [Quantity(prob/nside2pixarea(nside, degrees=False),
-                        copy=False, unit='sr-1')]
+    return u, [
+        Quantity(
+            prob / nside2pixarea(nside, degrees=False), copy=False, unit="sr-1"
+        )
+    ]
 
 
 def read_bintable_chunks(
-        stream: SupportsRead[bytes],
-        tables: int = -1,
-        buf_rows: int = BUFFER_ROWS,
-        extractor: Callable[
-            ['BinTableHDU', 'NDArray[Any]', int],
-            Tuple[
-                'UniqArray',
-                List['Quantity'],
-            ]
-        ] = extract_probdensity,
-        row_calculator: Callable[
-            [
-                'BinTableHDU',
-                List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
-                int,
-            ],
-            int
-        ] = calculate_max_rows_read,
-) -> Iterator[
+    stream: SupportsRead[bytes],
+    tables: int = -1,
+    buf_rows: int = BUFFER_ROWS,
+    extractor: Callable[
+        ["BinTableHDU", "NDArray[Any]", int],
         Tuple[
-            'BinTableHDU',
-            Iterator[
-                Tuple[
-                    'NDArray[Any]',
-                    List['Quantity'],
-                ]
-            ],
-        ]
+            "UniqArray",
+            List["Quantity"],
+        ],
+    ] = extract_probdensity,
+    row_calculator: Callable[
+        [
+            "BinTableHDU",
+            List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
+            int,
+        ],
+        int,
+    ] = calculate_max_rows_read,
+) -> Iterator[
+    Tuple[
+        "BinTableHDU",
+        Iterator[
+            Tuple[
+                "NDArray[Any]",
+                List["Quantity"],
+            ]
+        ],
+    ]
 ]:
     import numpy as np
     from astropy.io import fits
@@ -213,8 +225,8 @@ def read_bintable_chunks(
 
         dtype = bintable_dtype(hdu)
         max_rows = row_calculator(hdu, dtype, buf_rows)
-        total_rows = cast(int, hdu.header['NAXIS2'])
-        width = cast(int, hdu.header['NAXIS1'])
+        total_rows = cast(int, hdu.header["NAXIS2"])
+        width = cast(int, hdu.header["NAXIS1"])
         assert total_rows * width == hdu.size
 
         # create a generator for each HDU
@@ -222,8 +234,8 @@ def read_bintable_chunks(
             offset = 0
             while offset < total_rows:
                 rows = min(max_rows, total_rows - offset)
-                chunk = np.frombuffer(stream.read(width*rows), dtype=dtype)
-                yield extractor(cast('BinTableHDU', hdu), chunk, offset)
+                chunk = np.frombuffer(stream.read(width * rows), dtype=dtype)
+                yield extractor(cast("BinTableHDU", hdu), chunk, offset)
                 offset += rows
             assert offset == total_rows
             position_in_block = hdu.size % FITS_BLOCKSIZE
@@ -235,44 +247,54 @@ def read_bintable_chunks(
 
 
 def load_ligo(
-        infile: Union[SupportsRead[bytes], str, Path],
-        mask: Optional['UniqArray'] = None,
-        maps: Optional[Union[int, Iterable[int]]] = None,
-        extractor: Callable[
-            ['BinTableHDU', 'NDArray[Any]', int],
-            Tuple[
-                'UniqArray',
-                List['Quantity'],
-            ]
-        ] = extract_probdensity,
-        row_calculator: Callable[
-            [
-                'BinTableHDU',
-                List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
-                int,
-            ],
-            int
-        ] = calculate_max_rows_read,
-        chunk_processor: Optional[Callable[
-            ['UniqArray', 'NDArray[Any]'],
-            Tuple['UniqArray', 'NDArray[Any]']
-        ]] = uniq_minimize,
-        post_processor: Optional[Callable[
-            ['UniqArray', 'NDArray[Any]'],
-            Tuple['UniqArray', 'NDArray[Any]']
-        ]] = uniq_minimize,
-        buf_rows: int = BUFFER_ROWS,
-) -> Iterator[Tuple['UniqArray', 'Quantity', OrderedDict]]:
+    infile: Union[SupportsRead[bytes], str, Path],
+    mask: Optional["UniqArray"] = None,
+    maps: Optional[Union[int, Iterable[int]]] = None,
+    extractor: Callable[
+        ["BinTableHDU", "NDArray[Any]", int],
+        Tuple[
+            "UniqArray",
+            List["Quantity"],
+        ],
+    ] = extract_probdensity,
+    row_calculator: Callable[
+        [
+            "BinTableHDU",
+            List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]],
+            int,
+        ],
+        int,
+    ] = calculate_max_rows_read,
+    chunk_processor: Optional[
+        Callable[
+            ["UniqArray", "NDArray[Any]"], Tuple["UniqArray", "NDArray[Any]"]
+        ]
+    ] = uniq_minimize,
+    post_processor: Optional[
+        Callable[
+            ["UniqArray", "NDArray[Any]"], Tuple["UniqArray", "NDArray[Any]"]
+        ]
+    ] = uniq_minimize,
+    buf_rows: int = BUFFER_ROWS,
+) -> Iterator[Tuple["UniqArray", "Quantity", OrderedDict]]:
     import numpy as np
 
     if isinstance(infile, (str, Path)):
-        with (gzip.open if is_gz(infile) else open)(infile, 'rb') as stream:
-            for tab in load_ligo(stream, mask, maps, extractor, row_calculator,
-                                 chunk_processor, post_processor, buf_rows):
+        with (gzip.open if is_gz(infile) else open)(infile, "rb") as stream:
+            for tab in load_ligo(
+                stream,
+                mask,
+                maps,
+                extractor,
+                row_calculator,
+                chunk_processor,
+                post_processor,
+                buf_rows,
+            ):
                 yield tab
         return
     if mask is not None:
-        mask, = uniq_minimize(mask)
+        (mask,) = uniq_minimize(mask)
     if maps is None:
         tables = -1
     elif isinstance(maps, int):
@@ -289,13 +311,13 @@ def load_ligo(
     # fits file
     next_hdu(infile)
     for i, [hdu, table] in enumerate(
-            read_bintable_chunks(
-                infile,
-                tables=tables,
-                buf_rows=buf_rows,
-                extractor=extractor,
-                row_calculator=row_calculator
-            )
+        read_bintable_chunks(
+            infile,
+            tables=tables,
+            buf_rows=buf_rows,
+            extractor=extractor,
+            row_calculator=row_calculator,
+        )
     ):
         us = []
         ss = []
@@ -317,7 +339,7 @@ def load_ligo(
         for k, v, *_ in hdu.header.cards:
             if HEADER_NON_META.match(k) is not None:
                 continue
-            if k == 'HISTORY':
+            if k == "HISTORY":
                 if k in meta:
                     meta[k].append(v)
                 else:
@@ -331,19 +353,19 @@ def load_ligo(
 
 
 def bintable_dtype(
-        hdu: 'BinTableHDU',
+    hdu: "BinTableHDU",
 ) -> List[Union[Tuple[str, str], Tuple[str, str, Tuple[int]]]]:
     """
     Get list that can be passed to ``numpy.dtype`` to define a structured
     datatype corresponding to the data in the table ``hdu``.
     """
     types = []
-    for col in cast('ColDefs', hdu.columns):
+    for col in cast("ColDefs", hdu.columns):
         m = TFORM.match(cast(str, col.format))
         assert m is not None
         g = m.groups()
         dt = BINTABLE_TO_NUMPY_TYPES[g[1]]
-        tup = (col.name or '', dt)
+        tup = (col.name or "", dt)
         if g[0]:
             tup += (int(g[0]),)
         types.append(tup)
@@ -355,13 +377,13 @@ def _next_header_blocks(stream: SupportsRead[bytes]):
     if not block:
         return block
     for i in range(FITS_HEADER_LENGTH):
-        start = i*FITS_CARD_WIDTH
-        if block[start:start+FITS_CARD_NAME_WIDTH] == b'END     ':
+        start = i * FITS_CARD_WIDTH
+        if block[start : start + FITS_CARD_NAME_WIDTH] == b"END     ":
             return block
     return block + _next_header_blocks(stream)
 
 
-def next_header(stream: SupportsRead[bytes]) -> 'Header':
+def next_header(stream: SupportsRead[bytes]) -> "Header":
     "Read the next ``astropy.fits.Header`` from a fits file stream (bytes)."
     from astropy.io import fits
 
@@ -371,11 +393,11 @@ def next_header(stream: SupportsRead[bytes]) -> 'Header':
     return fits.Header.fromstring(header)
 
 
-def next_hdu(stream: SupportsRead[bytes]) -> 'ExtensionHDU':
+def next_hdu(stream: SupportsRead[bytes]) -> "ExtensionHDU":
     "Read the next FITS HDU from a fits file stream (bytes)."
     from astropy.io import fits
 
     header = _next_header_blocks(stream)
     if not header:
         raise EmptyStream("Stream ended.")
-    return cast('ExtensionHDU', fits.HDUList.fromstring(header)[0])
+    return cast("ExtensionHDU", fits.HDUList.fromstring(header)[0])
