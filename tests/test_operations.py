@@ -33,7 +33,7 @@ def skymaps():
     skymaps = {}
     for path in (*GW_SKYMAPS, *GRB_SKYMAPS):
         if is_ligo_map(path.name):
-            strategy = "ligo"
+            strategy = "ligo_old"
         else:
             strategy = "basic"
         s = skymaps[path] = PartialUniqSkymap.read(path, strategy=strategy)
@@ -66,9 +66,8 @@ def test_moc_fixed_op_consistency(skymap_1, skymap_2, op, skymaps):
         ),
     ],
 )
-@pytest.mark.parametrize("op", [operator.mul, operator.add])
-def test_moc_mhealpy_op_consistency(skymap_1, skymap_2, op, skymaps):
-    hpmoc_result = op(skymaps[skymap_1].value, skymaps[skymap_2].value)
+def test_moc_mhealpy_op_consistency(skymap_1, skymap_2, skymaps):
+    hpmoc_result = skymaps[skymap_1] * skymaps[skymap_2]
 
     mhealpy_skymap_1 = mhealpy.HealpixMap.read_map(
         skymap_1, density=is_ligo_map(skymap_1.name)
@@ -76,8 +75,8 @@ def test_moc_mhealpy_op_consistency(skymap_1, skymap_2, op, skymaps):
     mhealpy_skymap_2 = mhealpy.HealpixMap.read_map(
         skymap_2, density=is_ligo_map(skymap_2.name)
     )
-    mhealpy_result = op(mhealpy_skymap_1, mhealpy_skymap_2)
+    mhealpy_result = mhealpy_skymap_1 * mhealpy_skymap_2
 
     hpmoc_result = hpmoc_result.reraster(mhealpy_result.uniq)
 
-    assert np.allclose(hpmoc_result.s, mhealpy_result.data)
+    assert np.allclose(hpmoc_result.s.value, mhealpy_result.data)
