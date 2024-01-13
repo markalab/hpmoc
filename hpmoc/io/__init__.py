@@ -27,7 +27,6 @@ from ..points import PointsTuple
 from ..partial import PartialUniqSkymap
 from ..utils import uniq2order, read_partial_skymap
 
-import numpy as np
 from numpy.typing import ArrayLike
 
 

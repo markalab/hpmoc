@@ -18,6 +18,7 @@
 import re
 from collections import OrderedDict
 from typing import NamedTuple, Union, List, Tuple, Optional
+from typing_extensions import Self
 from .utils import wcs2ang, uniq2nest_and_nside, monochrome_opacity_colormap
 
 PT_META_REGEX = re.compile("^PT([0-9A-Fa-f])_([0-9A-Fa-f]{2})(RA|DC|SG|ST)$")
@@ -156,7 +157,7 @@ class PointsTuple(NamedTuple):
         return type(self)(**kw)
 
     @classmethod
-    def meta_read(cls, meta: dict) -> List["__class__"]:
+    def meta_read(cls, meta: dict) -> List[Self]:
         f"""
         Read points following the regular expression {PT_META_REGEX}
         from a dictionary ``meta`` into a ``PointsTuple``. Specify ``PTRGBAi``,

@@ -228,7 +228,6 @@ from typing import (
     TYPE_CHECKING,
 )
 from textwrap import indent, wrap
-from .healpy import healpy as hp
 from .utils import (
     outline_effect,
     N_X_OFFSET,
@@ -969,7 +968,6 @@ def plot(
     from astropy.coordinates.sky_coordinate import SkyCoord
     from astropy.visualization.wcsaxes import WCSAxes, SphericalCircle
     from astropy.visualization.wcsaxes.frame import (
-        RectangularFrame,
         EllipticalFrame,
     )
     from astropy.units import Quantity, deg
@@ -1184,7 +1182,6 @@ def plot(
 
     # plot contours
     if cr.size > 1:
-        q = (1 - cr)[::-1]
         _, levels, _ = skymap.quantiles((1 - cr[::-1]))
         levels = levels[1:]
         cr_lut = dict(

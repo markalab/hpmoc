@@ -19,7 +19,7 @@ Strategies for loading LIGO/Virgo/KAGRA skymaps into ``PartialUniqSkymap``
 instances.
 """
 
-from typing import Optional, Union, IO, TYPE_CHECKING
+from typing import Optional, Union, IO
 from hpmoc.io.abstract import IoStrategy
 from hpmoc.io.fits import load_ligo
 from hpmoc.partial import PartialUniqSkymap

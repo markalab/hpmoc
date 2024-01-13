@@ -50,10 +50,10 @@ from ..utils import (
 )
 
 if TYPE_CHECKING:
-    import numpy as np
+    from numpy import integer
     from numpy.typing import NDArray
 
-    UniqArray = NDArray["np.integer[Any]"]
+    UniqArray = NDArray[integer[Any]]
 
     from astropy.io.fits import Header, BinTableHDU, ColDefs
     from astropy.io.fits.hdu.base import ExtensionHDU
